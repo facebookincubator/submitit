@@ -1,0 +1,87 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
+from pathlib import Path
+from typing import Any, Tuple
+
+import pytest
+
+from ..core import utils
+from ..core.core import Job
+from . import debug
+
+
+def test_debug_job(tmp_path: Path) -> None:
+    def func(p: int) -> int:
+        return 2 * p
+
+    executor = debug.DebugExecutor(tmp_path)
+    job = executor.submit(func, 4)
+    assert job.result() == 8
+    with executor.batch():
+        job2 = executor.submit(func, 5)
+    assert job2.result() == 10
+    # Check that job results are cached.
+    job2.submission().function = None  # type: ignore
+    assert job2.result() == 10
+
+
+def test_debug_job_array(tmp_path: Path) -> None:
+    n = 5
+    data1, data2 = range(n), range(10, 10 + n)
+
+    def g(x: int, y: int) -> int:
+        assert x in data1
+        assert y in data2
+        return x + y
+
+    executor = debug.DebugExecutor(tmp_path)
+    jobs = executor.map_array(g, data1, data2)
+    print(type(jobs[0]))
+    print(jobs)
+
+    assert list(map(g, data1, data2)) == [j.result() for j in jobs]
+
+
+def test_debug_error(tmp_path: Path) -> None:
+    def failing_job() -> None:
+        raise Exception("Failed on purpose")
+
+    executor = debug.DebugExecutor(tmp_path)
+    job = executor.submit(failing_job)
+    exception = job.exception()
+    assert isinstance(exception, Exception)
+    message = exception.args[0]
+    assert "Failed on purpose" in message
+
+
+def f_42() -> int:
+    return 42
+
+
+def test_debug_triggered(tmp_path: Path) -> None:
+    def get_result(job: Job) -> Tuple[bool, Any]:
+        assert isinstance(job, debug.DebugJob)
+        return (job._submission._done, job._submission._result)
+
+    executor = debug.DebugExecutor(tmp_path)
+    for trigger in ("wait", "done", "exception", "results"):
+        job = executor.submit(f_42)
+        assert job.state == "QUEUED"
+        assert get_result(job) == (False, None)
+        getattr(job, trigger)()
+        assert job.state == "DONE"
+        assert get_result(job) == (True, 42)
+
+
+def test_cancel(tmp_path: Path) -> None:
+    executor = debug.DebugExecutor(tmp_path)
+    job = executor.submit(f_42)
+    assert job.state == "QUEUED"
+    job.cancel()
+    assert job.state == "CANCELLED"
+    with pytest.raises(utils.UncompletedJobError, match="was cancelled"):
+        job.result()

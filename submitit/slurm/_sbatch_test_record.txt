@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Parameters
+#SBATCH --blublu=12
+#SBATCH --error=/tmp/%j_0_log.err
+#SBATCH --exclusive
+#SBATCH --job-name=submitit
+#SBATCH --mem=64GB
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --open-mode=append
+#SBATCH --output=/tmp/%j_0_log.out
+#SBATCH --partition=learnfair
+#SBATCH --signal=USR1@90
+#SBATCH --time=5
+#SBATCH --wckey=submitit
+
+# command
+srun --output '/tmp/%j_%t_log.out' --error '/tmp/%j_%t_log.err' --unbuffered blublu
