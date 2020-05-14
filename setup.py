@@ -29,6 +29,10 @@ setup(
     python_requires=">=3.6",
     long_description=Path("README.md").read_text(),
     long_description_content_type="text/markdown",
+    project_urls={
+        "Source": "https://github.com/facebookincubator/submitit",
+        "Tracker": "https://github.com/facebookincubator/submitit/issues",
+    },
     packages=find_packages(),
     install_requires=requirements["main"],
     extras_require={"dev": requirements["dev"]},
