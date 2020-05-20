@@ -67,7 +67,6 @@ See the following pages for more detailled information:
 - [Checkpointing](docs/checkpointing.md): to understand how you can configure your job to get checkpointed when preempted and/or timed-out.
 - [Tips and caveats](docs/tips.md): for a bunch of information that can be handy when working with `submitit`.
 - [Hyperparameter search with nevergrad](docs/nevergrad.md): basic example of `nevergrad` usage and how it interfaces with `submitit`.
-- [Advanced examples](https://github.com/fairinternal/submitit_examples ) using distributed training (multi-nodes, 1 task per gpu)  with a basic grid search, and distributed inference on CPU showing how to shard data across many jobs. This is in a dedicated repository.
 
 
 ### Goals
