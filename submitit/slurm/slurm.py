@@ -153,7 +153,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
         In SLURM, the node list is formatted NODE_GROUP_1,NODE_GROUP_2,...,NODE_GROUP_N
         where each node group is formatted as: PREFIX[1-3,5,8] to define the hosts:
         [PREFIX1, PREFIX2, PREFIX3, PREFIX5, PREFIX8].
-        
+
         Link: https://hpcc.umd.edu/hpcc/help/slurmenv.html
         """
         if not node_list:
@@ -166,7 +166,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
                 pos = self._parse_group(node_list, pos, parsed)
             return parsed
         except ValueError as e:
-            raise SlurmParseException("Unrecognized format for SLURM_JOB_NODELIST: '{node_list}'", e)
+            raise SlurmParseException(f"Unrecognized format for SLURM_JOB_NODELIST: '{node_list}'", e)
 
     def _parse_group(self, node_list: str, pos: int, parsed: List[str]) -> int:
         """Parse a suffix group of the form PREFIX[1-3,5,8] and return
@@ -184,13 +184,14 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
                 prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
                 pos = last_pos + 1
             else:
-                for i in range(len(prefixes)):
-                    prefixes[i] += c
+                for i, prefix in enumerate(prefixes):
+                    prefixes[i] = prefix + c
                 pos += 1
         parsed.extend(prefixes)
         return pos
 
-    def _expand_suffix(self, suffix_parts: str) -> List[str]:
+    @staticmethod
+    def _expand_suffix(suffix_parts: str) -> List[str]:
         """Parse the a suffix formatted like "1-3,5,8" into
         the list of numeric values 1,2,3,5,8.
         """

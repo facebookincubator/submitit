@@ -331,10 +331,10 @@ def test_slurm_node_list_online_documentation() -> None:
 def test_slurm_invalid_parse() -> None:
     with pytest.raises(slurm.SlurmParseException):
         with with_slurm_job_nodelist("compute-b2[1-,4]") as env:
-            env.hostnames
+            print(env.hostnames)
     with pytest.raises(slurm.SlurmParseException):
         with with_slurm_job_nodelist("compute-b2[1,2,compute-b3]") as env:
-            env.hostnames
+            print(env.hostnames)
 
 
 def test_slurm_missing_node_list() -> None:
