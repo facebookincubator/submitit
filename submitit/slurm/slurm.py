@@ -161,7 +161,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
 
         try:
             pos = 0
-            parsed = []
+            parsed: List[str] = []
             while pos < len(node_list):
                 pos = self._parse_group(node_list, pos, parsed)
             return parsed
@@ -177,10 +177,10 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
             c = node_list[pos]
             if c == ",":
                 parsed.extend(prefixes)
-                return pos+1
+                return pos + 1
             if c == "[":
                 last_pos = node_list.index("]", pos)
-                suffixes = self._expand_suffix(node_list[pos+1:last_pos])
+                suffixes = self._expand_suffix(node_list[pos + 1 : last_pos])
                 prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
                 pos = last_pos + 1
             else:
@@ -198,7 +198,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
         for suffix_part in suffix_parts.split(","):
             if "-" in suffix_part:
                 low, high = suffix_part.split("-")
-                for num in range(int(low), int(high)+1):
+                for num in range(int(low), int(high) + 1):
                     suffixes.append(str(num))
             else:
                 suffixes.append(suffix_part)

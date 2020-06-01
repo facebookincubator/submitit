@@ -144,7 +144,7 @@ class JobEnvironment:
             Use self.job_id to find what need to be requeued.
         """
         ...
-    
+
     # pylint: disable=no-self-use,unused-argument
     def _parse_nodelist(self, node_list: str) -> List[str]:
         """Parse the content of the "nodes" environment variable,
