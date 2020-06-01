@@ -145,10 +145,10 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
         subprocess.check_call(["scontrol", "requeue", jid])
         logger.get_logger().info(f"Requeued job {jid} ({countdown} remaining timeouts)")
 
-    def _parse_nodelist(self, node_list: str) -> List[str]:
-        """Parse the content of the "nodes" environment variable,
-        which gives access to the list of hostnames that are part
-        of the current job.
+    @property
+    def hostnames(self) -> List[str]:
+        """Parse the content of the "SLURM_JOB_NODELIST" environment variable,
+        which gives access to the list of hostnames that are part of the current job.
 
         In SLURM, the node list is formatted NODE_GROUP_1,NODE_GROUP_2,...,NODE_GROUP_N
         where each node group is formatted as: PREFIX[1-3,5,8] to define the hosts:
@@ -156,6 +156,8 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
 
         Link: https://hpcc.umd.edu/hpcc/help/slurmenv.html
         """
+
+        node_list = os.environ.get(self._env["nodes"], "")
         if not node_list:
             return [self.hostname]
 

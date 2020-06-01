@@ -279,6 +279,8 @@ def test_slurm_node_list() -> None:
         assert ["compute-a1", "compute-b2"] == env.hostnames
     with with_slurm_job_nodelist("compute-b2[1,2]") as env:
         assert ["compute-b21", "compute-b22"] == env.hostnames
+    with with_slurm_job_nodelist("compute-b2[011,022]") as env:
+        assert ["compute-b2011", "compute-b2022"] == env.hostnames
     with with_slurm_job_nodelist("compute-b2[1-3]") as env:
         assert ["compute-b21", "compute-b22", "compute-b23"] == env.hostnames
     with with_slurm_job_nodelist("compute-b2[1-3,5,6,8]") as env:
