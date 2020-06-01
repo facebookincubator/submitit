@@ -261,3 +261,48 @@ def test_get_default_parameters() -> None:
 
 def test_name() -> None:
     assert slurm.SlurmExecutor.name() == "slurm"
+
+
+@contextlib.contextmanager
+def with_slurm_job_nodelist(node_list: str):
+    os.environ["SLURM_JOB_ID"] = "1"
+    os.environ["SLURM_JOB_NODELIST"] = node_list
+    yield slurm.SlurmJobEnvironment()
+    del os.environ["SLURM_JOB_NODELIST"]
+    del os.environ["SLURM_JOB_ID"]
+
+
+def test_slurm_node_list() -> None:
+    with with_slurm_job_nodelist("compute-b24") as env:
+        assert ["compute-b24"] == env.hostnames
+    with with_slurm_job_nodelist("compute-a1,compute-b2") as env:
+        assert ["compute-a1", "compute-b2"] == env.hostnames
+    with with_slurm_job_nodelist("compute-b2[1,2]") as env:
+        assert ["compute-b21", "compute-b22"] == env.hostnames
+    with with_slurm_job_nodelist("compute-b2[1-3]") as env:
+        assert ["compute-b21", "compute-b22", "compute-b23"] == env.hostnames
+    with with_slurm_job_nodelist("compute-b2[1-3,5,6,8]") as env:
+        assert ["compute-b21", "compute-b22", "compute-b23", "compute-b25", "compute-b26", "compute-b28"] == env.hostnames
+    with with_slurm_job_nodelist("compute-b2[1-3,5-6,8]") as env:
+        assert ["compute-b21", "compute-b22", "compute-b23", "compute-b25", "compute-b26", "compute-b28"] == env.hostnames
+    with with_slurm_job_nodelist("compute-b2[1-3,5-6,8],compute-a1") as env:
+        assert ["compute-b21", "compute-b22", "compute-b23", "compute-b25", "compute-b26", "compute-b28", "compute-a1"] == env.hostnames
+
+
+def test_slurm_node_list_online_documentation() -> None:
+    with with_slurm_job_nodelist("compute-b24-[1-3,5-9],compute-b25-[1,4,8]") as env:
+        assert "compute-b24-1,compute-b24-2,compute-b24-3,compute-b24-5,compute-b24-6,compute-b24-7,compute-b24-8,compute-b24-9,compute-b25-1,compute-b25-4,compute-b25-8".split(",") == env.hostnames
+
+
+def test_slurm_invalid_parse() -> None:
+    with pytest.raises(slurm.SlurmParseException):
+        with with_slurm_job_nodelist("compute-b2[1-,4]") as env:
+            env.hostnames
+    with pytest.raises(slurm.SlurmParseException):
+        with with_slurm_job_nodelist("compute-b2[1,2,compute-b3]") as env:
+            env.hostnames
+
+
+def test_slurm_missing_node_list() -> None:
+    with with_slurm_job_nodelist("") as env:
+        assert [env.hostname] == env.hostnames

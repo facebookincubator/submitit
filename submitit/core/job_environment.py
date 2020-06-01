@@ -10,7 +10,7 @@ import socket
 import sys
 import types
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar, Dict, List, Optional
 
 from . import logger, utils
 from .utils import DelayedSubmission, JobPaths
@@ -57,6 +57,14 @@ class JobEnvironment:
     @property
     def hostname(self) -> str:
         return socket.gethostname()
+
+    @property
+    def hostnames(self) -> List[str]:
+        env_key = "nodes"
+        if env_key not in self._env:
+            raise RuntimeError("Hostnames not available for the {self.cluster} cluster")
+        node_list = os.environ.get(self._env[env_key], "")
+        return self._parse_nodelist(node_list)
 
     @property
     def job_id(self) -> str:
@@ -136,6 +144,14 @@ class JobEnvironment:
             Use self.job_id to find what need to be requeued.
         """
         ...
+    
+    # pylint: disable=no-self-use,unused-argument
+    def _parse_nodelist(self, node_list: str) -> List[str]:
+        """Parse the content of the "nodes" environment variable,
+        which gives access to the list of hostnames that are part
+        of the current job.
+        """
+        return []
 
 
 class SignalHandler:
