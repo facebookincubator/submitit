@@ -10,7 +10,7 @@ import socket
 import sys
 import types
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Optional
+from typing import Any, ClassVar, Dict, Optional, Sequence
 
 from . import logger, utils
 from .utils import DelayedSubmission, JobPaths
@@ -59,8 +59,8 @@ class JobEnvironment:
         return socket.gethostname()
 
     @property
-    def hostnames(self) -> List[str]:
-        raise RuntimeError("Hostnames not available for the {self.cluster} cluster")
+    def hostnames(self) -> Sequence[str]:
+        return [self.hostname]
 
     @property
     def job_id(self) -> str:
