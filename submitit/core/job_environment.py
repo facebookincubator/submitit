@@ -10,7 +10,7 @@ import socket
 import sys
 import types
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Optional
+from typing import Any, ClassVar, Dict, Optional, Sequence
 
 from . import logger, utils
 from .utils import DelayedSubmission, JobPaths
@@ -57,6 +57,10 @@ class JobEnvironment:
     @property
     def hostname(self) -> str:
         return socket.gethostname()
+
+    @property
+    def hostnames(self) -> Sequence[str]:
+        return [self.hostname]
 
     @property
     def job_id(self) -> str:
