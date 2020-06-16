@@ -175,7 +175,13 @@ class AutoExecutor(Executor):
             raise NameError("\n".join(invalid))
 
         # add cluster specific generic overrides
-        kwargs.update(**{arg: kwargs.pop(f"{ex}_{arg}") for ex, arg in specific if ex == self.cluster and arg in generics})
+        kwargs.update(
+            **{
+                arg: kwargs.pop(f"{ex}_{arg}")
+                for ex, arg in specific
+                if ex == self.cluster and arg in generics
+            }
+        )
         parameters = self._executor._convert_parameters({k: kwargs[k] for k in kwargs if k in generics})
         # update parameters in the core executor
         for (ex, arg) in specific:

@@ -43,7 +43,6 @@ def test_local_executor() -> None:
     executor.update_parameters(local_cpus_per_task=2)
 
 
-
 def test_executor_argument() -> None:
     with test_slurm.mocked_slurm():
         executor = auto.AutoExecutor(folder=".", slurm_max_num_timeout=22)
@@ -81,8 +80,9 @@ def test_overriden_arguments() -> None:
     with test_slurm.mocked_slurm():
         slurm_ex = auto.AutoExecutor(folder=".", cluster="slurm")
 
-    slurm_ex.update_parameters(timeout_min=60, slurm_timeout_min=120,
-                               tasks_per_node=2, slurm_ntasks_per_node=3)
+    slurm_ex.update_parameters(
+        timeout_min=60, slurm_timeout_min=120, tasks_per_node=2, slurm_ntasks_per_node=3
+    )
     slurm_params = slurm_ex._executor.parameters
     # slurm use time
     assert slurm_params == {"time": 120, "ntasks_per_node": 3}
