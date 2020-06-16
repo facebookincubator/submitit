@@ -132,8 +132,9 @@ def _expand_id_suffix(suffix_parts: str) -> List[str]:
     for suffix_part in suffix_parts.split(","):
         if "-" in suffix_part:
             low, high = suffix_part.split("-")
+            int_length = len(low)
             for num in range(int(low), int(high) + 1):
-                suffixes.append(str(num))
+                suffixes.append(f"{num:0{int_length}}")
         else:
             suffixes.append(suffix_part)
     return suffixes
