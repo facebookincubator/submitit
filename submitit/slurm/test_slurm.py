@@ -314,12 +314,7 @@ def test_slurm_node_list() -> None:
     with with_slurm_job_nodelist("compute[042,044]") as env:
         assert ["compute042", "compute044"] == env.hostnames
     with with_slurm_job_nodelist("compute[042-043,045,048-049]") as env:
-        assert ["compute042",
-                "compute043",
-                "compute045",
-                "compute048",
-                "compute049",
-        ] == env.hostnames
+        assert ["compute042", "compute043", "compute045", "compute048", "compute049"] == env.hostnames
 
 
 def test_slurm_node_list_online_documentation() -> None:
