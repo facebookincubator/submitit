@@ -180,9 +180,8 @@ class AutoExecutor(Executor):
         # update parameters in the core executor
         for (ex, arg) in specific:
             # update cluster specific non-generic arguments
-            if arg in generics or ex != self.cluster:
-                continue
-            parameters[arg] = kwargs[f"{ex}_{arg}"]
+            if arg not in generics and ex == self.cluster:
+                parameters[arg] = kwargs[f"{ex}_{arg}"]
 
         self._executor._internal_update_parameters(**parameters)
 
