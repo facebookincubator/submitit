@@ -187,7 +187,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
     }
 
     def activated(self) -> bool:
-        return "SLURM_JOB_ID" in os.environ
+        return os.environ.get("SUBMITIT_EXECUTOR", "") == "slurm"
 
     def _requeue(self, countdown: int) -> None:
         jid = self.job_id
@@ -479,7 +479,7 @@ def _make_sbatch_string(
     if additional_parameters is not None:
         parameters.update(additional_parameters)
     # now create
-    lines = ["#!/bin/bash", "", "# Parameters"]
+    lines = ["#!/bin/bash", "export SUBMITIT_EXECUTOR=slurm", "", "# Parameters"]
     lines += [
         "#SBATCH --{}{}".format(x.replace("_", "-"), "" if parameters[x] is True else f"={parameters[x]}")
         for x in sorted(parameters)

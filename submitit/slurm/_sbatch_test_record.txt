@@ -1,4 +1,5 @@
 #!/bin/bash
+export SUBMITIT_EXECUTOR=slurm
 
 # Parameters
 #SBATCH --blublu=12
