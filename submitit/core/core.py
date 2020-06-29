@@ -587,7 +587,8 @@ class Executor(abc.ABC):
             delayed_batch = self._delayed_batch
             self._delayed_batch = None
         if not delayed_batch:
-            raise RuntimeError('No submission happened during "with executor.batch()" context.')
+            warnings.warn('WARNING: No submission happened during "with executor.batch()" context.')
+            return
         jobs, submissions = zip(*delayed_batch)
         new_jobs = self._internal_process_submissions(submissions)
         for j, new_j in zip(jobs, new_jobs):
