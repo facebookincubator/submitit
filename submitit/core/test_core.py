@@ -190,7 +190,7 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
             job = executor.submit(_three_time, 8)
             job.job_id  # pylint: disable=pointless-statement
     # empty context
-    with pytest.raises(RuntimeError):
+    with pytest.warns(RuntimeWarning):
         with executor.batch():
             pass
     # multi context
