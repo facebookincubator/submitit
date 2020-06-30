@@ -151,7 +151,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
             return pos + 1
         if c == "[":
             last_pos = node_list.index("]", pos)
-            suffixes = _expand_id_suffix(node_list[pos + 1 : last_pos])
+            suffixes = _expand_id_suffix(node_list[pos + 1: last_pos])
             prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
             pos = last_pos + 1
         else:
@@ -378,7 +378,7 @@ def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters
     """
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
@@ -477,15 +477,15 @@ def _make_sbatch_string(
     if additional_parameters is not None:
         parameters.update(additional_parameters)
     # now create
-    lines = ["#!/bin/bash", "export SUBMITIT_EXECUTOR=slurm", "", "# Parameters"]
+    lines = ["#!/bin/bash", "", "# Parameters"]
     lines += [
         "#SBATCH --{}{}".format(x.replace("_", "-"), "" if parameters[x] is True else f"={parameters[x]}")
         for x in sorted(parameters)
     ]
     # environment setup:
     if setup is not None:
-        lines += ["", "# setup"] + setup
+        lines += ["", "# setup", ] + setup
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
-    lines += ["", "# command", f"srun --output '{stdout}' --error '{stderr}' --unbuffered {command}"]
+    lines += ["", "# command", "export SUBMITIT_EXECUTOR=slurm", f"srun --output '{stdout}' --error '{stderr}' --unbuffered {command}"]
     return "\n".join(lines)
