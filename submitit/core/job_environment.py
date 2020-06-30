@@ -46,13 +46,13 @@ class JobEnvironment:
             n = n[: -len("JobEnvironment")]
         return n.lower()
 
-    # pylint: disable=no-self-use
     def activated(self) -> bool:
         """Tests if we are running inside this environment.
 
-        @plugin-dev: Must be overridden by JobEnvironment implementations.
+        @plugin-dev: assumes that the SUBMITIT_EXECUTOR variable has been
+        set to the executor name
         """
-        ...
+        return os.environ.get("SUBMITIT_EXECUTOR", "") == self.name()
 
     @property
     def hostname(self) -> str:

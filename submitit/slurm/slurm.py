@@ -174,6 +174,7 @@ def _parse_node_list(node_list: str):
 
 
 class SlurmJobEnvironment(job_environment.JobEnvironment):
+
     _env = {
         "job_id": "SLURM_JOB_ID",
         "num_tasks": "SLURM_NTASKS",
@@ -185,9 +186,6 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
         "array_job_id": "SLURM_ARRAY_JOB_ID",
         "array_task_id": "SLURM_ARRAY_TASK_ID",
     }
-
-    def activated(self) -> bool:
-        return os.environ.get("SUBMITIT_EXECUTOR", "") == "slurm"
 
     def _requeue(self, countdown: int) -> None:
         jid = self.job_id

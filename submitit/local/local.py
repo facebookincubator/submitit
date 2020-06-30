@@ -106,9 +106,6 @@ class LocalJobEnvironment(job_environment.JobEnvironment):
         "local_rank": "SUBMITIT_LOCAL_LOCALID",
     }
 
-    def activated(self) -> bool:
-        return os.environ.get("SUBMITIT_EXECUTOR", "") == "local"
-
     def _requeue(self, countdown: int) -> None:
         jid = self.job_id
         logger.get_logger().info(f"Requeued job {jid} ({countdown} remaining timeouts)")
