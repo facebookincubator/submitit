@@ -163,7 +163,7 @@ class AutoExecutor(Executor):
                 continue
 
             valid = executors[ex]._valid_parameters()
-            if arg not in valid:
+            if arg not in valid | generics:
                 invalid.append(
                     f"Unknown argument '{arg}' for executor '{ex}' in parameter '{ex}_{arg}'."
                     + " Valid arguments: "
@@ -174,12 +174,20 @@ class AutoExecutor(Executor):
             invalid.append(f"Known executors: {', '.join(executors.keys())}")
             raise NameError("\n".join(invalid))
 
+        # add cluster specific generic overrides
+        kwargs.update(
+            **{
+                arg: kwargs.pop(f"{ex}_{arg}")
+                for ex, arg in specific
+                if ex == self.cluster and arg in generics
+            }
+        )
         parameters = self._executor._convert_parameters({k: kwargs[k] for k in kwargs if k in generics})
         # update parameters in the core executor
         for (ex, arg) in specific:
-            if ex != self.cluster:
-                continue
-            parameters[arg] = kwargs[f"{ex}_{arg}"]
+            # update cluster specific non-generic arguments
+            if arg not in generics and ex == self.cluster:
+                parameters[arg] = kwargs[f"{ex}_{arg}"]
 
         self._executor._internal_update_parameters(**parameters)
 
