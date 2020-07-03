@@ -106,9 +106,6 @@ class LocalJobEnvironment(job_environment.JobEnvironment):
         "local_rank": "SUBMITIT_LOCAL_LOCALID",
     }
 
-    def activated(self) -> bool:
-        return "SUBMITIT_LOCAL_JOB_ID" in os.environ
-
     def _requeue(self, countdown: int) -> None:
         jid = self.job_id
         logger.get_logger().info(f"Requeued job {jid} ({countdown} remaining timeouts)")
@@ -218,6 +215,7 @@ def start_controller(
         SUBMITIT_LOCAL_SIGNAL_DELAY_S=str(int(signal_delay_s)),
         SUBMITIT_LOCAL_NODEID="0",
         SUBMITIT_LOCAL_JOB_NUM_NODES="1",
+        SUBMITIT_EXECUTOR="local",
         CUDA_AVAILABLE_DEVICES=cuda_devices,
     )
     process = subprocess.Popen(

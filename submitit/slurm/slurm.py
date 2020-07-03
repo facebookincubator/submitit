@@ -175,6 +175,7 @@ def _parse_node_list(node_list: str):
 
 
 class SlurmJobEnvironment(job_environment.JobEnvironment):
+
     _env = {
         "job_id": "SLURM_JOB_ID",
         "num_tasks": "SLURM_NTASKS",
@@ -186,9 +187,6 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
         "array_job_id": "SLURM_ARRAY_JOB_ID",
         "array_task_id": "SLURM_ARRAY_TASK_ID",
     }
-
-    def activated(self) -> bool:
-        return "SLURM_JOB_ID" in os.environ
 
     def _requeue(self, countdown: int) -> None:
         jid = self.job_id
@@ -490,5 +488,10 @@ def _make_sbatch_string(
         lines += ["", "# setup"] + setup
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
-    lines += ["", "# command", f"srun --output '{stdout}' --error '{stderr}' --unbuffered {command}"]
+    lines += [
+        "",
+        "# command",
+        "export SUBMITIT_EXECUTOR=slurm",
+        f"srun --output '{stdout}' --error '{stderr}' --unbuffered {command}",
+    ]
     return "\n".join(lines)

@@ -19,7 +19,6 @@ from .job_environment import JobEnvironment
 @pytest.mark.parametrize("env", plugins.get_job_environments().values())
 def test_env(env: JobEnvironment) -> None:
     assert isinstance(env, JobEnvironment)
-    assert type(env).activated is not JobEnvironment.activated, "activated need to be overridden"
     # We are not inside a submitit job
     assert not env.activated()
     assert type(env)._requeue is not JobEnvironment._requeue, "_requeue need to be overridden"
