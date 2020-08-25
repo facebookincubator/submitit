@@ -171,7 +171,7 @@ def _parse_node_list(node_list: str):
             pos = _parse_node_group(node_list, pos, parsed)
         return parsed
     except ValueError as e:
-        raise SlurmParseException(f"Unrecognized format for SLURM_JOB_NODELIST: '{node_list}'", e)
+        raise SlurmParseException(f"Unrecognized format for SLURM_JOB_NODELIST: '{node_list}'", e) from e
 
 
 class SlurmJobEnvironment(job_environment.JobEnvironment):
