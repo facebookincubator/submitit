@@ -346,10 +346,10 @@ class CommandFunction:
                     outlines.append(line.decode().strip())
                     if self.verbose:
                         print(outlines[-1], flush=True)
-            except Exception:
+            except Exception as e:
                 process.kill()
                 process.wait()
-                raise FailedJobError("Job got killed for an unknown reason.")
+                raise FailedJobError("Job got killed for an unknown reason.") from e
             stderr = process.communicate()[1]  # we already got stdout
             stdout = "\n".join(outlines)
             retcode = process.poll()

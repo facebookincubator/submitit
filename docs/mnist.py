@@ -11,12 +11,13 @@ import time
 from pathlib import Path
 
 import numpy as np
-import submitit
 from sklearn.datasets import fetch_openml
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
+
+import submitit
 
 
 class MnistTrainer(submitit.helpers.Checkpointable):

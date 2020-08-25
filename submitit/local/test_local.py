@@ -13,9 +13,9 @@ from pathlib import Path
 
 import pytest
 
+from . import local
 from .. import helpers
 from ..core import job_environment, test_core, utils
-from . import local
 
 
 def test_local_job(tmp_path: Path) -> None:
