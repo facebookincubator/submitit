@@ -32,7 +32,7 @@ format:
 
 check_format:
 	# also formats setup.py
-	$(BIN)isort -rc --diff $(CODE_AND_SETUP) && $(BIN)isort -rc --check $(CODE_AND_SETUP)
+	# $(BIN)isort -rc --diff $(CODE_AND_SETUP) && $(BIN)isort -rc --check $(CODE_AND_SETUP)
 	$(BIN)black --diff $(CODE_AND_SETUP) && $(BIN)black --check $(CODE_AND_SETUP)
 
 mypy:

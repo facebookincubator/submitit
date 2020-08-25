@@ -9,9 +9,9 @@ from typing import Any, Tuple
 
 import pytest
 
-from . import debug
 from ..core import utils
 from ..core.core import Job
+from . import debug
 
 
 def test_debug_job(tmp_path: Path) -> None:

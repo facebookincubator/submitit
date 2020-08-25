@@ -6,9 +6,9 @@
 
 import pytest
 
-from . import auto
 from ..local import debug
 from ..slurm import test_slurm
+from . import auto
 
 
 def test_slurm_executor(monkeypatch) -> None:

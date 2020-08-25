@@ -14,10 +14,10 @@ from unittest.mock import patch
 
 import pytest
 
-from . import slurm
 from .. import helpers
 from ..core import job_environment, submission, test_core, utils
 from ..core.core import Job
+from . import slurm
 
 
 def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> None:
