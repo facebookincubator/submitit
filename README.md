@@ -49,6 +49,11 @@ Quick install, in a virtualenv/conda environment where `pip` is installed (check
   ```
   pip install submitit
   ```
+  
+- stable release using __conda__:
+  ```
+  conda install -c conda-forge submitit
+  ```
 
 - master branch:
   ```
