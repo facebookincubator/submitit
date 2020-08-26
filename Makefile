@@ -27,13 +27,13 @@ test_coverage:
 
 format:
 	$(BIN)python -m pre_commit
-	$(BIN)isort -rc $(CODE_AND_SETUP)
+	$(BIN)isort $(CODE_AND_SETUP)
 	$(BIN)black $(CODE_AND_SETUP)
 
 check_format:
 	# also formats setup.py
-	# $(BIN)isort -rc --diff $(CODE_AND_SETUP) && $(BIN)isort -rc --check $(CODE_AND_SETUP)
-	$(BIN)black --diff $(CODE_AND_SETUP) && $(BIN)black --check $(CODE_AND_SETUP)
+	$(BIN)isort --check --diff $(CODE_AND_SETUP)
+	$(BIN)black --check --diff $(CODE_AND_SETUP)
 
 mypy:
 	$(BIN)mypy --version

@@ -14,7 +14,8 @@ include_trailing_comma = true
 force_grid_wrap = 0
 use_parentheses = true
 line_length = 110
-skip_glob = [".git", "venv", ".mypy_cache"]
+skip_gitignore = true
+float_to_top = true
 
 [tool.pylint]
   [tool.pylint."MESSAGES CONTROL"]

@@ -20,11 +20,11 @@ if TYPE_CHECKING:
 def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
     # pylint: disable=cyclic-import,import-outside-toplevel
     # Load dynamically to avoid import cycle
-    from ..local import debug, local
-    from ..slurm import slurm
-
     # pkg_resources goes through all modules on import.
     import pkg_resources
+
+    from ..local import debug, local
+    from ..slurm import slurm
 
     # TODO: use sys.modules.keys() and importlib.resources to find the files
     # We load both kind of entry points at the same time because we have to go through all module files anyway.
