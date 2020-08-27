@@ -1,6 +1,7 @@
 [![CircleCI](https://circleci.com/gh/facebookincubator/submitit.svg?style=svg)](https://circleci.com/gh/facebookincubator/workflows/submitit)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-
+[![Pypi](https://img.shields.io/pypi/v/submitit)](https://pypi.org/project/submitit/)
+[![conda-forge](https://img.shields.io/conda/vn/conda-forge/submitit)](https://anaconda.org/conda-forge/submitit)
 # Submit it!
 
 ## What is submitit?
@@ -49,7 +50,10 @@ Quick install, in a virtualenv/conda environment where `pip` is installed (check
   ```
   pip install submitit
   ```
-
+- stable release using __conda__:
+  ```
+  conda install -c conda-forge submitit
+  ```
 - master branch:
   ```
   pip install git+https://github.com/facebookincubator/submitit@master#egg=submitit
