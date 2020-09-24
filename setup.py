@@ -27,7 +27,7 @@ setup(
     description="Python 3.6+ toolbox for submitting jobs to Slurm",
     author="Facebook AI Research",
     python_requires=">=3.6",
-    long_description=Path("README.md").read_text(),
+    long_description=Path("README.md").read_text(encoding="utf-8"),
     long_description_content_type="text/markdown",
     project_urls={
         "Source": "https://github.com/facebookincubator/submitit",
