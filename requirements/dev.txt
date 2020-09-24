@@ -1,4 +1,4 @@
-black==19.3b0
+black==19.10b0
 isort==5.4.2
 mypy>=0.782
 pre-commit>=1.15.2
