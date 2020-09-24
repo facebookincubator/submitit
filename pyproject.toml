@@ -12,7 +12,7 @@ exclude = '''
 profile = "black"
 line_length = 110
 skip_gitignore = true
-float_to_top = true
+
 
 [tool.pylint]
   [tool.pylint."MESSAGES CONTROL"]
