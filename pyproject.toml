@@ -9,10 +9,7 @@ exclude = '''
 '''
 
 [tool.isort]
-multi_line_output = 3
-include_trailing_comma = true
-force_grid_wrap = 0
-use_parentheses = true
+profile = "black"
 line_length = 110
 skip_gitignore = true
 float_to_top = true
