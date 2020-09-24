@@ -3,7 +3,6 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 #
-
 import contextlib
 import os
 import signal
@@ -255,7 +254,6 @@ def test_watcher() -> None:
 def test_get_default_parameters() -> None:
     defaults = slurm._get_default_parameters()
     assert defaults["nodes"] == 1
-    assert defaults["mem"] == "64GB"
 
 
 def test_name() -> None:

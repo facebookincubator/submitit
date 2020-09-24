@@ -5,7 +5,6 @@
 #SBATCH --error=/tmp/%j_0_log.err
 #SBATCH --exclusive
 #SBATCH --job-name=submitit
-#SBATCH --mem=64GB
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --open-mode=append
