@@ -12,7 +12,6 @@ from typing import Dict, List, Optional, Union
 from ..core.core import Executor, InfoWatcher, Job, R
 from ..core.job_environment import JobEnvironment
 from ..core.utils import DelayedSubmission, UncompletedJobError
-from ..local.local import LocalJobEnvironment
 
 
 class DebugInfoWatcher(InfoWatcher):
@@ -22,7 +21,15 @@ class DebugInfoWatcher(InfoWatcher):
 
 
 class DebugJobEnvironment(JobEnvironment):
-    _env = LocalJobEnvironment._env
+    _env = {
+        "job_id": "SUBMITIT_DEBUG_JOB_ID",
+        # We don't set those, and rely on the default values from JobEnvironment
+        "num_nodes": "SUBMITIT_DEBUG_NOT_SET",
+        "num_tasks": "SUBMITIT_DEBUG_NOT_SET",
+        "node": "SUBMITIT_DEBUG_NOT_SET",
+        "global_rank": "SUBMITIT_DEBUG_NOT_SET",
+        "local_rank": "SUBMITIT_DEBUG_NOT_SET",
+    }
 
     def activated(self) -> bool:
         return "SUBMITIT_DEBUG_JOB_ID" in os.environ

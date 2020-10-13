@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import os
 from pathlib import Path
 from typing import Any, Tuple
 
@@ -11,6 +12,7 @@ import pytest
 
 from ..core import utils
 from ..core.core import Job
+from ..core.job_environment import JobEnvironment
 from . import debug
 
 
@@ -85,3 +87,21 @@ def test_cancel(tmp_path: Path) -> None:
     assert job.state == "CANCELLED"
     with pytest.raises(utils.UncompletedJobError, match="was cancelled"):
         job.result()
+
+
+def test_job_environment(tmp_path: Path) -> None:
+    executor = debug.DebugExecutor(tmp_path)
+
+    def use_env():
+        env = JobEnvironment()
+        assert env.num_nodes == 1
+        assert env.num_tasks == 1
+        assert env.node == 0
+        assert env.global_rank == 0
+        assert env.local_rank == 0
+        assert "DEBUG" in env.job_id
+
+    job = executor.submit(use_env)
+    job.result()
+    # Check that we clean up the env after us.
+    assert "SUBMITIT_DEBUG_JOB_ID" not in os.environ

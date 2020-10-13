@@ -1,3 +1,5 @@
+from weakref import ref
+
 import pytest
 
 from .local.debug import DebugExecutor
@@ -5,8 +7,6 @@ from .local.local import LocalExecutor
 
 
 def job_with_weakref(ex):
-    from weakref import ref
-
     class MyObject:
         hello = "world"
 
