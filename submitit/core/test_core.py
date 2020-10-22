@@ -155,7 +155,6 @@ def test_fake_job(tmp_path: Path) -> None:
         job.result()
 
 
-
 def test_fake_job_cancel_at_deletion(tmp_path: Path) -> None:
     job: FakeJob[Any] = FakeJob(job_id="12", folder=tmp_path).cancel_at_deletion()  # type: ignore
     with patch("subprocess.call", return_value=None) as mock:
