@@ -83,11 +83,8 @@ def test_pickle_output_from_main(tmp_path: Path) -> None:
     class MyClass:
         pass
 
-    def instantiate(cls: tp.Type[MyClass]) -> MyClass:
-        return cls()
-
     executor = local.LocalExecutor(tmp_path)
-    job = executor.submit(instantiate, MyClass)
+    job = executor.submit(MyClass.__call__)
     assert isinstance(job.result(), MyClass)
 
 
