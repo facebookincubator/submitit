@@ -46,12 +46,12 @@ def process_job(folder: Union[Path, str]) -> None:
         env._handle_signals(paths, delayed)
         result = delayed.result()
         with utils.temporary_save_path(paths.result_pickle) as tmppath:  # save somewhere else, and move
-            utils.pickle_dump(("success", result), tmppath)
+            utils.cloudpickle_dump(("success", result), tmppath)
             logger.info("Job completed successfully")
     except Exception as error:  # TODO: check pickle methods for capturing traceback; pickling and raising
         try:
             with utils.temporary_save_path(paths.result_pickle) as tmppath:
-                utils.pickle_dump(("error", traceback.format_exc()), tmppath)
+                utils.cloudpickle_dump(("error", traceback.format_exc()), tmppath)
         except Exception as dumperror:
             logger.error(f"Could not dump error:\n{error}\n\nbecause of {dumperror}")
         logger.error("Submitted job triggered an exception")

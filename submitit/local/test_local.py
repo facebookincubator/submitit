@@ -9,6 +9,7 @@ import re
 import signal
 import sys
 import time
+import typing as tp
 from pathlib import Path
 
 import pytest
@@ -76,6 +77,18 @@ def test_local_error(tmp_path: Path) -> None:
     traceback = exception.args[0]
     assert "Traceback" in traceback
     assert "Failed on purpose" in traceback
+
+
+def test_pickle_output_from_main(tmp_path: Path) -> None:
+    class MyClass:
+        pass
+
+    def instantiate(cls: tp.Type[MyClass]) -> MyClass:
+        return cls()
+
+    executor = local.LocalExecutor(tmp_path)
+    job = executor.submit(instantiate, MyClass)
+    assert isinstance(job.result(), MyClass)
 
 
 def test_get_first_task_error(tmp_path: Path) -> None:

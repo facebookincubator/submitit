@@ -145,11 +145,11 @@ def test_fake_job(tmp_path: Path) -> None:
         f.write("blublu")
     assert job.stderr() == "blublu"
     # result
-    utils.pickle_dump(("success", 12), job.paths.result_pickle)
+    utils.cloudpickle_dump(("success", 12), job.paths.result_pickle)
     assert job.result() == 12
     # exception
     assert job.exception() is None
-    utils.pickle_dump(("error", "blublu"), job.paths.result_pickle)
+    utils.cloudpickle_dump(("error", "blublu"), job.paths.result_pickle)
     assert isinstance(job.exception(), Exception)
     with pytest.raises(core.utils.FailedJobError):
         job.result()
