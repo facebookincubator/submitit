@@ -65,7 +65,14 @@ register_pre_commit: venv
 	(grep -e "^make pre_commit$$" .git/hooks/pre-commit) || (echo "make pre_commit" >> .git/hooks/pre-commit)
 	chmod +x .git/hooks/pre-commit
 
-
 integration: venv check_format lint installable test_coverage
 	# Run the same tests than on CI
 	# use `make -k integration` to run all checks even if previous fails.
+
+release: integration
+	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
+	[[ ! -f dist ]] || rm -r dist
+	$(BIN)python setup.py sdist
+	$(BIN)pip install twine
+	# Credentials are read from ~/.pypirc
+	$(BIN)python -m twine upload dist/*
