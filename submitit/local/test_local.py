@@ -78,6 +78,15 @@ def test_local_error(tmp_path: Path) -> None:
     assert "Failed on purpose" in traceback
 
 
+def test_pickle_output_from_main(tmp_path: Path) -> None:
+    class MyClass:
+        pass
+
+    executor = local.LocalExecutor(tmp_path)
+    job = executor.submit(MyClass.__call__)
+    assert isinstance(job.result(), MyClass)
+
+
 def test_get_first_task_error(tmp_path: Path) -> None:
     def flaky() -> None:
         job_env = job_environment.JobEnvironment()
