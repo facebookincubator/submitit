@@ -9,7 +9,6 @@ import re
 import signal
 import sys
 import time
-import typing as tp
 from pathlib import Path
 
 import pytest
