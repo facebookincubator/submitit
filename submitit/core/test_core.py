@@ -6,9 +6,9 @@
 
 # pylint: disable=redefined-outer-name
 import contextlib
+import pickle
 import sys
 import time
-import pickle
 from pathlib import Path
 from typing import Any, Iterator, List, Optional, Union
 from unittest.mock import patch
