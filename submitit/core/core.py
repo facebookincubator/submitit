@@ -493,6 +493,15 @@ class Job(tp.Generic[R]):
             if not self.watcher.is_done(self.job_id, mode="cache"):
                 self.cancel(check=False)
 
+    def __getstate__(self) -> tp.Dict[str, tp.Any]:
+        return self.__dict__  # for pickling (see __setstate__)
+
+    def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
+        """Make sure jobs are registered when loaded from a pickle
+        """
+        self.__dict__.update(state)
+        self.watcher.register_job(self.job_id)
+
 
 _MSG = (
     "Interactions with jobs are not allowed within "
