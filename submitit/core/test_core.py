@@ -202,15 +202,15 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
 
 
 def test_unpickling_watcher_registration(tmp_path: Path) -> None:
-    default_test_job_id = "12"  # this is enfroced by the fake executor
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 4)
+    original_job_id = job._job_id
     job._job_id = "007"
-    assert job.watcher._registered == {default_test_job_id}  # still holds the old job id
+    assert job.watcher._registered == {original_job_id}  # still holds the old job id
     pkl = pickle.dumps(job)
     newjob = pickle.loads(pkl)
     assert newjob.job_id == "007"
-    assert newjob.watcher._registered == {default_test_job_id, "007"}
+    assert newjob.watcher._registered == {original_job_id, "007"}
 
 
 if __name__ == "__main__":
