@@ -6,6 +6,7 @@
 
 # pylint: disable=redefined-outer-name
 import contextlib
+import pickle
 import sys
 import time
 from pathlib import Path
@@ -198,6 +199,18 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
         with executor.batch():
             with executor.batch():
                 job = executor.submit(_three_time, 8)
+
+
+def test_unpickling_watcher_registration(tmp_path: Path) -> None:
+    executor = FakeExecutor(folder=tmp_path)
+    job = executor.submit(_three_time, 4)
+    original_job_id = job._job_id
+    job._job_id = "007"
+    assert job.watcher._registered == {original_job_id}  # still holds the old job id
+    pkl = pickle.dumps(job)
+    newjob = pickle.loads(pkl)
+    assert newjob.job_id == "007"
+    assert newjob.watcher._registered == {original_job_id, "007"}
 
 
 if __name__ == "__main__":

@@ -180,8 +180,11 @@ class Job(tp.Generic[R]):
         self._start_time = _time.time()
         self._last_status_check = self._start_time  # for the "done()" method
         # register for state updates with watcher
-        if not tasks[0]:  # only register for task=0
-            self.watcher.register_job(job_id)
+        self._register_in_watcher()
+
+    def _register_in_watcher(self) -> None:
+        if not self._tasks[0]:  # only register for task=0
+            self.watcher.register_job(self.job_id)
 
     @property
     def job_id(self) -> str:
@@ -492,6 +495,15 @@ class Job(tp.Generic[R]):
         if self._cancel_at_deletion:
             if not self.watcher.is_done(self.job_id, mode="cache"):
                 self.cancel(check=False)
+
+    def __getstate__(self) -> tp.Dict[str, tp.Any]:
+        return self.__dict__  # for pickling (see __setstate__)
+
+    def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
+        """Make sure jobs are registered when loaded from a pickle
+        """
+        self.__dict__.update(state)
+        self._register_in_watcher()
 
 
 _MSG = (
