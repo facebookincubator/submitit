@@ -70,6 +70,19 @@ class DebugJob(Job[R]):
         os.environ["SUBMITIT_DEBUG_JOB_ID"] = self.job_id
         try:
             return [self._submission.result()]
+        except Exception as e:
+            print(e)
+            # Try to mimic `breakpoint()` behavior
+            # pylint: disable=import-outside-toplevel
+            if os.environ.get("PYTHONBREAKPOINT", "").startswith("ipdb"):
+                import ipdb  # pylint: disable=import-error
+
+                ipdb.post_mortem()
+            else:
+                import pdb
+
+                pdb.post_mortem()
+            raise
         finally:
             os.environ.pop("SUBMITIT_DEBUG_JOB_ID")
 
