@@ -500,7 +500,8 @@ class Job(tp.Generic[R]):
         """Make sure jobs are registered when loaded from a pickle
         """
         self.__dict__.update(state)
-        self.watcher.register_job(self.job_id)
+        if not self._tasks[0]:  # only register for task=0
+            self.watcher.register_job(self.job_id)
 
 
 _MSG = (
