@@ -185,7 +185,7 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
         with executor.batch():
             executor.update_parameters(blublu=12)
     # bad access
-    with pytest.raises(RuntimeError):
+    with pytest.raises(AttributeError):
         with executor.batch():
             job = executor.submit(_three_time, 8)
             job.job_id  # pylint: disable=pointless-statement

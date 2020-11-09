@@ -500,36 +500,6 @@ _MSG = (
 )
 
 
-class JobPlaceholder(Job[R]):
-    def __init__(self) -> None:  # pylint: disable=super-init-not-called
-        pass
-
-    def __getattribute__(self, name: str) -> tp.Any:
-        if name != "_mutate":
-            raise RuntimeError(f"While trying to get {name}:\n" + _MSG)
-        return super().__getattribute__(name)
-
-    def __setattribute__(self, name: str, value: tp.Any) -> tp.Any:
-        if name not in ["__dict__", "__class__"]:
-            return super().__setattribute__(name, value)  # type:  ignore
-        raise RuntimeError(f"While trying to set {name}:\n" + _MSG)
-
-    def __del__(self) -> None:
-        pass
-
-    def _mutate(self, job: Job[R]) -> None:
-        """This (completely) mutates the job into an actual job
-        """
-        # Look away...
-        # There's nothing but horror and inconvenience on the way
-        #
-        # This changes the class and content of the placeholder to replace it
-        # with the actual job
-        # pylint: disable=attribute-defined-outside-init
-        self.__dict__ = job.__dict__
-        self.__class__ = job.__class__  # type: ignore
-
-
 class EquivalenceDict(TypedDict):
     """Gives the specific name of the params shared across all plugins."""
 
@@ -580,8 +550,12 @@ class Executor(abc.ABC):
             yield None
         except Exception as e:
             logger.get_logger().error(
-                'Caught error within "with executor.batch()" context, submissions are dropped.'
+                'Caught error within "with executor.batch()" context, submissions are dropped.\n '
             )
+            if isinstance(e, AttributeError):
+                logger.get_logger().error(
+                    'Note that accesssing jobs attributes is forbidden within "with executor.batch()" context'
+                )
             raise e
         finally:
             delayed_batch = self._delayed_batch
@@ -594,12 +568,12 @@ class Executor(abc.ABC):
         jobs, submissions = zip(*delayed_batch)
         new_jobs = self._internal_process_submissions(submissions)
         for j, new_j in zip(jobs, new_jobs):
-            j._mutate(new_j)
+            j.__dict__.update(new_j.__dict__)  # fill in the empty shell, the pickle way
 
     def submit(self, fn: tp.Callable[..., R], *args: tp.Any, **kwargs: tp.Any) -> Job[R]:
         ds = utils.DelayedSubmission(fn, *args, **kwargs)
         if self._delayed_batch is not None:
-            job: Job[R] = JobPlaceholder()
+            job: Job[R] = self.job_class.__new__(self.job_class)  # empty shell
             self._delayed_batch.append((job, ds))
             return job
         else:
