@@ -71,7 +71,7 @@ integration: venv check_format lint installable test_coverage
 
 release: integration
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
-	[[ ! -f dist ]] || rm -r dist
+	[[ ! -d dist ]] || rm -r dist
 	$(BIN)python setup.py sdist
 	$(BIN)pip install twine
 	# Credentials are read from ~/.pypirc

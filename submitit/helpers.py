@@ -90,7 +90,7 @@ class FunctionSequence(Checkpointable):
 
 
 def as_completed(
-    jobs: tp.List[core.Job[core.R]],
+    jobs: tp.Sequence[core.Job[core.R]],
     timeout: tp.Optional[tp.Union[int, float]] = None,
     poll_frequency: float = 10,
 ) -> tp.Iterator[core.Job[core.R]]:
