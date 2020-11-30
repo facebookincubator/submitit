@@ -171,7 +171,8 @@ class AutoExecutor(Executor):
                 )
                 continue
         if invalid:
-            invalid.append(f"Known executors: {', '.join(executors.keys())}")
+            invalid.extend([f"Known executors: {', '.join(executors.keys())}",
+                            f"As a reminder, shared/generic (non-prefixed) parameters are: {generics}."])
             raise NameError("\n".join(invalid))
 
         # add cluster specific generic overrides
@@ -199,4 +200,4 @@ class AutoExecutor(Executor):
 
 def flexible_init(cls: Type[Executor], folder: Union[str, Path], **kwargs: Any) -> Executor:
     prefix = cls.name() + "_"
-    return cls(folder, **{k[len(prefix) :]: kwargs[k] for k in kwargs if k.startswith(prefix)})
+    return cls(folder, **{k[len(prefix):]: kwargs[k] for k in kwargs if k.startswith(prefix)})
