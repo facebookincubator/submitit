@@ -585,11 +585,15 @@ class Executor(abc.ABC):
     def submit(self, fn: tp.Callable[..., R], *args: tp.Any, **kwargs: tp.Any) -> Job[R]:
         ds = utils.DelayedSubmission(fn, *args, **kwargs)
         if self._delayed_batch is not None:
-            job: Job[R] = self.job_class.__new__(self.job_class)  # empty shell
+            # ugly hack for AutoExecutor class which is known at runtime
+            cls = self.job_class if self.job_class is not Job else self._executor.job_class  # type: ignore
+            job: Job[R] = cls.__new__(cls)  # empty shell
             self._delayed_batch.append((job, ds))
-            return job
         else:
-            return self._internal_process_submissions([ds])[0]
+            job = self._internal_process_submissions([ds])[0]
+        if type(job) is Job:  # pylint: disable=unidiomatic-typecheck
+            raise RuntimeError("Executors should never return a base Job class (implementation issue)")
+        return job
 
     @abc.abstractmethod
     def _internal_process_submissions(

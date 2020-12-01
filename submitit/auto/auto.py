@@ -171,7 +171,12 @@ class AutoExecutor(Executor):
                 )
                 continue
         if invalid:
-            invalid.append(f"Known executors: {', '.join(executors.keys())}")
+            invalid.extend(
+                [
+                    f"Known executors: {', '.join(executors.keys())}",
+                    f"As a reminder, shared/generic (non-prefixed) parameters are: {generics}.",
+                ]
+            )
             raise NameError("\n".join(invalid))
 
         # add cluster specific generic overrides

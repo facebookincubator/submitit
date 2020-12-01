@@ -90,3 +90,11 @@ def test_overriden_arguments() -> None:
     # others use timeout_min
     local_ex = auto.AutoExecutor(folder=".", cluster="local")
     local_ex.update_parameters(timeout_min=60, slurm_time=120)
+
+
+def test_auto_batch_watcher() -> None:
+    with test_slurm.mocked_slurm() as tmp:
+        executor = auto.AutoExecutor(folder=tmp)
+        with executor.batch():
+            job = executor.submit(print, "hi")
+        assert not job.done()
