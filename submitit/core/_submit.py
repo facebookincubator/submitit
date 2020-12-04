@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-from .submission import submitit_main
+from submitit.core.submission import submitit_main
 
 if __name__ == "__main__":
     # This script is called by Executor.submit
