@@ -466,8 +466,8 @@ def _make_sbatch_string(
         warnings.warn('"cpus_per_gpu" requires to set "gpus_per_task" to work (and not "gpus_per_node")')
     # add necessary parameters
     paths = utils.JobPaths(folder=folder)
-    stdout = str(paths.stdout)
-    stderr = str(paths.stderr)
+    stdout = '\"{}\"'.format(str(paths.stdout))
+    stderr = '\"{}\"'.format(str(paths.stderr))
     # Job arrays will write files in the form  <ARRAY_ID>_<ARRAY_TASK_ID>_<TASK_ID>
     if map_count is not None:
         assert isinstance(map_count, int) and map_count
