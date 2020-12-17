@@ -629,6 +629,37 @@ class Executor(abc.ABC):
             return []
         return self._internal_process_submissions(submissions)
 
+    def submit_array(self, fns: tp.Sequence[tp.Callable[[], R]]) -> tp.List[Job[R]]:
+        """Submit a list of job. This is useful when submiting different Checkpointable functions.
+        Be mindful that all those functions will be run with the same requirements
+        (cpus, gpus, timeout, ...). So try to make group of similar function calls.
+
+        Parameters
+        ----------
+        fns: list of callable
+            functions to compute. Those functions must not need any argument.
+            Tyically those are "Checkpointable" instance whose arguments
+            have been specified in the constructor, or partial functions.
+
+        Returns
+        -------
+        List[Job]
+            A list of Job instances.
+
+        Example
+        -------
+        a_vals = [1, 2, 3]
+        b_vals = [10, 20, 30]
+        fns = [functools.partial(int.__add__, a, b) for (a, b) in zip (a_vals, b_vals)]
+        executor.submit_array(fns)
+        # jobs will compute 1 + 10, 2 + 20, 3 + 30
+        """
+        submissions = [utils.DelayedSubmission(fn) for fn in fns]
+        if len(submissions) == 0:
+            warnings.warn("Received an empty job array")
+            return []
+        return self._internal_process_submissions(submissions)
+
     def update_parameters(self, **kwargs: tp.Any) -> None:
         """Update submision parameters."""
         if self._delayed_batch is not None:
