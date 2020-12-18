@@ -7,6 +7,7 @@
 import abc
 import contextlib
 import subprocess
+import tempfile
 import time as _time
 import typing as tp
 import uuid
@@ -710,15 +711,13 @@ class PicklingExecutor(Executor):
         jobs = []
         for delayed in delayed_submissions:
             tmp_uuid = uuid.uuid4().hex
-            pickle_path = utils.JobPaths.get_first_id_independent_folder(self.folder) / f"{tmp_uuid}.pkl"
-            pickle_path.parent.mkdir(parents=True, exist_ok=True)
+            temporary_pickle_path = tempfile.mkstemp()[1]
             delayed.timeout_countdown = self.max_num_timeout
-            delayed.dump(pickle_path)
-
+            delayed.dump(temporary_pickle_path)
             self._throttle()
             self._last_job_submitted = _time.time()
             job = self._submit_command(self._submitit_command_str)
-            job.paths.move_temporary_file(pickle_path, "submitted_pickle")
+            job.paths.move_temporary_file(temporary_pickle_path, "submitted_pickle")
             jobs.append(job)
         return jobs
 
