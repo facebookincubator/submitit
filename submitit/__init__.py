@@ -10,7 +10,6 @@ from .auto.auto import AutoExecutor as AutoExecutor
 from .core.core import Executor as Executor
 from .core.core import Job as Job
 from .core.job_environment import JobEnvironment as JobEnvironment
-from .local.debug import DebugExecutor as DebugExcecutor  # keeping for compatibility, but remove soon
 from .local.debug import DebugExecutor as DebugExecutor
 from .local.debug import DebugJob as DebugJob
 from .local.local import LocalExecutor as LocalExecutor
