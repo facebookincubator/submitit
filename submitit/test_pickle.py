@@ -5,6 +5,9 @@
 #
 
 import pickle
+import subprocess
+import sys
+from pathlib import Path
 from weakref import ref
 
 import pytest
@@ -78,3 +81,28 @@ def test_submitit_respects_main(tmp_path):
     ex = LocalExecutor(tmp_path)
     j_main = ex.submit(get_main).result()
     assert main == j_main
+
+
+def test_submitit_respects_sys_path(tmp_path: Path):
+    # https://github.com/facebookincubator/submitit/issues/12
+    CUSTOM_CODE = f"""
+import submitit
+import sys
+from pathlib import Path
+
+def dump_sys_path(file):
+    Path(file).write_text("\\n".join(sys.path))
+
+dump_sys_path("{tmp_path}/scheduler_path.txt")
+ex = submitit.LocalExecutor("{tmp_path}/log")
+job = ex.submit(dump_sys_path, "{tmp_path}/job_path.txt")
+job.wait()
+
+"""
+    scheduler_py = tmp_path / "scheduler.py"
+    scheduler_py.write_text(CUSTOM_CODE)
+    subprocess.check_call([sys.executable, scheduler_py])
+    job_sys_path = (tmp_path / "job_path.txt").read_text()
+    scheduler_sys_path = (tmp_path / "scheduler_path.txt").read_text()
+
+    assert job_sys_path == scheduler_sys_path

@@ -6,6 +6,7 @@
 
 import argparse
 import os
+import sys
 import time
 import traceback
 from pathlib import Path
@@ -49,6 +50,8 @@ def process_job(folder: Union[Path, str]) -> None:
         )
     try:
         delayed = utils.DelayedSubmission.load(paths.submitted_pickle)
+        logger.info(f"Set sys.path to {delayed.sys_path} like in the scheduler runtime.")
+        sys.path = list(delayed.sys_path)
         env = job_environment.JobEnvironment()
         env._handle_signals(paths, delayed)
         result = delayed.result()
