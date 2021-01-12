@@ -16,5 +16,6 @@ from .local.local import LocalExecutor as LocalExecutor
 from .local.local import LocalJob as LocalJob
 from .slurm.slurm import SlurmExecutor as SlurmExecutor
 from .slurm.slurm import SlurmJob as SlurmJob
+from .snapshot import SnapshotManager
 
 __version__ = "1.1.5"
