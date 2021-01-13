@@ -12,17 +12,14 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-          - v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}-w-rsync
+          - v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}
           # don't fallback to using the latest cache if no exact match is found (restart from scratch
-      - run:
-          command: |-
-            make venv
-            sudo apt-get install rsync
+      - run: make venv
       # Save venv for later runs
       - save_cache:
           paths:
             - venv
-          key: v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}-w-rsync
+          key: v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}
       # Save venv for other jobs
       - persist_to_workspace:
           root: venv
@@ -65,7 +62,10 @@ jobs:
         - checkout
         - attach_workspace:
             at: venv
-        - run: make test_coverage
+        - run:
+            command: |-
+              sudo apt-get install rsync
+              make test_coverage
         - store_test_results:
             path: test_results
 
