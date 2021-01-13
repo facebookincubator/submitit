@@ -14,7 +14,10 @@ jobs:
           keys:
           - v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}
           # don't fallback to using the latest cache if no exact match is found (restart from scratch
-      - run: make venv
+      - run:
+          command: |-
+            make venv
+            sudo apt-get install rsync
       # Save venv for later runs
       - save_cache:
           paths:
