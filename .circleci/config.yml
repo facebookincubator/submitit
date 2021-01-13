@@ -12,7 +12,7 @@ jobs:
       - checkout
       - restore_cache:
           keys:
-          - v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}
+          - v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}-w-rsync
           # don't fallback to using the latest cache if no exact match is found (restart from scratch
       - run:
           command: |-
@@ -22,7 +22,7 @@ jobs:
       - save_cache:
           paths:
             - venv
-          key: v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}
+          key: v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}-w-rsync
       # Save venv for other jobs
       - persist_to_workspace:
           root: venv

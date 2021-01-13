@@ -4,6 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional
+import shutil
 
 
 def run_cmd(str_args, **kwargs):
@@ -35,6 +36,8 @@ class SnapshotManager:
     def __init__(
         self, snapshot_dir: Path, with_submodules: bool = False, exclude: Optional[List[str]] = None,
     ):
+        if shutil.which('rsync') is None:
+            raise RuntimeError("SnapshotManager requires rsync to be installed.")
         self.snapshot_dir = snapshot_dir
         self.original_dir = Path.cwd()
         self.with_submodules = with_submodules
