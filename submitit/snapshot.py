@@ -54,7 +54,7 @@ class SnapshotManager:
             # https://stackoverflow.com/a/51689219/4876946
             run_cmd(f"git ls-files {sub} | grep -v ^16 | cut -f2- > {tfile.name}", cwd=root_dir, shell=True)
             exclude = list(itertools.chain(*[["--exclude", pat] for pat in self.exclude]))
-            run_cmd(["rsync", "-a", f"--files-from={tfile.name}", root_dir, self.snapshot_dir] + exclude)
+            run_cmd(["rsync", "-a", "--files-from", tfile.name, root_dir, self.snapshot_dir] + exclude)
         os.chdir(self.snapshot_dir)
 
     def __exit__(self, *args):
