@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 from pathlib import Path
-from typing import List, Optional
+from typing import Sequence
 
 
 def run_cmd(str_args, **kwargs):
@@ -23,7 +23,7 @@ class SnapshotManager:
         A path to where the snapshot should be created
     with_submodules: bool
         Whether or not submodules should be included in the snapshot
-    exclude: Optional[List[str]]
+    exclude: Sequence[str]
         An optional list of patterns to exclude from the snapshot
 
     Note
@@ -34,14 +34,14 @@ class SnapshotManager:
     """
 
     def __init__(
-        self, snapshot_dir: Path, with_submodules: bool = False, exclude: Optional[List[str]] = None,
+        self, snapshot_dir: Path, with_submodules: bool = False, exclude: Sequence[str] = (),
     ):
         if shutil.which("rsync") is None:
             raise RuntimeError("SnapshotManager requires rsync to be installed.")
         self.snapshot_dir = snapshot_dir
         self.original_dir = Path.cwd()
         self.with_submodules = with_submodules
-        self.exclude = exclude or []
+        self.exclude = exclude
 
     def __enter__(self):
         self.original_dir = Path.cwd()
