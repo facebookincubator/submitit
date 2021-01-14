@@ -4,12 +4,15 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import os
 import time
 from pathlib import Path
 
 from . import helpers
 from .auto.auto import AutoExecutor
 from .core import utils
+from .helpers import RsyncSnapshot
+from .local import local
 
 
 def _three_time(x: int) -> int:
@@ -52,3 +55,25 @@ def test_as_completed(tmp_path: Path) -> None:
     # We get fast job results first, then result of the slow job.
     assert [fast, fast, slow] == [j.result() for j in finished_jobs]
     assert jobs[0] is finished_jobs[-1]
+
+
+def test_snapshot(tmp_path):
+    cwd = Path.cwd()
+    with RsyncSnapshot(tmp_path):
+        assert Path.cwd() == tmp_path
+        assert (tmp_path / "submitit/test_helpers.py").exists()
+    assert Path.cwd() == cwd
+
+
+def test_exclude(tmp_path):
+    exclude = ["submitit/test_*"]
+    with RsyncSnapshot(snapshot_dir=tmp_path, exclude=exclude):
+        assert (tmp_path / "submitit/helpers.py").exists()
+        assert not (tmp_path / "submitit/test_helpers.py").exists()
+
+
+def test_submitted_job(tmp_path):
+    executor = local.LocalExecutor(tmp_path)
+    with RsyncSnapshot(snapshot_dir=tmp_path):
+        job = executor.submit(os.getcwd)
+        assert Path(job.result()) == tmp_path
