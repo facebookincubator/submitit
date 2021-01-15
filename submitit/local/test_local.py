@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import functools
 import os
 import re
 import signal
@@ -50,7 +51,7 @@ def test_local_job(tmp_path: Path) -> None:
     assert job2.done()
 
 
-def test_local_job_array(tmp_path: Path) -> None:
+def test_local_map_array(tmp_path: Path) -> None:
     n = 5
     data1, data2 = range(n), range(10, 10 + n)
 
@@ -61,6 +62,22 @@ def test_local_job_array(tmp_path: Path) -> None:
 
     executor = local.LocalExecutor(tmp_path)
     jobs = executor.map_array(f, data1, data2)
+
+    assert list(map(f, data1, data2)) == [j.result() for j in jobs]
+
+
+def test_local_submit_array(tmp_path: Path) -> None:
+    n = 5
+    data1, data2 = range(n), range(10, 10 + n)
+
+    def f(x: int, y: int) -> int:
+        assert x in data1
+        assert y in data2
+        return x + y
+
+    executor = local.LocalExecutor(tmp_path)
+    fns = [functools.partial(f, x, y) for x, y in zip(data1, data2)]
+    jobs = executor.submit_array(fns)
 
     assert list(map(f, data1, data2)) == [j.result() for j in jobs]
 
