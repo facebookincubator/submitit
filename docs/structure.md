@@ -67,6 +67,9 @@ This module implements convenient functions/classes for use with `submitit`:
  - `Checkpointable`: base class implementing a very basic example of checkpointing (`checkpoint` method). More on this on the Checkpointing section.
  - `FunctionSequence`: A function that computes sequentially the output of other functions. This can be used
  to compute several independent results sequentially on a unique job, and it implements checkpointing for free.
+ - `RsyncSnapshot`: A context manager that creates a snapshot of the git repository that the script lives in
+    when creating the snapshot.  This is useful for ensuring that remote jobs that get launched don't accidentally 
+    pick up unintended local changes.
 
 
 ### DelayedSubmission

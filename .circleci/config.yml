@@ -62,7 +62,10 @@ jobs:
         - checkout
         - attach_workspace:
             at: venv
-        - run: make test_coverage
+        - run:
+            command: |-
+              sudo apt-get install rsync
+              make test_coverage
         - store_test_results:
             path: test_results
 
