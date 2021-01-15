@@ -20,7 +20,7 @@ test:
 
 test_coverage:
 	$(BIN)pytest \
-		--cov=submitit --cov-report=xml --cov-report=term \
+		--cov=submitit --cov-report=html --cov-report=term \
 		--durations=10 \
 		--junitxml=test_results/pytest/results.xml \
 		$(CODE)
