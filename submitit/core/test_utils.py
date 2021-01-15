@@ -4,11 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import contextlib
 import os
 import shutil
 import sys
-import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -17,29 +15,17 @@ import pytest
 from . import utils
 
 
-def _read(filepath: Path) -> Optional[str]:
-    """Returns content if file exists
-    """
-    if not filepath.exists():
-        return None
-    with filepath.open("r") as f:
-        text: str = f.read()
-    return text.strip()
-
-
 @pytest.mark.parametrize("existing_content", [None, "blublu"])  # type: ignore
-def test_temporary_save_path(existing_content: Optional[str]) -> None:
-    with tempfile.TemporaryDirectory() as folder:
-        filepath = Path(folder) / "save_and_move_test.txt"
-        if existing_content is not None:
-            with filepath.open("w") as f:
-                f.write(existing_content)
-        with utils.temporary_save_path(filepath) as tmp:
-            assert str(tmp).endswith(".txt.save_tmp"), f"Unexpected path {tmp}"
-            with tmp.open("w") as f:
-                f.write("12")
-            assert _read(filepath) == existing_content
-        assert _read(filepath) == "12"
+def test_temporary_save_path(tmp_path: Path, existing_content: Optional[str]) -> None:
+    filepath = tmp_path / "save_and_move_test.txt"
+    if existing_content:
+        filepath.write_text(existing_content)
+    with utils.temporary_save_path(filepath) as tmp:
+        assert str(tmp).endswith(".txt.save_tmp")
+        tmp.write_text("12")
+        if existing_content:
+            assert filepath.read_text() == existing_content
+    assert filepath.read_text() == "12"
 
 
 def test_temporary_save_path_error() -> None:
@@ -52,16 +38,15 @@ def _three_time(x: int) -> int:
     return 3 * x
 
 
-def test_delayed() -> None:
+def test_delayed(tmp_path: Path) -> None:
     delayed = utils.DelayedSubmission(_three_time, 4)
     assert not delayed.done()
     assert delayed.result() == 12
     assert delayed.done()
-    with tempfile.TemporaryDirectory() as folder:
-        filepath = Path(folder) / "test_delayed.pkl"
-        delayed.dump(filepath)
-        delayed2 = utils.DelayedSubmission.load(filepath)
-        assert delayed2.done()
+    delayed_pkl = tmp_path / "test_delayed.pkl"
+    delayed.dump(delayed_pkl)
+    delayed2 = utils.DelayedSubmission.load(delayed_pkl)
+    assert delayed2.done()
 
 
 def test_environment_variable_context() -> None:
@@ -89,28 +74,19 @@ def test_sanitize() -> None:
     assert utils.sanitize(" Non alph@^ Nüm%") == "_Non_alph_Nüm_"
 
 
-def test_archive_dev_folders() -> None:
-    with tempfile.TemporaryDirectory() as tmp:
-        path = Path(tmp) / "_dev_folders_"
-        utils.archive_dev_folders([Path(__file__).parent], outfile=path.with_suffix(".tar.gz"))
-        shutil.unpack_archive(str(path.with_suffix(".tar.gz")), extract_dir=path)
-        expected = path / Path(__file__).parent.name
-        assert (
-            expected.exists()
-        ), f"Missing submitit folder (expected {expected} but found: {list(path.iterdir())})"
+def test_archive_dev_folders(tmp_path: Path) -> None:
+    utils.archive_dev_folders([Path(__file__).parent], outfile=tmp_path.with_suffix(".tar.gz"))
+    shutil.unpack_archive(str(tmp_path.with_suffix(".tar.gz")), extract_dir=tmp_path)
+    assert (tmp_path / "core").exists()
 
 
 def test_command_function() -> None:
-    command = f"{sys.executable} -m submitit.core.test_core".split()
+    # This will call `submitit.core.test_core.do_nothing`
+    command = [sys.executable, "-m", "submitit.core.test_core"]
     word = "testblublu12"
     output = utils.CommandFunction(command)(word)
     assert output is not None
-    assert word in output, f'Missing word "{word}" in output:\n{output}'
-    try:
-        with contextlib.redirect_stderr(sys.stdout):
-            output = utils.CommandFunction(command, verbose=True)(error=True)
-    except utils.FailedJobError as e:
-        words = "Too bad"
-        assert words in str(e), f'Missing word "{words}" in output:\n\n{e}'
-    else:
-        raise AssertionError("An error should have been raised")
+    assert word in output
+    with pytest.raises(utils.FailedJobError, match="Too bad"):
+        # error=True will make `do_nothing` fail
+        utils.CommandFunction(command, verbose=True)(error=True)
