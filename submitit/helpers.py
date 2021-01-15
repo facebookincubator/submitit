@@ -9,13 +9,12 @@ import os
 import shutil
 import subprocess
 import tempfile
-
-# pylint: disable=unused-import
-# import DelayedSubmission and CommandFunction to populate helpers namespace
 import time
 import typing as tp
 from pathlib import Path
 
+# pylint: disable=unused-import
+# import DelayedSubmission and CommandFunction to populate helpers namespace
 from .core import core
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
@@ -44,8 +43,7 @@ class Checkpointable:
         return instance
 
     def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
-        """Resubmits the same callable with the same arguments
-        """
+        """Resubmits the same callable with the same arguments"""
         # The DelayedSubmission class goal is only to register and format
         # the arguments of the call "self(*args, **kwargs)" for submission to slurm
         return DelayedSubmission(self, *args, **kwargs)  # type: ignore
@@ -170,7 +168,7 @@ class RsyncSnapshot:
     ):
         if shutil.which("rsync") is None:
             raise RuntimeError("RsyncSnapshot requires rsync to be installed.")
-        self.snapshot_dir = snapshot_dir
+        self.snapshot_dir = Path(snapshot_dir)
         self.original_dir = Path.cwd()
         self.with_submodules = with_submodules
         self.exclude = exclude

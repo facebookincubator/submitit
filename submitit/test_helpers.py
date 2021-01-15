@@ -9,10 +9,7 @@ import time
 from pathlib import Path
 
 from . import helpers
-from .auto.auto import AutoExecutor
 from .core import utils
-from .helpers import RsyncSnapshot
-from .local import local
 
 
 def _three_time(x: int) -> int:
@@ -33,9 +30,7 @@ def test_function_sequence_checkpoint(tmp_path: Path) -> None:
     assert sum(x.done() for x in fs1) == 2
 
 
-def test_as_completed(tmp_path: Path) -> None:
-    ex = AutoExecutor(folder=tmp_path, cluster="local")
-
+def test_as_completed(executor) -> None:
     def f(x: float) -> float:
         time.sleep(x)
         return x
@@ -43,7 +38,7 @@ def test_as_completed(tmp_path: Path) -> None:
     # slow need to be > 1.5s otherwise it might finish before we start polling.
     slow, fast = 1.5, 0.1
     # One slow job and two fast jobs.
-    jobs = ex.map_array(f, [slow, fast, fast])
+    jobs = executor.map_array(f, [slow, fast, fast])
     start = time.time()
     finished_jobs = []
     for n, j in enumerate(helpers.as_completed(jobs, poll_frequency=0.1)):
@@ -57,23 +52,38 @@ def test_as_completed(tmp_path: Path) -> None:
     assert jobs[0] is finished_jobs[-1]
 
 
-def test_snapshot(tmp_path):
+def test_snapshot(tmp_path: Path) -> None:
     cwd = Path.cwd()
-    with RsyncSnapshot(tmp_path):
+    with helpers.RsyncSnapshot(tmp_path):
         assert Path.cwd() == tmp_path
         assert (tmp_path / "submitit/test_helpers.py").exists()
     assert Path.cwd() == cwd
 
 
-def test_exclude(tmp_path):
+def test_snapshot_excludes(tmp_path: Path) -> None:
     exclude = ["submitit/test_*"]
-    with RsyncSnapshot(snapshot_dir=tmp_path, exclude=exclude):
+    with helpers.RsyncSnapshot(snapshot_dir=tmp_path, exclude=exclude):
         assert (tmp_path / "submitit/helpers.py").exists()
         assert not (tmp_path / "submitit/test_helpers.py").exists()
 
 
-def test_submitted_job(tmp_path):
-    executor = local.LocalExecutor(tmp_path)
-    with RsyncSnapshot(snapshot_dir=tmp_path):
+def test_job_use_snapshot_cwd(executor, tmp_path: Path) -> None:
+    with helpers.RsyncSnapshot(snapshot_dir=tmp_path):
         job = executor.submit(os.getcwd)
-        assert Path(job.result()) == tmp_path
+    assert Path(job.result()) == tmp_path
+
+
+def test_job_use_snapshot_modules(executor, tmp_path: Path) -> None:
+    with helpers.RsyncSnapshot(snapshot_dir=tmp_path):
+
+        def submitit_file() -> Path:
+            # pylint: disable=import-outside-toplevel
+            import submitit
+
+            return Path(submitit.__file__)
+
+        job = executor.submit(submitit_file)
+    # Here we load the normal submitit
+    assert submitit_file() == Path(__file__).parent / "__init__.py"
+    # In the job we should import submitit from the snapshot dir
+    assert job.result() == tmp_path / "submitit/__init__.py"
