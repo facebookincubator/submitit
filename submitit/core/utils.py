@@ -170,37 +170,6 @@ def temporary_save_path(filepath: Union[Path, str]) -> Iterator[Path]:
     os.rename(tmppath, filepath)
 
 
-def package_conda_env(folder: Union[str, Path]) -> Path:
-    """Creates a .rar file of the current conda environment for use in jobs.
-    For efficiency, existing tarred env are not updated.
-
-    Parameter
-    ---------
-    folder: str/Path
-        folder where the environment must be dumped
-
-    Returns
-    -------
-    Path
-        Path of the created .rar file
-    """
-    # TODO(lowik): could be faster to create tar locally, then copy it
-    folder = Path(folder).expanduser().absolute()
-    env_key = "CONDA_DEFAULT_ENV"
-    if env_key not in os.environ:
-        raise RuntimeError(
-            "This executor requires to be executed from a conda environment. Check out README for help."
-        )
-    name = os.environ[env_key]
-    env_path = Path(os.environ["CONDA_PREFIX"])
-    _check_python_inside(env_path)
-    tarred_env = (folder / name).with_suffix(".tar")
-    if tarred_env.exists():
-        os.remove(str(tarred_env))
-    output = shutil.make_archive(str(tarred_env.with_suffix("")), "tar", str(env_path))
-    return Path(output)
-
-
 def archive_dev_folders(folders: List[Union[str, Path]], outfile: Optional[Union[str, Path]] = None) -> Path:
     """Creates a tar.gz file with all provided folders
     """
@@ -236,22 +205,6 @@ def copy_par_file(par_file: Union[str, Path], folder: Union[str, Path]) -> Path:
     dst_name = folder / par_file.name
     shutil.copy2(par_file, dst_name)
     return dst_name
-
-
-def _check_python_inside(env_path: Path) -> None:
-    # as a separate function, for mocking easily
-    binary = env_path / "bin" / "python"
-    message = (
-        "Python exe needs to be inside the environment\n"
-        f"(could not find it in {env_path})\n"
-        "See README and create your env with "
-        '"conda create -n <env_name> python=3.6 --copy"'
-    )
-    assert binary.exists()
-    try:
-        binary.resolve().relative_to(env_path.resolve())
-    except ValueError as e:
-        raise RuntimeError(message) from e
 
 
 def sanitize(s: str, only_alphanum: bool = True, in_quotes: bool = True) -> str:
