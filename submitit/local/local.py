@@ -39,15 +39,13 @@ class LocalJob(core.Job[R]):
             sjob._process = process
 
     def done(self, force_check: bool = False) -> bool:  # pylint: disable=unused-argument
-        """Override to avoid using the watcher
-        """
+        """Override to avoid using the watcher"""
         assert self._process is not None
         return self._process.poll() is not None
 
     @property
     def state(self) -> str:
-        """State of the job
-        """
+        """State of the job"""
         try:
             return self.get_info().get("jobState", "unknown")
         # I don't what is the exception returned and it's hard to reproduce
@@ -55,8 +53,7 @@ class LocalJob(core.Job[R]):
             return "UNKNOWN"
 
     def get_info(self) -> Dict[str, str]:
-        """Returns information about the job as a dict.
-        """
+        """Returns information about the job as a dict."""
         assert self._process is not None
         poll = self._process.poll()
         if poll is None:
@@ -177,7 +174,9 @@ class LocalExecutor(core.PicklingExecutor):
 
     @property
     def _submitit_command_str(self) -> str:
-        return f"{sys.executable} -u -m submitit.core._submit '{self.folder}'"
+        return " ".join(
+            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder))]
+        )
 
     def _num_tasks(self) -> int:
         nodes: int = 1
@@ -205,8 +204,7 @@ def start_controller(
     timeout_min: float = 5.0,
     signal_delay_s: int = 30,
 ) -> "subprocess.Popen['bytes']":
-    """Starts a job controller, which is expected to survive the end of the python session.
-    """
+    """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
     env.update(
         SUBMITIT_LOCAL_NTASKS=str(tasks_per_node),
