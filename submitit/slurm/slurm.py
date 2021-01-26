@@ -8,6 +8,7 @@ import functools
 import inspect
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -66,8 +67,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
         return info.get("State") or "UNKNOWN"
 
     def read_info(self, string: Union[bytes, str]) -> Dict[str, Dict[str, str]]:
-        """Reads the output of sacct and returns a dictionary containing main information
-        """
+        """Reads the output of sacct and returns a dictionary containing main information"""
         if not isinstance(string, str):
             string = string.decode()
         lines = string.splitlines()
@@ -258,8 +258,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
     @classmethod
     def _valid_parameters(cls) -> Set[str]:
-        """Parameters that can be set through update_parameters
-        """
+        """Parameters that can be set through update_parameters"""
         return set(_get_default_parameters())
 
     def _convert_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -340,8 +339,9 @@ class SlurmExecutor(core.PicklingExecutor):
 
     @property
     def _submitit_command_str(self) -> str:
-        # make sure to use the current executable (required in pycharm)
-        return f"{sys.executable} -u -m submitit.core._submit '{self.folder}'"
+        return " ".join(
+            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder)),]
+        )
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_sbatch_string(command=command, folder=self.folder, **self.parameters)
@@ -356,8 +356,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
     @staticmethod
     def _get_job_id_from_submission_command(string: Union[bytes, str]) -> str:
-        """Returns the job ID from the output of sbatch string
-        """
+        """Returns the job ID from the output of sbatch string"""
         if not isinstance(string, str):
             string = string.decode()
         output = re.search(r"job (?P<id>[0-9]+)", string)
@@ -376,8 +375,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
 @functools.lru_cache()
 def _get_default_parameters() -> Dict[str, Any]:
-    """Parameters that can be set through update_parameters
-    """
+    """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
     zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
@@ -466,8 +464,8 @@ def _make_sbatch_string(
         warnings.warn('"cpus_per_gpu" requires to set "gpus_per_task" to work (and not "gpus_per_node")')
     # add necessary parameters
     paths = utils.JobPaths(folder=folder)
-    stdout = str(paths.stdout)
-    stderr = str(paths.stderr)
+    stdout = shlex.quote(str(paths.stdout))
+    stderr = shlex.quote(str(paths.stderr))
     # Job arrays will write files in the form  <ARRAY_ID>_<ARRAY_TASK_ID>_<TASK_ID>
     if map_count is not None:
         assert isinstance(map_count, int) and map_count
@@ -494,6 +492,6 @@ def _make_sbatch_string(
         "",
         "# command",
         "export SUBMITIT_EXECUTOR=slurm",
-        f"srun --output '{stdout}' --error '{stderr}' --unbuffered {command}",
+        f"srun --output {stdout} --error {stderr} --unbuffered {command}",
     ]
     return "\n".join(lines)

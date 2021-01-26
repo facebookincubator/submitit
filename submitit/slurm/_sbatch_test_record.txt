@@ -16,4 +16,4 @@
 
 # command
 export SUBMITIT_EXECUTOR=slurm
-srun --output '/tmp/%j_%t_log.out' --error '/tmp/%j_%t_log.err' --unbuffered blublu
+srun --output /tmp/%j_%t_log.out --error /tmp/%j_%t_log.err --unbuffered blublu
