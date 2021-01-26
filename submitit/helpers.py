@@ -173,7 +173,7 @@ class RsyncSnapshot:
         self.with_submodules = with_submodules
         self.exclude = exclude
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self.original_dir = Path.cwd()
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         # Get the repository root
@@ -183,8 +183,8 @@ class RsyncSnapshot:
         with tempfile.NamedTemporaryFile() as tfile:
             # https://stackoverflow.com/a/51689219/4876946
             run_cmd(f"git ls-files {sub} | grep -v ^16 | cut -f2- > {tfile.name}", cwd=root_dir, shell=True)
-            exclude = list(itertools.chain(*[["--exclude", pat] for pat in self.exclude]))
-            run_cmd(["rsync", "-a", "--files-from", tfile.name, root_dir, self.snapshot_dir] + exclude)
+            exclude = list(itertools.chain.from_iterable(("--exclude", pat) for pat in self.exclude))
+            run_cmd(["rsync", "-a", "--files-from", tfile.name, root_dir, str(self.snapshot_dir)] + exclude)
         os.chdir(self.snapshot_dir)
 
     def __exit__(self, *args):
