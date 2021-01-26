@@ -254,3 +254,8 @@ def test_load_submission(tmp_path: Path) -> None:
     assert submission.kwargs == {"y": 68}
     # Loading submission doesn't evaluate them.
     assert submission._result is None
+
+
+def test_weird_dir(tmp_path: Path, weird_dir: str) -> None:
+    executor = local.LocalExecutor(tmp_path / weird_dir / "%j")
+    executor.submit(f66, 67, 68).result()

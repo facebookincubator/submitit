@@ -6,6 +6,7 @@
 import contextlib
 import os
 import signal
+import subprocess
 import tempfile
 import typing as tp
 from pathlib import Path
@@ -20,8 +21,7 @@ from . import slurm
 
 
 def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> None:
-    """Write fake log files
-    """
+    """Write fake log files"""
     filepaths = [str(x).replace("%j", str(job.job_id)) for x in [job.paths.stdout, job.paths.stderr]]
     for filepath, msg in zip(filepaths, (prints, errors)):
         with Path(filepath).open("w") as f:
@@ -343,3 +343,30 @@ def test_slurm_invalid_parse() -> None:
 def test_slurm_missing_node_list() -> None:
     with with_slurm_job_nodelist("") as env:
         assert [env.hostname] == env.hostnames
+
+
+def test_slurm_weird_dir(tmp_path: Path, weird_dir: str) -> None:
+    if "\n" in weird_dir:
+        pytest.skip("test doesn't support newline in 'weird_dir'")
+    with mocked_slurm():
+        executor = slurm.SlurmExecutor(folder=tmp_path / weird_dir)
+        job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
+
+    # Touch the ouputfiles
+    job.paths.stdout.write_text("")
+    job.paths.stderr.write_text("")
+
+    # Try to read sbatch flags from the file like sbatch would do it.
+    sbatch_args = {}
+    for l in job.paths.submission_file.read_text().splitlines():
+        if not l.startswith("#SBATCH"):
+            continue
+        if not "=" in l:
+            continue
+        key, val = l[len("#SBATCH") :].strip().split("=", 1)
+        sbatch_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
+
+    # We do not quote --output and --error values here,
+    # because we want to check if they have been properly quoted before.
+    subprocess.check_call("ls " + sbatch_args["--output"], shell=True)
+    subprocess.check_call("ls " + sbatch_args["--error"], shell=True)
