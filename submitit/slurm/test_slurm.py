@@ -345,11 +345,11 @@ def test_slurm_missing_node_list() -> None:
         assert [env.hostname] == env.hostnames
 
 
-def test_slurm_weird_dir(tmp_path: Path, weird_dir: str) -> None:
-    if "\n" in weird_dir:
-        pytest.skip("test doesn't support newline in 'weird_dir'")
+def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
+    if "\n" in weird_tmp_path.name:
+        pytest.skip("test doesn't support newline in 'weird_tmp_path'")
     with mocked_slurm():
-        executor = slurm.SlurmExecutor(folder=tmp_path / weird_dir)
+        executor = slurm.SlurmExecutor(folder=weird_tmp_path)
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
 
     # Touch the ouputfiles

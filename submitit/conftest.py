@@ -17,5 +17,5 @@ def executor(tmp_path: Path) -> LocalExecutor:
 
 
 @pytest.fixture(params=["a_0", "a 0", 'a"=0"', "a'; echo foo", r"a\=0", r"a\=", "a\n0"])
-def weird_dir(request) -> str:
-    return request.param
+def weird_tmp_path(request, tmp_path: Path) -> Path:
+    return tmp_path / request.param
