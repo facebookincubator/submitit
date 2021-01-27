@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterator, List, Optional, Type, Union
 
@@ -102,6 +103,7 @@ class JobPaths:
         return f"{self.__class__.__name__}({self.folder})"
 
 
+# pylint: disable=too-many-instance-attributes
 class DelayedSubmission:
     """Object for specifying the function/callable call to submit and process later.
     This is only syntactic sugar to make sure everything is well formatted:
@@ -116,12 +118,18 @@ class DelayedSubmission:
         self.kwargs = kwargs
         self._result: Any = None
         self._done = False
+        self.timeout_min: int = 0
         self.timeout_countdown: int = 0  # controlled in submission and execution
+        self._end_time: float = -1
 
     def result(self) -> Any:
-        if not self._done:
-            self._result = self.function(*self.args, **self.kwargs)
-            self._done = True
+        if self._done:
+            return self._result
+        if self.timeout_min > 0:
+            self._end_time = time.time() + self.timeout_min * 60
+
+        self._result = self.function(*self.args, **self.kwargs)
+        self._done = True
         return self._result
 
     def done(self) -> bool:
@@ -129,6 +137,10 @@ class DelayedSubmission:
 
     def dump(self, filepath: Union[str, Path]) -> None:
         cloudpickle_dump(self, filepath)
+
+    def set_timeout(self, timeout_min: int, max_num_timeout: int) -> None:
+        self.timeout_min = timeout_min
+        self.timeout_countdown = max_num_timeout
 
     @classmethod
     def load(cls: Type["DelayedSubmission"], filepath: Union[str, Path]) -> "DelayedSubmission":

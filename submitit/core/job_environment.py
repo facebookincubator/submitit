@@ -8,6 +8,7 @@ import os
 import signal
 import socket
 import sys
+import time
 import types
 from pathlib import Path
 from typing import Any, ClassVar, Dict, Optional, Sequence
@@ -147,19 +148,20 @@ class SignalHandler:
         self.env = env
         self._job_paths = job_paths
         self._delayed = delayed
-        self._timedout = True
         self._logger = logger.get_logger()
 
     def bypass(
         self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
     ) -> None:
         self._logger.warning(f"Bypassing signal {signum}")
-        self._timedout = False  # this signal before USR1 means the job was preempted
 
     def checkpoint_and_try_requeue(
         self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
     ) -> None:
-        case = "timed-out" if self._timedout else "preempted"
+        delayed = self._delayed
+        now = time.time()
+        timed_out = delayed._end_time < now
+        case = "timed-out" if timed_out else "preempted"
         self._logger.warning(f"Caught signal {signum} on {socket.gethostname()}: this job is {case}.")
 
         procid = self.env.global_rank
@@ -168,13 +170,12 @@ class SignalHandler:
             # do not sys.exit, because it might kill the master task
             return
 
-        delayed = self._delayed
-        countdown = delayed.timeout_countdown - self._timedout
+        countdown = delayed.timeout_countdown - timed_out
         no_requeue_reason = ""
         if hasattr(delayed.function, "checkpoint"):
-            no_requeue_reason = _checkpoint(self._delayed, self._job_paths.submitted_pickle, countdown)
-        elif self._timedout:
-            no_requeue_reason = "timed-out and not checkpointable"
+            no_requeue_reason = _checkpoint(delayed, self._job_paths.submitted_pickle, countdown)
+        elif timed_out:
+            no_requeue_reason = f"timed-out and not checkpointable ({now - delayed._end_time:.0f}s late)"
         if countdown < 0:  # this is the end
             no_requeue_reason = "timed-out too many times"
         if no_requeue_reason:
