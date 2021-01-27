@@ -256,6 +256,6 @@ def test_load_submission(tmp_path: Path) -> None:
     assert submission._result is None
 
 
-def test_weird_dir(tmp_path: Path, weird_dir: str) -> None:
-    executor = local.LocalExecutor(tmp_path / weird_dir / "%j")
+def test_weird_dir(weird_tmp_path: Path) -> None:
+    executor = local.LocalExecutor(weird_tmp_path / "%j")
     executor.submit(f66, 67, 68).result()
