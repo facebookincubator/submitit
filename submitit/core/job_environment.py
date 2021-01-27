@@ -191,6 +191,7 @@ class SignalHandler:
     def checkpoint_and_exit(
         self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
     ) -> None:
+        # Note: no signal is actually bound to `checkpoint_and_exit` but this is used by plugins.
         self._logger.info(f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}")
 
         procid = self.env.global_rank
