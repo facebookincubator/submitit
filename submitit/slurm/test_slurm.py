@@ -8,7 +8,6 @@ import os
 import signal
 import subprocess
 import tempfile
-import time
 import typing as tp
 from pathlib import Path
 from unittest.mock import patch
@@ -136,81 +135,79 @@ def mock_requeue(called_with: int = None, not_called: bool = False):
             _patch.assert_called_with(called_with)
 
 
-def test_requeuing_checkpointable(tmp_path: Path) -> None:
+def get_signal_handler(job: Job) -> job_environment.SignalHandler:
+    env = slurm.SlurmJobEnvironment()
+    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
+    sig = job_environment.SignalHandler(env, job.paths, delayed)
+    return sig
+
+
+def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
     fs0 = helpers.FunctionSequence()
     fs0.add(test_core._three_time, 10)
     assert isinstance(fs0, helpers.Checkpointable)
 
+    # Start job with a 60 minutes timeout
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
+        executor.update_parameters(time=60)
         job = executor.submit(fs0)
 
-    # simulate job start
-    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
-    delayed.result()
-    assert delayed.timeout_countdown == 1
+    sig = get_signal_handler(job)
 
-    env = slurm.SlurmJobEnvironment()
-    sig = job_environment.SignalHandler(env, job.paths, delayed)
-
+    fast_forward_clock(minutes=30)
     with mock_requeue(not_called=True):
         sig.bypass(signal.Signals.SIGTERM)
 
-    # Preempt the job before timeout.
+    # Preempt the job after 30 minutes, the job hasn't timeout.
     with pytest.raises(SystemExit), mock_requeue(called_with=1):
         sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
-    # Reload the delayed
-    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
-    assert delayed.timeout_countdown == 1
-    sig = job_environment.SignalHandler(env, job.paths, delayed)
+    # Restart the job.
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=50)
 
-    # Mark the submission as timedout.
-    delayed._end_time = time.time()
-
-    # This time the job as timedout, we should still try to requeue.
+    # This time the job as timed out,
+    # but we have max_num_timeout=1, so we should requeue.
+    # We are a little bit under the requested timedout, but close enough
+    # to not consider this a preemption
     with pytest.raises(SystemExit), mock_requeue(called_with=0):
         sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
-    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
-    assert delayed.timeout_countdown == 0
-    sig = job_environment.SignalHandler(env, job.paths, delayed)
+    # Restart the job.
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=55)
 
-    # The job as timedout twice, we should stop here.
+    # The job has already timed out twice, we should stop here.
     with mock_requeue(not_called=True), pytest.raises(
         utils.UncompletedJobError, match="timed-out too many times."
     ):
         sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
 
-def test_requeuing_not_checkpointable(tmp_path: Path) -> None:
+def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
+    # Start job with a 60 minutes timeout
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
+        executor.update_parameters(time=60)
         job = executor.submit(test_core._three_time, 10)
 
     # simulate job start
-    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
-    delayed.result()
-    assert delayed.timeout_countdown == 1
-
-    env = slurm.SlurmJobEnvironment()
-    sig = job_environment.SignalHandler(env, job.paths, delayed)
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=30)
 
     with mock_requeue(not_called=True):
         sig.bypass(signal.Signals.SIGTERM)
 
-    # Preempt the job before timeout.
+    # Preempt the job after 30 minutes, the job hasn't timeout.
     with pytest.raises(SystemExit), mock_requeue(called_with=1):
         sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
-    # Reload the delayed
-    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
-    assert delayed.timeout_countdown == 1
-    sig = job_environment.SignalHandler(env, job.paths, delayed)
+    # Restart the job from scratch
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=50)
 
-    # Mark the submission as timedout.
-    delayed._end_time = time.time()
-
+    # Wait 50 minutes, now the job as timed out.
     with mock_requeue(not_called=True), pytest.raises(
         utils.UncompletedJobError, match="timed-out and not checkpointable"
     ):
@@ -220,21 +217,16 @@ def test_requeuing_not_checkpointable(tmp_path: Path) -> None:
 def test_checkpoint_and_exit(tmp_path: Path) -> None:
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
+        executor.update_parameters(time=60)
         job = executor.submit(test_core._three_time, 10)
-    # simulate job start
-    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
-    delayed.result()
-    assert delayed.timeout_countdown == 1
 
-    env = slurm.SlurmJobEnvironment()
-    sig = job_environment.SignalHandler(env, job.paths, delayed)
-
+    sig = get_signal_handler(job)
     with pytest.raises(SystemExit), mock_requeue(not_called=True):
         sig.checkpoint_and_exit(signal.Signals.SIGUSR1)
 
-    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
     # checkpoint_and_exit doesn't modify timeout counters.
-    assert delayed.timeout_countdown == 1
+    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
+    assert delayed._timeout_countdown == 1
 
 
 def test_make_batch_string() -> None:

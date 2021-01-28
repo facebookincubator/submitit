@@ -149,6 +149,25 @@ class SignalHandler:
         self._job_paths = job_paths
         self._delayed = delayed
         self._logger = logger.get_logger()
+        self._start_time = time.time()
+
+    def has_timed_out(self) -> bool:
+        # SignalHandler is created by submitit as soon as the process start,
+        # so _start_time is an accurate measure of the global runtime of the job.
+        walltime = time.time() - self._start_time
+        max_walltime = self._delayed._timeout_min * 60
+        guaranteed_walltime = min(max_walltime * 0.8, max_walltime - 10 * 60)
+
+        timed_out = walltime >= guaranteed_walltime
+        if timed_out:
+            self._logger.info(
+                f"Job has timed out. Ran {walltime / 60:.0f} minutes out of requested {max_walltime / 60:.0f} minutes."
+            )
+        else:
+            self._logger.info(
+                f"Job has not timed out. Ran {walltime / 60:.0f} minutes out of requested {max_walltime / 60:.0f} minutes."
+            )
+        return timed_out
 
     def bypass(
         self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
@@ -158,9 +177,7 @@ class SignalHandler:
     def checkpoint_and_try_requeue(
         self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
     ) -> None:
-        delayed = self._delayed
-        now = time.time()
-        timed_out = delayed._end_time < now
+        timed_out = self.has_timed_out()
         case = "timed-out" if timed_out else "preempted"
         self._logger.warning(f"Caught signal {signum} on {socket.gethostname()}: this job is {case}.")
 
@@ -170,12 +187,13 @@ class SignalHandler:
             # do not sys.exit, because it might kill the master task
             return
 
-        countdown = delayed.timeout_countdown - timed_out
+        delayed = self._delayed
+        countdown = delayed._timeout_countdown - timed_out
         no_requeue_reason = ""
         if hasattr(delayed.function, "checkpoint"):
             no_requeue_reason = _checkpoint(delayed, self._job_paths.submitted_pickle, countdown)
         elif timed_out:
-            no_requeue_reason = f"timed-out and not checkpointable ({now - delayed._end_time:.0f}s late)"
+            no_requeue_reason = "timed-out and not checkpointable"
         if countdown < 0:  # this is the end
             no_requeue_reason = "timed-out too many times"
         if no_requeue_reason:
@@ -202,7 +220,7 @@ class SignalHandler:
 
         delayed = self._delayed
         if hasattr(delayed.function, "checkpoint"):
-            _checkpoint(self._delayed, self._job_paths.submitted_pickle, self._delayed.timeout_countdown)
+            _checkpoint(self._delayed, self._job_paths.submitted_pickle, self._delayed._timeout_countdown)
         self._exit()
 
     def _exit(self) -> None:
@@ -223,7 +241,7 @@ def _checkpoint(delayed: DelayedSubmission, filepath: Path, countdown: int) -> s
     ckpt_delayed = delayed._checkpoint_function()
     if ckpt_delayed is None:
         return "checkpoint function returned None"
-    ckpt_delayed.timeout_countdown = countdown
+    ckpt_delayed.set_timeout(delayed._timeout_min, countdown)
     with utils.temporary_save_path(filepath) as tmp:
         ckpt_delayed.dump(tmp)
     return ""  # requeues
