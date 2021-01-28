@@ -9,8 +9,10 @@ import time
 import traceback
 from pathlib import Path
 from typing import Union
-try:
-    import numpy  # pylint: disable=unused-import
+
+try:  # loading numpy before loading the pickle, to avoid unexpected interactions
+    # pylint: disable=unused-import
+    import numpy  # noqa
 except ImportError:
     pass
 
