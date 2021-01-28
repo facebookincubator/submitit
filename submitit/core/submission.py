@@ -10,7 +10,7 @@ import traceback
 from pathlib import Path
 from typing import Union
 try:
-    import numpy as np
+    import numpy  # pylint: disable=unused-import
 except ImportError:
     pass
 
