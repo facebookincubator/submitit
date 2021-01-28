@@ -9,6 +9,10 @@ import time
 import traceback
 from pathlib import Path
 from typing import Union
+try:
+    import numpy as np
+except ImportError:
+    pass
 
 from . import job_environment, utils
 from .logger import get_logger
