@@ -12,7 +12,7 @@ from typing import Union
 
 try:  # loading numpy before loading the pickle, to avoid unexpected interactions
     # pylint: disable=unused-import
-    import numpy  # noqa
+    import numpy  # type: ignore  # noqa
 except ImportError:
     pass
 
