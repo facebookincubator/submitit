@@ -738,12 +738,14 @@ class PicklingExecutor(Executor):
             A Job instance, providing access to the job information,
             including the output of the function once it is computed.
         """
+        eq_dict = self._equivalence_dict()
+        timeout_min = self.parameters.get(eq_dict["timeout_min"] if eq_dict else "timeout_min", 5)
         jobs = []
         for delayed in delayed_submissions:
             tmp_uuid = uuid.uuid4().hex
             pickle_path = utils.JobPaths.get_first_id_independent_folder(self.folder) / f"{tmp_uuid}.pkl"
             pickle_path.parent.mkdir(parents=True, exist_ok=True)
-            delayed.timeout_countdown = self.max_num_timeout
+            delayed.set_timeout(timeout_min, self.max_num_timeout)
             delayed.dump(pickle_path)
 
             self._throttle()

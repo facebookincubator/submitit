@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import time
 from pathlib import Path
 
 import pytest
@@ -19,3 +20,16 @@ def executor(tmp_path: Path) -> LocalExecutor:
 @pytest.fixture(params=["a_0", "a 0", 'a"=0"', "a'; echo foo", r"a\=0", r"a\=", "a\n0"])
 def weird_tmp_path(request, tmp_path: Path) -> Path:
     return tmp_path / request.param
+
+
+@pytest.fixture()
+def fast_forward_clock(monkeypatch):
+    """Allows to go in the future."""
+    clock_time = [time.time()]
+
+    monkeypatch.setattr(time, "time", lambda: clock_time[0])
+
+    def _fast_forward(minutes: float):
+        clock_time[0] += minutes * 60
+
+    return _fast_forward

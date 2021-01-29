@@ -116,12 +116,15 @@ class DelayedSubmission:
         self.kwargs = kwargs
         self._result: Any = None
         self._done = False
-        self.timeout_countdown: int = 0  # controlled in submission and execution
+        self._timeout_min: int = 0
+        self._timeout_countdown: int = 0  # controlled in submission and execution
 
     def result(self) -> Any:
-        if not self._done:
-            self._result = self.function(*self.args, **self.kwargs)
-            self._done = True
+        if self._done:
+            return self._result
+
+        self._result = self.function(*self.args, **self.kwargs)
+        self._done = True
         return self._result
 
     def done(self) -> bool:
@@ -129,6 +132,10 @@ class DelayedSubmission:
 
     def dump(self, filepath: Union[str, Path]) -> None:
         cloudpickle_dump(self, filepath)
+
+    def set_timeout(self, timeout_min: int, max_num_timeout: int) -> None:
+        self._timeout_min = timeout_min
+        self._timeout_countdown = max_num_timeout
 
     @classmethod
     def load(cls: Type["DelayedSubmission"], filepath: Union[str, Path]) -> "DelayedSubmission":
