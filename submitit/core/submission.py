@@ -10,6 +10,12 @@ import traceback
 from pathlib import Path
 from typing import Union
 
+try:  # loading numpy before loading the pickle, to avoid unexpected interactions
+    # pylint: disable=unused-import
+    import numpy  # type: ignore  # noqa
+except ImportError:
+    pass
+
 from . import job_environment, utils
 from .logger import get_logger
 
