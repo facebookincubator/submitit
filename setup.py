@@ -38,7 +38,7 @@ def _replace_relative_links(regex: tp.Match[str]) -> str:
     link = regex.group("link")
     name = regex.group("name")
     if not link.startswith("http") and Path(link).exists():
-        githuburl = "github.com/facebookincubator/submitit/blob/{version}"
+        githuburl = f"github.com/facebookincubator/submitit/blob/{version}"
         string = f"[{name}](https://{githuburl}/{link})"
     return string
 
