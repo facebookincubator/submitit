@@ -33,6 +33,7 @@ version = match.group("version")
 
 def _replace_relative_links(regex: tp.Match[str]) -> str:
     """Converts relative links into links to master
+    so that links on Pypi long description are correct
     """
     string: str = regex.group()
     link = regex.group("link")
