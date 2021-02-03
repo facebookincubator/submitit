@@ -152,7 +152,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
             return pos + 1
         if c == "[":
             last_pos = node_list.index("]", pos)
-            suffixes = _expand_id_suffix(node_list[pos + 1 : last_pos])
+            suffixes = _expand_id_suffix(node_list[pos + 1: last_pos])
             prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
             pos = last_pos + 1
         else:
@@ -265,7 +265,9 @@ class SlurmExecutor(core.PicklingExecutor):
         params = super()._convert_parameters(params)
         # replace type in some cases
         if "mem" in params:
-            params["mem"] = f"{params['mem']}GB"
+            val = params.pop("mem")
+            if val:  # revert to default value if 0
+                params["mem"] = f"{val}GB"
         return params
 
     def _internal_update_parameters(self, **kwargs: Any) -> None:
@@ -341,7 +343,7 @@ class SlurmExecutor(core.PicklingExecutor):
     @property
     def _submitit_command_str(self) -> str:
         return " ".join(
-            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder)),]
+            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder)), ]
         )
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
@@ -378,7 +380,7 @@ class SlurmExecutor(core.PicklingExecutor):
 def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 

@@ -98,3 +98,9 @@ def test_auto_batch_watcher() -> None:
         with executor.batch():
             job = executor.submit(print, "hi")
         assert not job.done()
+
+
+def test_slurm_executor(monkeypatch) -> None:
+    with test_slurm.mocked_slurm():
+        executor = auto.AutoExecutor(folder=".")
+    assert executor.cluster == "slurm"
