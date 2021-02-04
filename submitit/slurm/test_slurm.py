@@ -347,7 +347,7 @@ def test_name() -> None:
 
 
 @contextlib.contextmanager
-def with_slurm_job_nodelist(node_list: str) -> tp.Generator[slurm.SlurmJobEnvironment, None, None]:
+def with_slurm_job_nodelist(node_list: str) -> tp.Iterator[slurm.SlurmJobEnvironment]:
     os.environ["SLURM_JOB_ID"] = "1"
     os.environ["SLURM_JOB_NODELIST"] = node_list
     yield slurm.SlurmJobEnvironment()
