@@ -206,4 +206,4 @@ class AutoExecutor(Executor):
 
 def flexible_init(cls: Type[Executor], folder: Union[str, Path], **kwargs: Any) -> Executor:
     prefix = cls.name() + "_"
-    return cls(folder, **{k[len(prefix):]: kwargs[k] for k in kwargs if k.startswith(prefix)})
+    return cls(folder, **{k[len(prefix) :]: kwargs[k] for k in kwargs if k.startswith(prefix)})
