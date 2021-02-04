@@ -347,7 +347,7 @@ def test_name() -> None:
 
 
 @contextlib.contextmanager
-def with_slurm_job_nodelist(node_list: str) -> tp.Generator[slurm.SlurmJobEnvironment, None, None]:
+def with_slurm_job_nodelist(node_list: str) -> tp.Iterable[slurm.SlurmJobEnvironment]:
     os.environ["SLURM_JOB_ID"] = "1"
     os.environ["SLURM_JOB_NODELIST"] = node_list
     yield slurm.SlurmJobEnvironment()
@@ -458,7 +458,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
     subprocess.check_call("ls " + sbatch_args["--error"], shell=True)
 
 
-@pytest.mark.parametrize("params", [{}, {"mem_gb": 0}])  # type: ignore
+@pytest.mark.parametrize("params", [{}, {"mem_gb": None}])  # type: ignore
 def test_slurm_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
     with mocked_slurm():
         executor = submitit.AutoExecutor(folder=tmp_path)

@@ -141,6 +141,8 @@ class AutoExecutor(Executor):
         # check type of replaced variables
         generics = AutoExecutor._valid_parameters()
         for name in generics:
+            if kwargs.get(name, "not None") is None:  # filter out Nones
+                del kwargs[name]
             if name in kwargs:
                 expected_type = int if name != "name" else str
                 assert isinstance(kwargs[name], expected_type), (
@@ -204,4 +206,4 @@ class AutoExecutor(Executor):
 
 def flexible_init(cls: Type[Executor], folder: Union[str, Path], **kwargs: Any) -> Executor:
     prefix = cls.name() + "_"
-    return cls(folder, **{k[len(prefix) :]: kwargs[k] for k in kwargs if k.startswith(prefix)})
+    return cls(folder, **{k[len(prefix):]: kwargs[k] for k in kwargs if k.startswith(prefix)})

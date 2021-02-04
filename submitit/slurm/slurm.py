@@ -265,9 +265,7 @@ class SlurmExecutor(core.PicklingExecutor):
         params = super()._convert_parameters(params)
         # replace type in some cases
         if "mem" in params:
-            val = params.pop("mem")
-            if val:  # revert to default value if 0
-                params["mem"] = f"{val}GB"
+            params["mem"] = f"{params['mem']}GB"
         return params
 
     def _internal_update_parameters(self, **kwargs: Any) -> None:
