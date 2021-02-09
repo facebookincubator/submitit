@@ -138,11 +138,11 @@ class AutoExecutor(Executor):
                 - `slurm_time` is used on the slurm cluster
                 - `timeout_min` is used on other clusters
         """
+        # We handle None as not set.
+        kwargs = {k: v for k, v in kwargs.items() if v is not None}
         # check type of replaced variables
         generics = AutoExecutor._valid_parameters()
         for name in generics:
-            if kwargs.get(name, "not None") is None:  # filter out Nones
-                del kwargs[name]
             if name in kwargs:
                 expected_type = int if name != "name" else str
                 assert isinstance(kwargs[name], expected_type), (
