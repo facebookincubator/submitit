@@ -14,6 +14,8 @@ from unittest.mock import patch
 
 import pytest
 
+import submitit
+
 from .. import helpers
 from ..core import job_environment, submission, test_core, utils
 from ..core.core import Job
@@ -345,7 +347,7 @@ def test_name() -> None:
 
 
 @contextlib.contextmanager
-def with_slurm_job_nodelist(node_list: str):
+def with_slurm_job_nodelist(node_list: str) -> tp.Iterator[slurm.SlurmJobEnvironment]:
     os.environ["SLURM_JOB_ID"] = "1"
     os.environ["SLURM_JOB_NODELIST"] = node_list
     yield slurm.SlurmJobEnvironment()
@@ -445,7 +447,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
     for l in job.paths.submission_file.read_text().splitlines():
         if not l.startswith("#SBATCH"):
             continue
-        if not "=" in l:
+        if "=" not in l:
             continue
         key, val = l[len("#SBATCH") :].strip().split("=", 1)
         sbatch_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
@@ -454,3 +456,14 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
     # because we want to check if they have been properly quoted before.
     subprocess.check_call("ls " + sbatch_args["--output"], shell=True)
     subprocess.check_call("ls " + sbatch_args["--error"], shell=True)
+
+
+@pytest.mark.parametrize("params", [{}, {"mem_gb": None}])  # type: ignore
+def test_slurm_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
+    with mocked_slurm():
+        executor = submitit.AutoExecutor(folder=tmp_path)
+        executor.update_parameters(**params, slurm_additional_parameters={"mem_per_gpu": 12})
+        job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
+    text = job.paths.submission_file.read_text()
+    mem_lines = [x for x in text.splitlines() if "#SBATCH --mem" in x]
+    assert len(mem_lines) == 1, f"Unexpected lines: {mem_lines}"
