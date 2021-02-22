@@ -5,8 +5,8 @@
 #
 
 import contextlib
-import itertools
 import io
+import itertools
 import os
 import pickle
 import re
@@ -244,6 +244,7 @@ class _MultiStreamWrapper:
     """
     One-to-many wrapper for IO write streams.
     """
+
     def __init__(self, streams: List[IO[str]]):
         self._streams = streams
 
@@ -256,14 +257,15 @@ class _MultiStreamWrapper:
             stream.flush()
 
 
-def copy_streams(in_streams: List[IO[bytes]], out_streams: List[IO[str]]):
+def copy_streams(in_streams: List[IO[bytes]], out_streams: List[_MultiStreamWrapper]):
     """
     Using `select`, copy the content from the bytes `in_streams` streams,
-    to the matching out stream in `out_streams` (str based).
+    to the matching out stream in `out_streams`.
     """
     assert len(in_streams) == len(out_streams)
     stream_map: Dict[int, Tuple[IO[bytes], IO[str]]] = {
-        in_stream.fileno(): (in_stream, out_stream) for in_stream, out_stream in zip(in_streams, out_streams)}
+        in_stream.fileno(): (in_stream, out_stream) for in_stream, out_stream in zip(in_streams, out_streams)
+    }
     fds = list(stream_map.keys())
 
     while fds:
@@ -349,8 +351,8 @@ class CommandFunction:
                 stdout_stream = _MultiStreamWrapper([stdout_buffer, sys.stdout])
                 stderr_stream = _MultiStreamWrapper([stderr_buffer, sys.stderr])
             else:
-                stdout_stream = stdout_buffer
-                stderr_stream = stderr_buffer
+                stdout_stream = _MultiStreamWrapper([stdout_buffer])
+                stderr_stream = _MultiStreamWrapper([stderr_buffer])
 
             in_streams = [process.stdout, process.stderr]
             out_streams = [stdout_stream, stderr_stream]
