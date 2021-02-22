@@ -6,6 +6,7 @@
 
 import contextlib
 import itertools
+import io
 import os
 import pickle
 import re
@@ -239,6 +240,48 @@ def cloudpickle_dump(obj: Any, filename: Union[str, Path]) -> None:
         cloudpickle.dump(obj, ofile, pickle.HIGHEST_PROTOCOL)
 
 
+class _MultiStreamWrapper:
+    """
+    One-to-many wrapper for IO write streams.
+    """
+    def __init__(self, streams: List[IO[str]]):
+        self._streams = streams
+
+    def write(self, content: str):
+        for stream in self._streams:
+            stream.write(content)
+
+    def flush(self):
+        for stream in self._streams:
+            stream.flush()
+
+
+def copy_streams(in_streams: List[IO[bytes]], out_streams: List[IO[str]]):
+    """
+    Using `select`, copy the content from the bytes `in_streams` streams,
+    to the matching out stream in `out_streams` (str based).
+    """
+    assert len(in_streams) == len(out_streams)
+    stream_map: Dict[int, Tuple[IO[bytes], IO[str]]] = {
+        in_stream.fileno(): (in_stream, out_stream) for in_stream, out_stream in zip(in_streams, out_streams)}
+    fds = list(stream_map.keys())
+
+    while fds:
+        # We use select to read either from stderr or stdout.
+        # Failure to do so can result in a deadlock if the stderr
+        # or the stdout buffer get overflown.
+        # select is not the fastest, but it is the most supported.
+        ready, _, _ = select.select(fds, [], [])
+        for fd in ready:
+            in_stream, out_stream = stream_map[fd]
+            raw_buf = in_stream.read(2 ** 16)
+            if not raw_buf:
+                fds.remove(fd)
+            buf = raw_buf.decode()
+            out_stream.write(buf)
+            out_stream.flush()
+
+
 # used in "_core", so cannot be in "helpers"
 class CommandFunction:
     """Wraps a command as a function in order to make sure it goes through the
@@ -297,36 +340,30 @@ class CommandFunction:
         ) as process:
             assert process.stdout is not None
             assert process.stderr is not None
-            outno = process.stdout.fileno()
-            errno = process.stderr.fileno()
-            fds = [outno, errno]
-            targets: Dict[int, Tuple[List[str], IO[bytes], IO[str]]] = {
-                outno: (out_buffers, process.stdout, sys.stdout),
-                errno: (err_buffers, process.stderr, sys.stderr),
-            }
+
+            in_streams = [process.stdout, process.stderr]
+            stdout_buffer = io.StringIO()
+            stderr_buffer = io.StringIO()
+
+            if self.verbose:
+                stdout_stream = _MultiStreamWrapper([stdout_buffer, sys.stdout])
+                stderr_stream = _MultiStreamWrapper([stderr_buffer, sys.stderr])
+            else:
+                stdout_stream = stdout_buffer
+                stderr_stream = stderr_buffer
+
+            in_streams = [process.stdout, process.stderr]
+            out_streams = [stdout_stream, stderr_stream]
+
             try:
-                while fds:
-                    # We use select to read either from stderr or stdout.
-                    # Failure to do so can result in a deadlock if the stderr
-                    # or the stdout buffer get overflown.
-                    # select is not the fastest, but it is the most supported.
-                    ready, _, _ = select.select(fds, [], [])
-                    for fd in ready:
-                        buffers, in_stream, out_stream = targets[fd]
-                        raw_buf = in_stream.read(2 ** 16)
-                        if not raw_buf:
-                            fds.remove(fd)
-                        buf = raw_buf.decode()
-                        buffers.append(buf)
-                        if self.verbose:
-                            out_stream.write(buf)
-                            out_stream.flush()
+                copy_streams(in_streams, out_streams)
             except Exception as e:
                 process.kill()
                 process.wait()
                 raise FailedJobError("Job got killed for an unknown reason.") from e
-            stderr = "".join(err_buffers).strip()
-            stdout = "".join(out_buffers).strip()
+            stdout = stdout_buffer.getvalue().strip()
+            stderr = stderr_buffer.getvalue().strip()
+            print("ta mere", repr(stdout), repr(stderr))
             retcode = process.poll()
             if stderr and (retcode and not self.verbose):
                 print(stderr, file=sys.stderr)
