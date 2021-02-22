@@ -15,7 +15,7 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Type, Union
+from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 import cloudpickle
 
@@ -296,11 +296,14 @@ class CommandFunction:
             env=self.env,
         ) as process:
             assert process.stdout is not None
+            assert process.stderr is not None
             outno = process.stdout.fileno()
             errno = process.stderr.fileno()
             fds = [outno, errno]
-            targets = {outno: [out_buffers, process.stdout, sys.stdout],
-                       errno: [err_buffers, process.stderr, sys.stderr]}
+            targets: Dict[int, Tuple[List[str], IO[bytes], IO[str]]] = {
+                outno: (out_buffers, process.stdout, sys.stdout),
+                errno: (err_buffers, process.stderr, sys.stderr),
+            }
             try:
                 while fds:
                     # We use select to read either from stderr or stdout.
@@ -310,10 +313,10 @@ class CommandFunction:
                     ready, _, _ = select.select(fds, [], [])
                     for fd in ready:
                         buffers, in_stream, out_stream = targets[fd]
-                        buf = in_stream.read(2**16)
-                        if not buf:
+                        raw_buf = in_stream.read(2 ** 16)
+                        if not raw_buf:
                             fds.remove(fd)
-                        buf = buf.decode()
+                        buf = raw_buf.decode()
                         buffers.append(buf)
                         if self.verbose:
                             out_stream.write(buf)
@@ -322,8 +325,8 @@ class CommandFunction:
                 process.kill()
                 process.wait()
                 raise FailedJobError("Job got killed for an unknown reason.") from e
-            stderr = "".join(err_buffers)
-            stdout = "".join(out_buffers)
+            stderr = "".join(err_buffers).strip()
+            stdout = "".join(out_buffers).strip()
             retcode = process.poll()
             if stderr and (retcode and not self.verbose):
                 print(stderr, file=sys.stderr)

@@ -94,9 +94,7 @@ def test_command_function() -> None:
 
 
 def _test_command_function_deadlock():
-    f = utils.CommandFunction(["python3", "-c",
-                               "import sys;\n"
-                               "sys.stderr.write('a' * 100_000 + '\\n')"])
+    f = utils.CommandFunction(["python3", "-c", "import sys;\n" "sys.stderr.write('a' * 100_000 + '\\n')"])
     f()
 
 
