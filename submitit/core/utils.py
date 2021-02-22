@@ -269,10 +269,6 @@ def copy_streams(in_streams: List[IO[bytes]], out_streams: List[_MultiStreamWrap
     fds = list(stream_map.keys())
 
     while fds:
-        # We use select to read either from stderr or stdout.
-        # Failure to do so can result in a deadlock if the stderr
-        # or the stdout buffer get overflown.
-        # select is not the fastest, but it is the most supported.
         ready, _, _ = select.select(fds, [], [])
         for fd in ready:
             in_stream, out_stream = stream_map[fd]
@@ -354,6 +350,10 @@ class CommandFunction:
             out_streams = [stdout_stream, stderr_stream]
 
             try:
+                # We use select to read either from stderr or stdout.
+                # Failure to do so can result in a deadlock if the stderr
+                # or the stdout buffer get overflown.
+                # select is not the fastest, but it is the most supported.
                 copy_streams([process.stdout, process.stderr], out_streams)
             except Exception as e:
                 process.kill()
@@ -363,6 +363,7 @@ class CommandFunction:
             stderr = stderr_buffer.getvalue().strip()
             retcode = process.poll()
             if stderr and (retcode and not self.verbose):
+                # We don't print is self.verbose, as it already happened before.
                 print(stderr, file=sys.stderr)
             if retcode:
                 subprocess_error = subprocess.CalledProcessError(
