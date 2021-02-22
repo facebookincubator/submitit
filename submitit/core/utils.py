@@ -263,7 +263,7 @@ def copy_streams(in_streams: List[IO[bytes]], out_streams: List[_MultiStreamWrap
     to the matching out stream in `out_streams`.
     """
     assert len(in_streams) == len(out_streams)
-    stream_map: Dict[int, Tuple[IO[bytes], IO[str]]] = {
+    stream_map: Dict[int, Tuple[IO[bytes], _MultiStreamWrapper]] = {
         in_stream.fileno(): (in_stream, out_stream) for in_stream, out_stream in zip(in_streams, out_streams)
     }
     fds = list(stream_map.keys())
@@ -330,8 +330,6 @@ class CommandFunction:
         )  # TODO bad parsing
         if self.verbose:
             print(f"The following command is sent: \"{' '.join(full_command)}\"")
-        out_buffers: List[str] = []
-        err_buffers: List[str] = []
         with subprocess.Popen(
             full_command,
             stdout=subprocess.PIPE,
@@ -343,7 +341,6 @@ class CommandFunction:
             assert process.stdout is not None
             assert process.stderr is not None
 
-            in_streams = [process.stdout, process.stderr]
             stdout_buffer = io.StringIO()
             stderr_buffer = io.StringIO()
 
@@ -354,18 +351,16 @@ class CommandFunction:
                 stdout_stream = _MultiStreamWrapper([stdout_buffer])
                 stderr_stream = _MultiStreamWrapper([stderr_buffer])
 
-            in_streams = [process.stdout, process.stderr]
             out_streams = [stdout_stream, stderr_stream]
 
             try:
-                copy_streams(in_streams, out_streams)
+                copy_streams([process.stdout, process.stderr], out_streams)
             except Exception as e:
                 process.kill()
                 process.wait()
                 raise FailedJobError("Job got killed for an unknown reason.") from e
             stdout = stdout_buffer.getvalue().strip()
             stderr = stderr_buffer.getvalue().strip()
-            print("ta mere", repr(stdout), repr(stderr))
             retcode = process.poll()
             if stderr and (retcode and not self.verbose):
                 print(stderr, file=sys.stderr)
