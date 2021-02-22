@@ -94,7 +94,7 @@ def test_command_function() -> None:
 
 
 def _test_command_function_deadlock():
-    f = utils.CommandFunction(["python3", "-c", "import sys;\n" "sys.stderr.write('a' * 100_000 + '\\n')"])
+    f = utils.CommandFunction(["python3", "-c", "import sys;\nsys.stderr.write('a' * 100_000 + '\\n')"])
     f()
 
 
@@ -105,6 +105,6 @@ def test_command_function_deadlock() -> None:
     proc.join(timeout)
     exitcode = proc.exitcode  # save exitcode before terminating
     if exitcode is None:
-        proc.kill()
+        proc.terminate()
     assert exitcode is not None, "command function deadlocked"
     assert exitcode == 0, "Deadlock test failed mysteriously"
