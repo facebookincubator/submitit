@@ -9,6 +9,7 @@ import itertools
 import os
 import pickle
 import re
+import select
 import shutil
 import subprocess
 import sys
@@ -284,7 +285,8 @@ class CommandFunction:
         )  # TODO bad parsing
         if self.verbose:
             print(f"The following command is sent: \"{' '.join(full_command)}\"")
-        outlines: List[str] = []
+        out_buffers: List[str] = []
+        err_buffers: List[str] = []
         with subprocess.Popen(
             full_command,
             stdout=subprocess.PIPE,
@@ -294,25 +296,40 @@ class CommandFunction:
             env=self.env,
         ) as process:
             assert process.stdout is not None
+            outno = process.stdout.fileno()
+            errno = process.stderr.fileno()
+            fds = [outno, errno]
+            targets = {outno: [out_buffers, process.stdout, sys.stdout],
+                       errno: [err_buffers, process.stderr, sys.stderr]}
             try:
-                for line in iter(process.stdout.readline, b""):
-                    if not line:
-                        break
-                    outlines.append(line.decode().strip())
-                    if self.verbose:
-                        print(outlines[-1], flush=True)
+                while fds:
+                    # We use select to read either from stderr or stdout.
+                    # Failure to do so can result in a deadlock if the stderr
+                    # or the stdout buffer get overflown.
+                    # select is not the fastest, but it is the most supported.
+                    ready, _, _ = select.select(fds, [], [])
+                    for fd in ready:
+                        buffers, in_stream, out_stream = targets[fd]
+                        buf = in_stream.read(2**16)
+                        if not buf:
+                            fds.remove(fd)
+                        buf = buf.decode()
+                        buffers.append(buf)
+                        if self.verbose:
+                            out_stream.write(buf)
+                            out_stream.flush()
             except Exception as e:
                 process.kill()
                 process.wait()
                 raise FailedJobError("Job got killed for an unknown reason.") from e
-            stderr = process.communicate()[1]  # we already got stdout
-            stdout = "\n".join(outlines)
+            stderr = "".join(err_buffers)
+            stdout = "".join(out_buffers)
             retcode = process.poll()
-            if stderr and (retcode or self.verbose):
-                print(stderr.decode(), file=sys.stderr)
+            if stderr and (retcode and not self.verbose):
+                print(stderr, file=sys.stderr)
             if retcode:
                 subprocess_error = subprocess.CalledProcessError(
                     retcode, process.args, output=stdout, stderr=stderr
                 )
-                raise FailedJobError(stderr.decode()) from subprocess_error
+                raise FailedJobError(stderr) from subprocess_error
         return stdout

@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import multiprocessing
 import os
 import shutil
 import sys
@@ -90,3 +91,22 @@ def test_command_function() -> None:
     with pytest.raises(utils.FailedJobError, match="Too bad"):
         # error=True will make `do_nothing` fail
         utils.CommandFunction(command, verbose=True)(error=True)
+
+
+def _test_command_function_deadlock():
+    f = utils.CommandFunction(["python3", "-c",
+                               "import sys;\n"
+                               "sys.stderr.write('a' * 100_000 + '\\n')"])
+    f()
+
+
+def test_command_function_deadlock() -> None:
+    timeout = 1
+    proc = multiprocessing.Process(target=_test_command_function_deadlock)
+    proc.start()
+    proc.join(timeout)
+    exitcode = proc.exitcode  # save exitcode before terminating
+    if exitcode is None:
+        proc.kill()
+    assert exitcode is not None, "command function deadlocked"
+    assert exitcode == 0, "Deadlock test failed mysteriously"
