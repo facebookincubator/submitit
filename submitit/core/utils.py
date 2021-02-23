@@ -350,11 +350,11 @@ class CommandFunction:
             out_streams = [stdout_stream, stderr_stream]
 
             try:
-                # We use select to read either from stderr or stdout.
-                # Failure to do so can result in a deadlock if the stderr
-                # or the stdout buffer get overflown.
-                # select is not the fastest, but it is the most supported.
-                copy_streams([process.stdout, process.stderr], out_streams)
+                # We use select to read either from stderr or stdout when data is available..
+                # Failure to do so can result in a deadlock if the stder or the stdout buffer get overflown.
+                # We must use the raw buffer, as otherwise this could mess up
+                # our calls to select.
+                copy_streams([process.stdout.raw, process.stderr.raw], out_streams)
             except Exception as e:
                 process.kill()
                 process.wait()
