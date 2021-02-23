@@ -263,6 +263,13 @@ def copy_streams(in_streams: List[IO[bytes]], out_streams: List[_MultiStreamWrap
     to the matching out stream in `out_streams`.
     """
     assert len(in_streams) == len(out_streams)
+
+    # We must use the raw buffer, as otherwise this could mess up our calls to select.
+    in_streams = [
+        stream.raw if isinstance(stream, io.BufferedIOBase) else stream
+        for stream in in_streams
+    ]
+
     stream_map: Dict[int, Tuple[IO[bytes], _MultiStreamWrapper]] = {
         in_stream.fileno(): (in_stream, out_stream) for in_stream, out_stream in zip(in_streams, out_streams)
     }
@@ -352,9 +359,7 @@ class CommandFunction:
             try:
                 # We use select to read either from stderr or stdout when data is available..
                 # Failure to do so can result in a deadlock if the stder or the stdout buffer get overflown.
-                # We must use the raw buffer, as otherwise this could mess up
-                # our calls to select.
-                copy_streams([process.stdout.raw, process.stderr.raw], out_streams)
+                copy_streams([process.stdout, process.stderr], out_streams)
             except Exception as e:
                 process.kill()
                 process.wait()
