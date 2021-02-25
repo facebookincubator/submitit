@@ -265,10 +265,13 @@ def copy_streams(in_streams: List[IO[bytes]], out_streams: List[_MultiStreamWrap
     assert len(in_streams) == len(out_streams)
 
     # We must use the raw buffer, as otherwise this could mess up our calls to select.
-    in_streams = [
-        stream.raw if isinstance(stream, io.BufferedIOBase) else stream
-        for stream in in_streams
-    ]
+    raw_streams: List[IO[bytes]] = []
+    for stream in in_streams:
+        if isinstance(stream, io.BufferedIOBase):
+            raw_streams.append(stream.raw)
+        else:
+            raw_streams.append(stream)
+    in_streams = raw_streams
 
     stream_map: Dict[int, Tuple[IO[bytes], _MultiStreamWrapper]] = {
         in_stream.fileno(): (in_stream, out_stream) for in_stream, out_stream in zip(in_streams, out_streams)
