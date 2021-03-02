@@ -261,6 +261,11 @@ def test_make_batch_string_gpu() -> None:
     assert "--gpus-per-node=2" in string
 
 
+def test_make_batch_stderr() -> None:
+    string = slurm._make_sbatch_string(command="blublu", folder="/tmp", stderr_to_stdout=True)
+    assert "--error" not in string
+
+
 def test_update_parameters_error() -> None:
     with mocked_slurm() as tmp:
         with pytest.raises(ValueError):

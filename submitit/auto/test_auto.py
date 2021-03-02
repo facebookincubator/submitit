@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import sys
+
 import pytest
 
 from ..local import debug
@@ -98,3 +100,23 @@ def test_auto_batch_watcher() -> None:
         with executor.batch():
             job = executor.submit(print, "hi")
         assert not job.done()
+
+
+def test_redirect_stdout_stderr(executor) -> None:
+    def log_to_stderr_and_stdout():
+        print("hello")
+        print("world", file=sys.stderr)
+
+    executor.update_parameters(stderr_to_stdout=True)
+    job = executor.submit(log_to_stderr_and_stdout)
+    job.wait()
+    assert job.stderr() is None
+    stdout = job.stdout()
+    assert "hello" in stdout
+    assert "world" in stdout
+
+    executor.update_parameters(stderr_to_stdout=False)
+    job = executor.submit(log_to_stderr_and_stdout)
+    job.wait()
+    assert "world" in job.stderr()
+    assert "hello" in job.stdout()
