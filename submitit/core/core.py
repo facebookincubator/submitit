@@ -368,13 +368,11 @@ class Job(tp.Generic[R]):
                 message.extend(["Error stream produced:", "-" * 40, log])
             elif self.paths.stdout.exists():
                 log = subprocess.check_output(["tail", "-40", str(self.paths.stdout)], encoding="utf-8")
-                message.extend([f"No error stream produced. Look at stdout: {self.paths.stdout}", "-" * 40])
-            else:
                 message.extend(
-                    [
-                        f"No error stream produced, nor output stream ! Stdout should be at: {self.paths.stdout}"
-                    ]
+                    [f"No error stream produced. Look at stdout: {self.paths.stdout}", "-" * 40, log]
                 )
+            else:
+                message.append(f"No output/error stream produced ! Check: {self.paths.stdout}")
             raise utils.UncompletedJobError("\n".join(message))
         try:
             output: tp.Tuple[str, tp.Any] = utils.pickle_load(self.paths.result_pickle)

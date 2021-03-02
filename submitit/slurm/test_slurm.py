@@ -469,3 +469,25 @@ def test_slurm_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
     text = job.paths.submission_file.read_text()
     mem_lines = [x for x in text.splitlines() if "#SBATCH --mem" in x]
     assert len(mem_lines) == 1, f"Unexpected lines: {mem_lines}"
+
+
+def test_slurm_job_no_stderr() -> None:
+    def fail_silently():
+        raise ValueError("Too bad")
+
+    with mocked_slurm() as tmp:
+        executor = slurm.SlurmExecutor(folder=tmp)
+        # Failed but no stderr
+        job = executor.submit(fail_silently)
+        _mock_log_files(job, prints="job is running ...\n")
+        job._results_timeout_s = 0
+        with pytest.raises(utils.UncompletedJobError, match="job is running ..."):
+            job._get_outcome_and_result()
+
+        # Failed but no stderr nor stdout
+        job = executor.submit(fail_silently)
+        job._results_timeout_s = 0
+        # Explicitly unlink stdout because submitit is writing there on startup
+        job.paths.stdout.unlink()
+        with pytest.raises(utils.UncompletedJobError, match="No output/error stream produced !"):
+            job._get_outcome_and_result()
