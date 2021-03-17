@@ -130,8 +130,7 @@ class JobEnvironment:
         @plugin-dev: Should be adapted to the signals used in this cluster.
         """
         handler = SignalHandler(self, paths, submission)
-        signal.signal(signal.SIGUSR1, handler.checkpoint_and_try_requeue)
-        signal.signal(signal.SIGTERM, handler.bypass)
+        signal.signal(signal.SIGTERM, handler.checkpoint_and_try_requeue)
 
     # pylint: disable=no-self-use,unused-argument
     def _requeue(self, countdown: int) -> None:
