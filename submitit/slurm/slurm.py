@@ -396,6 +396,7 @@ def _make_sbatch_string(
     num_gpus: tp.Optional[int] = None,  # legacy
     gpus_per_node: tp.Optional[int] = None,
     gpus_per_task: tp.Optional[int] = None,
+    qos: tp.Optional[str] = None,  # quality of service
     setup: tp.Optional[tp.List[str]] = None,
     mem: tp.Optional[str] = None,
     mem_per_gpu: tp.Optional[str] = None,
