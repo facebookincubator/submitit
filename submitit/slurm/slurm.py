@@ -409,6 +409,7 @@ def _make_sbatch_string(
     array_parallelism: int = 256,
     wckey: str = "submitit",
     map_count: tp.Optional[int] = None,  # used internally
+    qos: tp.Optional[str] = None, # quality of service
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
 ) -> str:
     """Creates the content of an sbatch file with provided parameters
