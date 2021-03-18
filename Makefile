@@ -9,7 +9,7 @@ BIN=venv/bin/
 endif
 
 CODE=submitit
-CODE_AND_SETUP=$(CODE) setup.py docs/*.py
+CODE_AND_SETUP=$(CODE) setup.py docs/ integration/
 
 which:
 	which $(BIN)python

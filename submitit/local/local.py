@@ -68,23 +68,10 @@ class LocalJob(core.Job[R]):
         assert self._process is not None
         self._process.send_signal(signal.SIGINT)
 
-    def _interrupt(self, timeout: bool = False) -> None:
-        """Sends preemption or timeout signal to the job (for testing purpose)
-
-        Parameter
-        ---------
-        timedout: bool
-            Whether to trigger a job time-out (if False, it triggers preemption)
-        """
+    def _interrupt(self) -> None:
+        """Sends preemption / timeout signal to the job (for testing purpose)"""
         assert self._process is not None
-        if not timeout:
-            self._process.send_signal(signal.SIGTERM)
-            time.sleep(0.001)
-        self._process.send_signal(signal.SIGUSR1)
-
-    def trigger_timeout(self) -> None:
-        assert self._process is not None
-        self._process.send_signal(signal.SIGUSR1)
+        self._process.send_signal(signal.SIGTERM)
 
     def __del__(self) -> None:
         if self._cancel_at_deletion:
@@ -242,7 +229,6 @@ class Controller:
         self.stderrs: List[IO[Any]] = []
         self.pid = str(os.getpid())
         self.folder = Path(folder)
-        signal.signal(signal.SIGUSR1, self._forward_signal)
         signal.signal(signal.SIGTERM, self._forward_signal)
 
     def _forward_signal(self, signum: signal.Signals, *args: Any) -> None:  # pylint:disable=unused-argument
@@ -308,7 +294,7 @@ class Controller:
                 return exit_codes
 
             if step == almost_timeout:
-                self._forward_signal(signal.SIGUSR1)
+                self._forward_signal(signal.SIGTERM)
 
             time.sleep(1.0 / freq)
         return [t.poll() for t in self.tasks]

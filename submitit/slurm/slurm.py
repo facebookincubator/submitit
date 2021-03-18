@@ -47,7 +47,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
         to_check = {x.split("_")[0] for x in self._registered - self._finished}
         if not to_check:
             return None
-        command = ["sacct", "-o", "JobID,State", "--parsable2"]
+        command = ["sacct", "-o", "JobID,State,NodeList", "--parsable2"]
         for jid in to_check:
             command.extend(["-j", str(jid)])
         return command
@@ -447,11 +447,11 @@ def _make_sbatch_string(
         "array_parallelism",
         "additional_parameters",
         "setup",
+        "signal_delay_s",
     ]
-    parameters = {x: y for x, y in locals().items() if y and y is not None and x not in nonslurm}
+    parameters = {k: v for k, v in locals().items() if v and v is not None and k not in nonslurm}
     # rename and reformat parameters
-    parameters["signal"] = signal_delay_s
-    del parameters["signal_delay_s"]
+    parameters["signal"] = f"TERM@{signal_delay_s}"
     if job_name:
         parameters["job_name"] = utils.sanitize(job_name)
     if comment:
@@ -475,14 +475,14 @@ def _make_sbatch_string(
         stderr = stderr.replace("%j", "%A_%a")
     parameters["output"] = stdout.replace("%t", "0")
     parameters["error"] = stderr.replace("%t", "0")
-    parameters.update({"signal": f"USR1@{signal_delay_s}", "open-mode": "append"})
+    parameters["open-mode"] = "append"
     if additional_parameters is not None:
         parameters.update(additional_parameters)
     # now create
     lines = ["#!/bin/bash", "", "# Parameters"]
     lines += [
-        "#SBATCH --{}{}".format(x.replace("_", "-"), "" if parameters[x] is True else f"={parameters[x]}")
-        for x in sorted(parameters)
+        "#SBATCH --{}{}".format(k.replace("_", "-"), "" if parameters[k] is True else f"={parameters[k]}")
+        for k in sorted(parameters)
     ]
     # environment setup:
     if setup is not None:
@@ -493,6 +493,6 @@ def _make_sbatch_string(
         "",
         "# command",
         "export SUBMITIT_EXECUTOR=slurm",
-        f"srun --output {stdout} --error {stderr} --unbuffered {command}",
+        f"srun --output {stdout} --error {stderr} --unbuffered {command}\n",
     ]
     return "\n".join(lines)
