@@ -57,19 +57,9 @@ def pascal_job(partition: str, timeout_min: int, node: str = "") -> Job:
 
 
 def wait_job_is_running(job: Job) -> None:
-    while job.state != "RUNNING":
+    while job.state in ("UNKNOWN", "PENDING"):
         log.info(f"{job} is not RUNNING")
         time.sleep(60)
-
-
-def sacct(job: Job, field: str):
-    sacct = subprocess.check_output(
-        ["sacct", "-j", job.job_id, "-o", f"JobID,{field}", "--parsable2"], text=True,
-    )
-    node = next((l.split("|")[-1] for l in sacct.splitlines() if l.startswith(job.job_id + "|")), None)
-    if node is None:
-        raise ValueError(f"Job not found {job.job_id}")
-    return node
 
 
 def main():
@@ -83,7 +73,7 @@ def main():
     # log.info(job.paths.submission_file.read_text())
 
     wait_job_is_running(job)
-    node = sacct(job, "NodeList")
+    node = job.get_info()["NodeList"]
     log.info(f"{job} ({job.state}) is runnning on {node} !")
     # Schedule another pascal job on the same node, whith high priority
     priority_job = pascal_job("dev", timeout_min=15, node=node)

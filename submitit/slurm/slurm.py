@@ -47,7 +47,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
         to_check = {x.split("_")[0] for x in self._registered - self._finished}
         if not to_check:
             return None
-        command = ["sacct", "-o", "JobID,State", "--parsable2"]
+        command = ["sacct", "-o", "JobID,State,NodeList", "--parsable2"]
         for jid in to_check:
             command.extend(["-j", str(jid)])
         return command
