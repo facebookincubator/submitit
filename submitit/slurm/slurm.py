@@ -449,6 +449,7 @@ def _make_sbatch_string(
         "additional_parameters",
         "setup",
         "signal_delay_s",
+        "stderr_to_stdout",
     ]
     parameters = {k: v for k, v in locals().items() if v and v is not None and k not in nonslurm}
     # rename and reformat parameters
