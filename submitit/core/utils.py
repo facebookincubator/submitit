@@ -240,61 +240,47 @@ def cloudpickle_dump(obj: Any, filename: Union[str, Path]) -> None:
         cloudpickle.dump(obj, ofile, pickle.HIGHEST_PROTOCOL)
 
 
-class _MultiStreamWrapper:
+def copy_process_streams(
+    process: subprocess.Popen[bytes], stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
+):
     """
-    One-to-many wrapper for IO write streams.
+    Reads the given process stdout/stderr and write them to StringIO objects. 
+    Make sure that there is no deadlock because of pipe congestion.
+    If `verbose` the process stdout/stderr are also copying to the interpreter stdout/stderr.
     """
-
-    def __init__(self, streams: List[IO[str]]):
-        self._streams = streams
-
-    def write(self, content: str):
-        for stream in self._streams:
-            stream.write(content)
-
-    def flush(self):
-        for stream in self._streams:
-            stream.flush()
-
-
-def copy_streams(in_streams: List[IO[bytes]], out_streams: List[_MultiStreamWrapper]):
-    """
-    Using `select`, copy the content from the bytes `in_streams` streams,
-    to the matching out stream in `out_streams`.
-    """
-    assert len(in_streams) == len(out_streams)
-
-    # We must use the raw buffer, as otherwise this could mess up our calls to select.
-    raw_streams: List[IO[bytes]] = []
-    for stream in in_streams:
-        if isinstance(stream, io.BufferedIOBase):
-            raw_streams.append(stream.raw)
-        else:
-            raw_streams.append(stream)
-    in_streams = raw_streams
-
-    stream_map: Dict[int, Tuple[IO[bytes], _MultiStreamWrapper]] = {
-        in_stream.fileno(): (in_stream, out_stream) for in_stream, out_stream in zip(in_streams, out_streams)
+    p_stdout, p_stderr = process.stdout, process.stderr
+    assert p_stdout is not None
+    assert p_stderr is not None
+    stream_by_fd = {
+        p_stdout.fileno(): (p_stdout, stdout, sys.stdout),
+        p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
     }
-    fds = list(stream_map.keys())
+    fds = list(stream_by_fd.keys())
 
     while fds:
+        # `select` syscall will wait until one of the file descriptors has content.
         ready, _, _ = select.select(fds, [], [])
         for fd in ready:
-            in_stream, out_stream = stream_map[fd]
-            raw_buf = in_stream.read(2 ** 16)
+            p_stream, string, std = stream_by_fd[fd]
+            raw_buf = p_stream.read(2 ** 16)
             if not raw_buf:
                 fds.remove(fd)
+                continue
             buf = raw_buf.decode()
-            out_stream.write(buf)
-            out_stream.flush()
+            string.write(buf)
+            string.flush()
+            if verbose:
+                std.write(buf)
+                std.flush()
 
 
 # used in "_core", so cannot be in "helpers"
 class CommandFunction:
     """Wraps a command as a function in order to make sure it goes through the
     pipeline and notify when it is finished.
-    The output is a string containing everything that has been sent to stdout
+    The output is a string containing everything that has been sent to stdout.
+    WARNING: use CommandFunction only if you know the output won't be too big !
+    Otherwise use subprocess.run() that also streams the outputto stdout/stderr.
 
     Parameters
     ----------
@@ -328,8 +314,8 @@ class CommandFunction:
     def __call__(self, *args: Any, **kwargs: Any) -> str:
         """Call the cammand line with addidional arguments
         The keyword arguments will be sent as --{key}={val}
-        The logs are bufferized. They will be printed if the job fails, or sent as output of the function
-        Errors are provided with the internal stderr
+        The logs bufferized. They will be printed if the job fails, or sent as output of the function
+        Errors are provided with the internal stderr.
         """
         full_command = (
             self.command + [str(x) for x in args] + ["--{}={}".format(x, y) for x, y in kwargs.items()]
@@ -344,32 +330,18 @@ class CommandFunction:
             cwd=self.cwd,
             env=self.env,
         ) as process:
-            assert process.stdout is not None
-            assert process.stderr is not None
-
             stdout_buffer = io.StringIO()
             stderr_buffer = io.StringIO()
 
-            if self.verbose:
-                stdout_stream = _MultiStreamWrapper([stdout_buffer, sys.stdout])
-                stderr_stream = _MultiStreamWrapper([stderr_buffer, sys.stderr])
-            else:
-                stdout_stream = _MultiStreamWrapper([stdout_buffer])
-                stderr_stream = _MultiStreamWrapper([stderr_buffer])
-
-            out_streams = [stdout_stream, stderr_stream]
-
             try:
-                # We use select to read either from stderr or stdout when data is available..
-                # Failure to do so can result in a deadlock if the stder or the stdout buffer get overflown.
-                copy_streams([process.stdout, process.stderr], out_streams)
+                copy_process_streams(process, stdout_buffer, stderr_buffer, self.verbose)
             except Exception as e:
                 process.kill()
                 process.wait()
                 raise FailedJobError("Job got killed for an unknown reason.") from e
             stdout = stdout_buffer.getvalue().strip()
             stderr = stderr_buffer.getvalue().strip()
-            retcode = process.poll()
+            retcode = process.wait()
             if stderr and (retcode and not self.verbose):
                 # We don't print is self.verbose, as it already happened before.
                 print(stderr, file=sys.stderr)
