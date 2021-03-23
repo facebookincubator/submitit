@@ -93,18 +93,20 @@ def test_command_function() -> None:
         utils.CommandFunction(command, verbose=True)(error=True)
 
 
-def _test_command_function_deadlock():
-    f = utils.CommandFunction(["python3", "-c", "import sys;\nsys.stderr.write('a' * 100_000 + '\\n')"])
-    f()
+def test_command_function_deadlock(executor) -> None:
+    code = """
+import sys;
+print(sys.__stderr__)
+# The goal here is to fill up the stderr pipe buffer.
+for i in range({n}):
+    print("-" * 1024, file=sys.stdout)
+print("printed {n} lines to stderr")
+"""
+    fn1 = utils.CommandFunction([sys.executable, "-c", code.format(n=10)])
+    executor.update_parameters(timeout_min=2 / 60)
+    j1 = executor.submit(fn1)
+    assert "10 lines" in j1.result()
 
-
-def test_command_function_deadlock() -> None:
-    timeout = 1
-    proc = multiprocessing.Process(target=_test_command_function_deadlock)
-    proc.start()
-    proc.join(timeout)
-    exitcode = proc.exitcode  # save exitcode before terminating
-    if exitcode is None:
-        proc.terminate()
-    assert exitcode is not None, "command function deadlocked"
-    assert exitcode == 0, "Deadlock test failed mysteriously"
+    fn2 = utils.CommandFunction(["python", "-c", code.format(n=1000)])
+    j2 = executor.submit(fn2)
+    assert "1000 lines" in j2.result()
