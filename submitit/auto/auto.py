@@ -119,7 +119,16 @@ class AutoExecutor(Executor):
 
     @classmethod
     def _valid_parameters(cls) -> tp.Set[str]:
-        return {"name", "timeout_min", "mem_gb", "nodes", "cpus_per_task", "gpus_per_node", "tasks_per_node"}
+        return {
+            "name",
+            "timeout_min",
+            "mem_gb",
+            "nodes",
+            "cpus_per_task",
+            "gpus_per_node",
+            "tasks_per_node",
+            "stderr_to_stdout",
+        }
 
     def _internal_update_parameters(self, **kwargs: Any) -> None:
         """Updates submission parameters to srun/crun.

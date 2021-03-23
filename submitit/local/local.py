@@ -153,6 +153,7 @@ class LocalExecutor(core.PicklingExecutor):
             cuda_devices=",".join(str(k) for k in range(self.parameters.get("gpus_per_node", 0))),
             timeout_min=self.parameters.get("timeout_min", 2.0),
             signal_delay_s=self.parameters.get("signal_delay_s", 30),
+            stderr_to_stdout=self.parameters.get("stderr_to_stdout", False),
         )
         job: LocalJob[R] = LocalJob(
             folder=self.folder, job_id=str(process.pid), process=process, tasks=list(range(ntasks))
@@ -190,6 +191,7 @@ def start_controller(
     cuda_devices: str = "",
     timeout_min: float = 5.0,
     signal_delay_s: int = 30,
+    stderr_to_stdout: bool = False,
 ) -> "subprocess.Popen['bytes']":
     """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
@@ -200,6 +202,7 @@ def start_controller(
         SUBMITIT_LOCAL_SIGNAL_DELAY_S=str(int(signal_delay_s)),
         SUBMITIT_LOCAL_NODEID="0",
         SUBMITIT_LOCAL_JOB_NUM_NODES="1",
+        SUBMITIT_STDERR_TO_STDOUT="1" if stderr_to_stdout else "",
         SUBMITIT_EXECUTOR="local",
         CUDA_AVAILABLE_DEVICES=cuda_devices,
     )
@@ -224,6 +227,7 @@ class Controller:
         self.command = shlex.split(os.environ["SUBMITIT_LOCAL_COMMAND"])
         self.timeout_s = int(os.environ["SUBMITIT_LOCAL_TIMEOUT_S"])
         self.signal_delay_s = int(os.environ["SUBMITIT_LOCAL_SIGNAL_DELAY_S"])
+        self.stderr_to_stdout = bool(os.environ["SUBMITIT_STDERR_TO_STDOUT"])
         self.tasks: List[subprocess.Popen] = []  # type: ignore
         self.stdouts: List[IO[Any]] = []
         self.stderrs: List[IO[Any]] = []
@@ -242,7 +246,7 @@ class Controller:
         self.folder.mkdir(exist_ok=True)
         paths = [utils.JobPaths(self.folder, self.pid, k) for k in range(self.ntasks)]
         self.stdouts = [p.stdout.open("a") for p in paths]
-        self.stderrs = [p.stderr.open("a") for p in paths]
+        self.stderrs = self.stdouts if self.stderr_to_stdout else [p.stderr.open("a") for p in paths]
         for k in range(self.ntasks):
             env = dict(os.environ)
             env.update(

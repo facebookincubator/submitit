@@ -408,6 +408,7 @@ def _make_sbatch_string(
     exclusive: tp.Union[bool, str] = False,
     array_parallelism: int = 256,
     wckey: str = "submitit",
+    stderr_to_stdout: bool = False,
     map_count: tp.Optional[int] = None,  # used internally
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
 ) -> str:
@@ -448,6 +449,7 @@ def _make_sbatch_string(
         "additional_parameters",
         "setup",
         "signal_delay_s",
+        "stderr_to_stdout",
     ]
     parameters = {k: v for k, v in locals().items() if v and v is not None and k not in nonslurm}
     # rename and reformat parameters
@@ -474,7 +476,8 @@ def _make_sbatch_string(
         stdout = stdout.replace("%j", "%A_%a")
         stderr = stderr.replace("%j", "%A_%a")
     parameters["output"] = stdout.replace("%t", "0")
-    parameters["error"] = stderr.replace("%t", "0")
+    if not stderr_to_stdout:
+        parameters["error"] = stderr.replace("%t", "0")
     parameters["open-mode"] = "append"
     if additional_parameters is not None:
         parameters.update(additional_parameters)
@@ -489,10 +492,11 @@ def _make_sbatch_string(
         lines += ["", "# setup"] + setup
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
+    stderr_flag = "" if stderr_to_stdout else f"--error {stderr}"
     lines += [
         "",
         "# command",
         "export SUBMITIT_EXECUTOR=slurm",
-        f"srun --output {stdout} --error {stderr} --unbuffered {command}\n",
+        f"srun --output {stdout} {stderr_flag} --unbuffered {command}\n",
     ]
     return "\n".join(lines)

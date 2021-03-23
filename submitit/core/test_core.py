@@ -7,6 +7,7 @@
 # pylint: disable=redefined-outer-name
 import contextlib
 import pickle
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -44,14 +45,17 @@ class MockedSubprocess:
         self.job_id = job_id
         self._sacct = self.sacct(state, job_id, array)
         self._sbatch = f"Running job {job_id}\n".encode()
+        self._subprocess_check_output = subprocess.check_output
 
-    def __call__(self, command: str, **kwargs: Any) -> Any:
+    def __call__(self, command: List[str], **kwargs: Any) -> Any:
         if command[0] == "sacct":
             return self._sacct
         elif command[0] == "sbatch":
             return self._sbatch
         elif command[0] == "scancel":
             return ""
+        elif command[0] == "tail":
+            return self._subprocess_check_output(command, **kwargs)
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 

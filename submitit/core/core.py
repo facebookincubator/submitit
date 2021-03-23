@@ -54,8 +54,7 @@ class InfoWatcher:
 
     @property
     def num_calls(self) -> int:
-        """Number of calls to sacct
-        """
+        """Number of calls to sacct"""
         return self._num_calls
 
     def clear(self) -> None:
@@ -120,8 +119,7 @@ class InfoWatcher:
             self.update()
 
     def update(self) -> None:
-        """Updates the info of all registered jobs with a call to sacct
-        """
+        """Updates the info of all registered jobs with a call to sacct"""
         command = self._make_command()
         if command is None:
             return
@@ -142,8 +140,7 @@ class InfoWatcher:
                 self._finished.add(job_id)
 
     def register_job(self, job_id: str) -> None:
-        """Register a job on the instance for shared update
-        """
+        """Register a job on the instance for shared update"""
         assert isinstance(job_id, str)
         self._registered.add(job_id)
         self._start_time = _time.time()
@@ -196,15 +193,13 @@ class Job(tp.Generic[R]):
 
     @property
     def num_tasks(self) -> int:
-        """Returns the number of tasks in the Job
-        """
+        """Returns the number of tasks in the Job"""
         if not self._sub_jobs:
             return 1
         return len(self._sub_jobs)
 
     def submission(self) -> utils.DelayedSubmission:
-        """Returns the submitted object, with attributes `function`, `args` and `kwargs`
-        """
+        """Returns the submitted object, with attributes `function`, `args` and `kwargs`"""
         assert (
             self.paths.submitted_pickle.exists()
         ), f"Cannot find job submission pickle: {self.paths.submitted_pickle}"
@@ -364,12 +359,21 @@ class Job(tp.Generic[R]):
         while not self.paths.result_pickle.exists() and _time.time() - start_wait < timeout:
             _time.sleep(1)
         if not self.paths.result_pickle.exists():
+            message = [
+                f"Job {self.job_id} (task: {self.task_id}) with path {self.paths.result_pickle}",
+                f"has not produced any output (state: {self.state})",
+            ]
             log = self.stderr()
-            raise utils.UncompletedJobError(
-                f"Job {self.job_id} (task: {self.task_id}) with path {self.paths.result_pickle}\n"
-                f"has not produced any output (state: {self.state})\n"
-                f"Error stream produced:\n----------------------\n{log}"
-            )
+            if log:
+                message.extend(["Error stream produced:", "-" * 40, log])
+            elif self.paths.stdout.exists():
+                log = subprocess.check_output(["tail", "-40", str(self.paths.stdout)], encoding="utf-8")
+                message.extend(
+                    [f"No error stream produced. Look at stdout: {self.paths.stdout}", "-" * 40, log]
+                )
+            else:
+                message.append(f"No output/error stream produced ! Check: {self.paths.stdout}")
+            raise utils.UncompletedJobError("\n".join(message))
         try:
             output: tp.Tuple[str, tp.Any] = utils.pickle_load(self.paths.result_pickle)
         except EOFError:
@@ -431,13 +435,11 @@ class Job(tp.Generic[R]):
 
     @property
     def state(self) -> str:
-        """State of the job (forces an update)
-        """
+        """State of the job (forces an update)"""
         return self.watcher.get_state(self.job_id, mode="force")
 
     def get_info(self) -> tp.Dict[str, str]:
-        """Returns informations about the job as a dict (sacct call)
-        """
+        """Returns informations about the job as a dict (sacct call)"""
         return self.watcher.get_info(self.job_id, mode="force")
 
     def _get_logs_string(self, name: str) -> tp.Optional[str]:
@@ -500,8 +502,7 @@ class Job(tp.Generic[R]):
         return self.__dict__  # for pickling (see __setstate__)
 
     def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
-        """Make sure jobs are registered when loaded from a pickle
-        """
+        """Make sure jobs are registered when loaded from a pickle"""
         self.__dict__.update(state)
         self._register_in_watcher()
 
@@ -674,8 +675,7 @@ class Executor(abc.ABC):
 
     @classmethod
     def _valid_parameters(cls) -> tp.Set[str]:
-        """Parameters that can be set through update_parameters
-        """
+        """Parameters that can be set through update_parameters"""
         return set()
 
     def _convert_parameters(self, params: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
@@ -807,8 +807,7 @@ class PicklingExecutor(Executor):
 
     @abc.abstractmethod
     def _num_tasks(self) -> int:
-        """Returns the number of tasks associated to the job
-        """
+        """Returns the number of tasks associated to the job"""
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -820,15 +819,13 @@ class PicklingExecutor(Executor):
 
     @abc.abstractmethod
     def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
-        """Create the submission command.
-        """
+        """Create the submission command."""
         raise NotImplementedError
 
     @staticmethod
     @abc.abstractmethod
     def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
-        """Recover the job id from the output of the submission command.
-        """
+        """Recover the job id from the output of the submission command."""
         raise NotImplementedError
 
     @staticmethod

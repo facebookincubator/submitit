@@ -49,8 +49,8 @@ venv: venv/requirements.txt
 
 venv/requirements.txt: requirements/main.txt requirements/dev.txt
 	python3 -m venv venv
-	venv/bin/pip install --upgrade pip
-	venv/bin/pip install -U -e .[dev]
+	venv/bin/pip install --progress-bar off --upgrade pip
+	venv/bin/pip install --progress-bar off -U -e .[dev]
 	cat $^ > venv/requirements.txt
 
 installable: venv
@@ -73,6 +73,6 @@ release: integration
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
 	[[ ! -d dist ]] || rm -r dist
 	$(BIN)python setup.py sdist
-	$(BIN)pip install twine
+	$(BIN)pip install --progress-bar off twine
 	# Credentials are read from ~/.pypirc
 	$(BIN)python -m twine upload dist/*
