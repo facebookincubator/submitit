@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import multiprocessing
 import os
 import shutil
 import sys

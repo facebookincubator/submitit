@@ -240,18 +240,24 @@ def cloudpickle_dump(obj: Any, filename: Union[str, Path]) -> None:
         cloudpickle.dump(obj, ofile, pickle.HIGHEST_PROTOCOL)
 
 
+# pylint: disable=too-many-locals
 def copy_process_streams(
-    process: subprocess.Popen[bytes], stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
+    process: subprocess.Popen, stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
 ):
     """
-    Reads the given process stdout/stderr and write them to StringIO objects. 
+    Reads the given process stdout/stderr and write them to StringIO objects.
     Make sure that there is no deadlock because of pipe congestion.
     If `verbose` the process stdout/stderr are also copying to the interpreter stdout/stderr.
     """
-    p_stdout, p_stderr = process.stdout, process.stderr
-    assert p_stdout is not None
-    assert p_stderr is not None
-    stream_by_fd = {
+
+    def raw(stream: Optional[IO[bytes]]) -> IO[bytes]:
+        assert stream is not None
+        if isinstance(stream, io.BufferedIOBase):
+            stream = stream.raw
+        return stream
+
+    p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
+    stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, IO[str]]] = {
         p_stdout.fileno(): (p_stdout, stdout, sys.stdout),
         p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
     }
