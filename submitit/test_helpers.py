@@ -8,12 +8,19 @@ import os
 import time
 from pathlib import Path
 
+import pytest
+
 from . import helpers
 from .core import utils
 
 
 def _three_time(x: int) -> int:
     return 3 * x
+
+
+requires_rsync = pytest.mark.skipif(
+    not helpers.RsyncSnapshot.available(), reason="Rsync is required for snapshotting"
+)
 
 
 def test_function_sequence_checkpoint(tmp_path: Path) -> None:
@@ -52,6 +59,7 @@ def test_as_completed(executor) -> None:
     assert jobs[0] is finished_jobs[-1]
 
 
+@requires_rsync
 def test_snapshot(tmp_path: Path) -> None:
     cwd = Path.cwd()
     with helpers.RsyncSnapshot(tmp_path):
@@ -60,6 +68,7 @@ def test_snapshot(tmp_path: Path) -> None:
     assert Path.cwd() == cwd
 
 
+@requires_rsync
 def test_snapshot_excludes(tmp_path: Path) -> None:
     exclude = ["submitit/test_*"]
     with helpers.RsyncSnapshot(snapshot_dir=tmp_path, exclude=exclude):
@@ -67,12 +76,14 @@ def test_snapshot_excludes(tmp_path: Path) -> None:
         assert not (tmp_path / "submitit/test_helpers.py").exists()
 
 
+@requires_rsync
 def test_job_use_snapshot_cwd(executor, tmp_path: Path) -> None:
     with helpers.RsyncSnapshot(snapshot_dir=tmp_path):
         job = executor.submit(os.getcwd)
     assert Path(job.result()) == tmp_path
 
 
+@requires_rsync
 def test_job_use_snapshot_modules(executor, tmp_path: Path) -> None:
     with helpers.RsyncSnapshot(snapshot_dir=tmp_path):
 
