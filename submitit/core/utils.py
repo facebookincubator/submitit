@@ -5,16 +5,18 @@
 #
 
 import contextlib
+import io
 import itertools
 import os
 import pickle
 import re
+import select
 import shutil
 import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Optional, Type, Union
+from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 import cloudpickle
 
@@ -238,11 +240,53 @@ def cloudpickle_dump(obj: Any, filename: Union[str, Path]) -> None:
         cloudpickle.dump(obj, ofile, pickle.HIGHEST_PROTOCOL)
 
 
+# pylint: disable=too-many-locals
+def copy_process_streams(
+    process: subprocess.Popen, stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
+):
+    """
+    Reads the given process stdout/stderr and write them to StringIO objects.
+    Make sure that there is no deadlock because of pipe congestion.
+    If `verbose` the process stdout/stderr are also copying to the interpreter stdout/stderr.
+    """
+
+    def raw(stream: Optional[IO[bytes]]) -> IO[bytes]:
+        assert stream is not None
+        if isinstance(stream, io.BufferedIOBase):
+            stream = stream.raw
+        return stream
+
+    p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
+    stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, IO[str]]] = {
+        p_stdout.fileno(): (p_stdout, stdout, sys.stdout),
+        p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
+    }
+    fds = list(stream_by_fd.keys())
+
+    while fds:
+        # `select` syscall will wait until one of the file descriptors has content.
+        ready, _, _ = select.select(fds, [], [])
+        for fd in ready:
+            p_stream, string, std = stream_by_fd[fd]
+            raw_buf = p_stream.read(2 ** 16)
+            if not raw_buf:
+                fds.remove(fd)
+                continue
+            buf = raw_buf.decode()
+            string.write(buf)
+            string.flush()
+            if verbose:
+                std.write(buf)
+                std.flush()
+
+
 # used in "_core", so cannot be in "helpers"
 class CommandFunction:
     """Wraps a command as a function in order to make sure it goes through the
     pipeline and notify when it is finished.
-    The output is a string containing everything that has been sent to stdout
+    The output is a string containing everything that has been sent to stdout.
+    WARNING: use CommandFunction only if you know the output won't be too big !
+    Otherwise use subprocess.run() that also streams the outputto stdout/stderr.
 
     Parameters
     ----------
@@ -276,15 +320,14 @@ class CommandFunction:
     def __call__(self, *args: Any, **kwargs: Any) -> str:
         """Call the cammand line with addidional arguments
         The keyword arguments will be sent as --{key}={val}
-        The logs are bufferized. They will be printed if the job fails, or sent as output of the function
-        Errors are provided with the internal stderr
+        The logs bufferized. They will be printed if the job fails, or sent as output of the function
+        Errors are provided with the internal stderr.
         """
         full_command = (
             self.command + [str(x) for x in args] + ["--{}={}".format(x, y) for x, y in kwargs.items()]
         )  # TODO bad parsing
         if self.verbose:
             print(f"The following command is sent: \"{' '.join(full_command)}\"")
-        outlines: List[str] = []
         with subprocess.Popen(
             full_command,
             stdout=subprocess.PIPE,
@@ -293,26 +336,24 @@ class CommandFunction:
             cwd=self.cwd,
             env=self.env,
         ) as process:
-            assert process.stdout is not None
+            stdout_buffer = io.StringIO()
+            stderr_buffer = io.StringIO()
+
             try:
-                for line in iter(process.stdout.readline, b""):
-                    if not line:
-                        break
-                    outlines.append(line.decode().strip())
-                    if self.verbose:
-                        print(outlines[-1], flush=True)
+                copy_process_streams(process, stdout_buffer, stderr_buffer, self.verbose)
             except Exception as e:
                 process.kill()
                 process.wait()
                 raise FailedJobError("Job got killed for an unknown reason.") from e
-            stderr = process.communicate()[1]  # we already got stdout
-            stdout = "\n".join(outlines)
-            retcode = process.poll()
-            if stderr and (retcode or self.verbose):
-                print(stderr.decode(), file=sys.stderr)
+            stdout = stdout_buffer.getvalue().strip()
+            stderr = stderr_buffer.getvalue().strip()
+            retcode = process.wait()
+            if stderr and (retcode and not self.verbose):
+                # We don't print is self.verbose, as it already happened before.
+                print(stderr, file=sys.stderr)
             if retcode:
                 subprocess_error = subprocess.CalledProcessError(
                     retcode, process.args, output=stdout, stderr=stderr
                 )
-                raise FailedJobError(stderr.decode()) from subprocess_error
+                raise FailedJobError(stderr) from subprocess_error
         return stdout

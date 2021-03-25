@@ -90,3 +90,22 @@ def test_command_function() -> None:
     with pytest.raises(utils.FailedJobError, match="Too bad"):
         # error=True will make `do_nothing` fail
         utils.CommandFunction(command, verbose=True)(error=True)
+
+
+def test_command_function_deadlock(executor) -> None:
+    code = """
+import sys;
+print(sys.__stderr__)
+# The goal here is to fill up the stderr pipe buffer.
+for i in range({n}):
+    print("-" * 1024, file=sys.stdout)
+print("printed {n} lines to stderr")
+"""
+    fn1 = utils.CommandFunction([sys.executable, "-c", code.format(n=10)])
+    executor.update_parameters(timeout_min=2 / 60)
+    j1 = executor.submit(fn1)
+    assert "10 lines" in j1.result()
+
+    fn2 = utils.CommandFunction(["python", "-c", code.format(n=1000)])
+    j2 = executor.submit(fn2)
+    assert "1000 lines" in j2.result()
