@@ -19,18 +19,6 @@ import pytest
 from . import core, submission, utils
 
 
-class _SecondCall:
-    """Helps mocking CommandFunction which is like a subprocess check_output, but
-    with a second call.
-    """
-
-    def __init__(self, outputs: Any) -> None:
-        self._outputs = outputs
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._outputs
-
-
 class MockedSubprocess:
     """Helper for mocking subprocess calls"""
 
@@ -40,41 +28,54 @@ class MockedSubprocess:
     def __init__(
         self, state: str = "RUNNING", job_id: str = "12", shutil_which: Optional[str] = None, array: int = 0
     ) -> None:
-        self.state = state
         self.shutil_which = shutil_which
-        self.job_id = job_id
-        self._sacct = self.sacct(state, job_id, array)
-        self._sbatch = f"Running job {job_id}\n".encode()
+        self.job_sacct: Dict[str, str] = {}
+        self.last_job: str = ""
+        self.set_job_state(job_id, state, array)
         self._subprocess_check_output = subprocess.check_output
 
-    def __call__(self, command: List[str], **kwargs: Any) -> Any:
-        if command[0] == "sacct":
-            return self._sacct
-        elif command[0] == "sbatch":
-            return self._sbatch
-        elif command[0] == "scancel":
-            return ""
-        elif command[0] == "tail":
+    def __call__(self, command: List[str], **kwargs: Any) -> bytes:
+        program = command[0]
+        if program in ["sacct", "sbatch", "scancel"]:
+            return getattr(self, program)(command[1:]).encode()
+        elif program == "tail":
             return self._subprocess_check_output(command, **kwargs)
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def sacct(self, state: str, job_id: str, array: int) -> bytes:
+    def sacct(self, args: List[str]) -> str:
+        return "\n".join(self.job_sacct.values())
+
+    def sbatch(self, args: List[str]) -> str:
+        # TODO: should we generate a job_id instead ? and call set_job_state ourselves ?
+        assert self.last_job, "No job started, did you call `set_job_state` yet ?"
+        return f"Running job {self.last_job}\n"
+
+    def scancel(self, args: List[str]) -> str:
+        # TODO:should we call set_job_state ?
+        return ""
+
+    def set_job_state(self, job_id: str, state: str, array: int) -> None:
+        self.job_sacct[job_id] = self._sacct(state, job_id, array)
+        self.last_job = job_id
+
+    def _sacct(self, state: str, job_id: str, array: int) -> str:
         if array == 0:
             lines = self.SACCT_JOB.format(j=job_id, state=state)
         else:
             lines = "\n".join(self.SACCT_JOB.format(j=f"{job_id}_{i}", state=state) for i in range(array))
-        return "\n".join((self.SACCT_HEADER, lines)).encode()
+        return "\n".join((self.SACCT_HEADER, lines))
 
     def which(self, name: str) -> Optional[str]:
         return "here" if name == self.shutil_which else None
 
+    def mock_cmd_fn(self, *args, **kwargs):
+        # CommandFunction(cmd)() ~= subprocess.check_output(cmd)
+        return lambda: self(*args)
+
     @contextlib.contextmanager
     def context(self) -> Iterator[None]:
-        with patch(
-            "submitit.core.utils.CommandFunction",
-            new=lambda *args, **kwargs: _SecondCall(self(*args, **kwargs)),
-        ):
+        with patch("submitit.core.utils.CommandFunction", new=self.mock_cmd_fn):
             with patch("subprocess.check_output", new=self):
                 with patch("shutil.which", new=self.which):
                     with patch("subprocess.check_call", new=self):
