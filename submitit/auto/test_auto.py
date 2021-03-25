@@ -26,7 +26,7 @@ def test_slurm_executor(monkeypatch) -> None:
 
     # shared parameter with wrong type
     with pytest.raises(AssertionError):
-        executor.update_parameters(mem_gb=2.0)  # should be int
+        executor.update_parameters(mem_gb="2.0GB")  # should be int
     # unknown shared parameter
     with pytest.raises(NameError):
         executor.update_parameters(blublu=2.0)

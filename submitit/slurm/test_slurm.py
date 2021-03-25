@@ -228,7 +228,7 @@ def test_checkpoint_and_exit(tmp_path: Path) -> None:
     assert delayed._timeout_countdown == 1
 
 
-def test_make_batch_string() -> None:
+def test_make_sbatch_string() -> None:
     string = slurm._make_sbatch_string(
         command="blublu",
         folder="/tmp",
@@ -256,14 +256,21 @@ def test_make_batch_string() -> None:
         raise AssertionError("\n".join(message))
 
 
-def test_make_batch_string_gpu() -> None:
+def test_make_sbatch_string_gpu() -> None:
     string = slurm._make_sbatch_string(command="blublu", folder="/tmp", gpus_per_node=2)
     assert "--gpus-per-node=2" in string
 
 
-def test_make_batch_stderr() -> None:
+def test_make_sbatch_stderr() -> None:
     string = slurm._make_sbatch_string(command="blublu", folder="/tmp", stderr_to_stdout=True)
     assert "--error" not in string
+
+
+def test_update_parameters() -> None:
+    with mocked_slurm() as tmp:
+        executor = submitit.AutoExecutor(folder=tmp)
+        executor.update_parameters(mem_gb=3.5)
+        assert executor._executor.parameters["mem"] == "3584MB"
 
 
 def test_update_parameters_error() -> None:
