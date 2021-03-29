@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Iterator, Optional, Sequence, Union
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
 from unittest.mock import patch
 
 import pytest
@@ -25,11 +25,12 @@ class MockedSubprocess:
     SACCT_HEADER = "JobID|State"
     SACCT_JOB = "{j}|{state}\n{j}.ext+|{state}\n{j}.0|{state}"
 
-    def __init__(self, known_cmds: Sequence[str] = []) -> None:
+    def __init__(self, known_cmds: Sequence[str] = None) -> None:
         self.job_sacct: Dict[str, str] = {}
         self.last_job: str = ""
         self._subprocess_check_output = subprocess.check_output
-        self.known_cmds = known_cmds
+        self.known_cmds = known_cmds or []
+        self.job_count = 12
 
     def __call__(self, command: Sequence[str], **kwargs: Any) -> bytes:
         program = command[0]
@@ -40,15 +41,26 @@ class MockedSubprocess:
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def sacct(self, args: Sequence[str]) -> str:
+    def sacct(self, _: Sequence[str]) -> str:
         return "\n".join(self.job_sacct.values())
 
     def sbatch(self, args: Sequence[str]) -> str:
-        # TODO: should we generate a job_id instead ? and call set_job_state ourselves ?
-        assert self.last_job, "No job started, did you call `set_job_state` yet ?"
-        return f"Running job {self.last_job}\n"
+        """Create a "RUNNING" job."""
+        job_id = str(self.job_count)
+        self.job_count += 1
+        sbatch_file = Path(args[0])
+        array = 0
+        if sbatch_file.exists():
+            array_lines = [l for l in sbatch_file.read_text().splitlines() if "--array" in l]
+            if array_lines:
+                # SBATCH --array=0-4%3
+                array = int(array_lines[0].split("=0-")[-1].split("%")[0])
+                array += 1
+        self.set_job_state(job_id, "RUNNING", array)
+        return f"Running job {job_id}\n"
 
-    def scancel(self, args: Sequence[str]) -> str:
+    # pylint: disable=no-self-use
+    def scancel(self, _: Sequence[str]) -> str:
         # TODO:should we call set_job_state ?
         return ""
 
@@ -66,7 +78,7 @@ class MockedSubprocess:
     def which(self, name: str) -> Optional[str]:
         return "here" if name in self.known_cmds else None
 
-    def mock_cmd_fn(self, *args, **kwargs):
+    def mock_cmd_fn(self, *args, **_):
         # CommandFunction(cmd)() ~= subprocess.check_output(cmd)
         return lambda: self(*args)
 
@@ -78,6 +90,7 @@ class MockedSubprocess:
                     with patch("subprocess.check_call", new=self):
                         yield None
 
+    # pylint: disable=no-self-use
     @contextlib.contextmanager
     def job_context(self, job_id: str) -> Iterator[None]:
         with utils.environment_variables(
@@ -115,9 +128,8 @@ class FakeExecutor(core.PicklingExecutor):
         """
         return command + "2"  # this makes "echo 12"
 
-    def _make_submission_command(self, submission_file_path: Path) -> Sequence[str]:
-        """Create the submission command.
-        """
+    def _make_submission_command(self, submission_file_path: Path) -> List[str]:
+        """Create the submission command."""
         with submission_file_path.open("r") as f:
             text: str = f.read()
         return text.split()  # this makes ["echo", "12"]
