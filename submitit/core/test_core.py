@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Iterator, List, Optional, Union
+from typing import Any, Iterator, Optional, Sequence, Union
 from unittest.mock import patch
 
 import pytest
@@ -25,16 +25,13 @@ class MockedSubprocess:
     SACCT_HEADER = "JobID|State"
     SACCT_JOB = "{j}|{state}\n{j}.ext+|{state}\n{j}.0|{state}"
 
-    def __init__(
-        self, state: str = "RUNNING", job_id: str = "12", shutil_which: Optional[str] = None, array: int = 0
-    ) -> None:
-        self.shutil_which = shutil_which
+    def __init__(self, known_cmds: Sequence[str] = []) -> None:
         self.job_sacct: Dict[str, str] = {}
         self.last_job: str = ""
-        self.set_job_state(job_id, state, array)
         self._subprocess_check_output = subprocess.check_output
+        self.known_cmds = known_cmds
 
-    def __call__(self, command: List[str], **kwargs: Any) -> bytes:
+    def __call__(self, command: Sequence[str], **kwargs: Any) -> bytes:
         program = command[0]
         if program in ["sacct", "sbatch", "scancel"]:
             return getattr(self, program)(command[1:]).encode()
@@ -43,19 +40,19 @@ class MockedSubprocess:
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def sacct(self, args: List[str]) -> str:
+    def sacct(self, args: Sequence[str]) -> str:
         return "\n".join(self.job_sacct.values())
 
-    def sbatch(self, args: List[str]) -> str:
+    def sbatch(self, args: Sequence[str]) -> str:
         # TODO: should we generate a job_id instead ? and call set_job_state ourselves ?
         assert self.last_job, "No job started, did you call `set_job_state` yet ?"
         return f"Running job {self.last_job}\n"
 
-    def scancel(self, args: List[str]) -> str:
+    def scancel(self, args: Sequence[str]) -> str:
         # TODO:should we call set_job_state ?
         return ""
 
-    def set_job_state(self, job_id: str, state: str, array: int) -> None:
+    def set_job_state(self, job_id: str, state: str, array: int = 0) -> None:
         self.job_sacct[job_id] = self._sacct(state, job_id, array)
         self.last_job = job_id
 
@@ -67,7 +64,7 @@ class MockedSubprocess:
         return "\n".join((self.SACCT_HEADER, lines))
 
     def which(self, name: str) -> Optional[str]:
-        return "here" if name == self.shutil_which else None
+        return "here" if name in self.known_cmds else None
 
     def mock_cmd_fn(self, *args, **kwargs):
         # CommandFunction(cmd)() ~= subprocess.check_output(cmd)
@@ -80,6 +77,13 @@ class MockedSubprocess:
                 with patch("shutil.which", new=self.which):
                     with patch("subprocess.check_call", new=self):
                         yield None
+
+    @contextlib.contextmanager
+    def job_context(self, job_id: str) -> Iterator[None]:
+        with utils.environment_variables(
+            _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="slurm", SLURM_JOB_ID=str(job_id)
+        ):
+            yield None
 
 
 class FakeInfoWatcher(core.InfoWatcher):
@@ -111,7 +115,7 @@ class FakeExecutor(core.PicklingExecutor):
         """
         return command + "2"  # this makes "echo 12"
 
-    def _make_submission_command(self, submission_file_path: Path) -> List[str]:
+    def _make_submission_command(self, submission_file_path: Path) -> Sequence[str]:
         """Create the submission command.
         """
         with submission_file_path.open("r") as f:

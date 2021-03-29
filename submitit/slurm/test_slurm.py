@@ -31,32 +31,35 @@ def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> Non
 
 
 @contextlib.contextmanager
-def mocked_slurm(state: str = "RUNNING", job_id: str = "12", array: int = 0) -> tp.Iterator[str]:
-    with contextlib.ExitStack() as stack:
-        stack.enter_context(
-            test_core.MockedSubprocess(state=state, job_id=job_id, shutil_which="srun", array=array).context()
-        )
-        envs = dict(_USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="slurm", SLURM_JOB_ID=str(job_id))
-        stack.enter_context(utils.environment_variables(**envs))
-        tmp = stack.enter_context(tempfile.TemporaryDirectory())
-        yield tmp
+def mocked_slurm() -> tp.Iterator[test_core.MockedSubprocess]:
+    mock = test_core.MockedSubprocess(known_cmds=["srun"])
+    try:
+        with mock.context():
+            yield mock
+    finally:
+        # Clear the state of the shared watcher
+        slurm.SlurmJob.watcher.clear()
 
 
-def test_mocked_missing_state() -> None:
-    with mocked_slurm(state="       ", job_id="12") as tmp:
-        job: slurm.SlurmJob[None] = slurm.SlurmJob(tmp, "12")
+def test_mocked_missing_state(tmp_path: Path) -> None:
+    with mocked_slurm() as mock:
+        mock.set_job_state("12", "       ")
+        job: slurm.SlurmJob[None] = slurm.SlurmJob(tmp_path, "12")
         assert job.state == "UNKNOWN"
         job._interrupt(timeout=False)  # check_call is bypassed by MockedSubprocess
 
 
 def test_job_environment() -> None:
-    with mocked_slurm(job_id="12"):
-        assert job_environment.JobEnvironment().cluster == "slurm"
+    with mocked_slurm() as mock:
+        mock.set_job_state("12", "RUNNING")
+        with mock.job_context("12"):
+            assert job_environment.JobEnvironment().cluster == "slurm"
 
 
-def test_slurm_job_mocked() -> None:
-    with mocked_slurm() as tmp:
-        executor = slurm.SlurmExecutor(folder=tmp)
+def test_slurm_job_mocked(tmp_path: Path) -> None:
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path)
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
         assert job.job_id == "12"
         assert job.state == "RUNNING"
@@ -66,19 +69,22 @@ def test_slurm_job_mocked() -> None:
         with pytest.raises(utils.UncompletedJobError):
             job._get_outcome_and_result()
         _mock_log_files(job, errors="This is the error log\n", prints="hop")
-        submission.process_job(job.paths.folder)
+
+        with mock.job_context(job.job_id):
+            submission.process_job(job.paths.folder)
         assert job.result() == 12
         # logs
         assert job.stdout() == "hop"
         assert job.stderr() == "This is the error log\n"
-    assert "_USELESS_TEST_ENV_VAR_" not in os.environ, "Test context manager seems to be failing"
+        assert "_USELESS_TEST_ENV_VAR_" not in os.environ, "Test context manager seems to be failing"
 
 
 @pytest.mark.parametrize("context", (True, False))  # type: ignore
-def test_slurm_job_array_mocked(context: bool) -> None:
+def test_slurm_job_array_mocked(context: bool, tmp_path: Path) -> None:
     n = 5
-    with mocked_slurm(array=n) as tmp:
-        executor = slurm.SlurmExecutor(folder=tmp)
+    with mocked_slurm() as mock:
+        mock.set_job_state(job_id="12", state="RUNNING", array=n)
+        executor = slurm.SlurmExecutor(folder=tmp_path)
         executor.update_parameters(array_parallelism=3)
         data1, data2 = range(n), range(10, 10 + n)
 
@@ -98,24 +104,26 @@ def test_slurm_job_array_mocked(context: bool) -> None:
         assert [f"{array_id}_{a}" for a in range(n)] == [j.job_id for j in jobs]
 
         for job in jobs:
-            os.environ["SLURM_JOB_ID"] = str(job.job_id)
-            submission.process_job(job.paths.folder)
+            with mock.job_context(job.job_id):
+                submission.process_job(job.paths.folder)
         # trying a slurm specific method
         jobs[0]._interrupt(timeout=True)  # type: ignore
         assert list(map(add, data1, data2)) == [j.result() for j in jobs]
         # check submission file
-        sbatch = Job(tmp, job_id=array_id).paths.submission_file.read_text()
-        array_line = [l.strip() for l in sbatch.splitlines() if "array" in l]
+        sbatch = Job(tmp_path, job_id=array_id).paths.submission_file.read_text()
+        array_line = [l.strip() for l in sbatch.splitlines() if "--array" in l]
         assert array_line == ["#SBATCH --array=0-4%3"]
 
 
-def test_slurm_error_mocked() -> None:
-    with mocked_slurm() as tmp:
-        executor = slurm.SlurmExecutor(folder=tmp)
+def test_slurm_error_mocked(tmp_path) -> None:
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path)
         executor.update_parameters(time=24, gpus_per_node=0)  # just to cover the function
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(test_core.do_nothing, 1, 2, error=12)
-        with pytest.raises(ValueError):
-            submission.process_job(job.paths.folder)
+        with mock.job_context("12"):
+            with pytest.raises(ValueError):
+                submission.process_job(job.paths.folder)
         _mock_log_files(job, errors="This is the error log\n")
         with pytest.raises(utils.FailedJobError):
             job.result()
@@ -150,9 +158,10 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
     assert isinstance(fs0, helpers.Checkpointable)
 
     # Start job with a 60 minutes timeout
-    with mocked_slurm():
+    with mocked_slurm() as mock:
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
         executor.update_parameters(time=60)
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(fs0)
 
     sig = get_signal_handler(job)
@@ -186,9 +195,10 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
 
 def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
     # Start job with a 60 minutes timeout
-    with mocked_slurm():
+    with mocked_slurm() as mock:
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
         executor.update_parameters(time=60)
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(test_core._three_time, 10)
 
     # simulate job start
@@ -214,9 +224,10 @@ def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> Non
 
 
 def test_checkpoint_and_exit(tmp_path: Path) -> None:
-    with mocked_slurm():
+    with mocked_slurm() as mock:
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
         executor.update_parameters(time=60)
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(test_core._three_time, 10)
 
     sig = get_signal_handler(job)
@@ -266,18 +277,18 @@ def test_make_sbatch_stderr() -> None:
     assert "--error" not in string
 
 
-def test_update_parameters() -> None:
-    with mocked_slurm() as tmp:
-        executor = submitit.AutoExecutor(folder=tmp)
-        executor.update_parameters(mem_gb=3.5)
-        assert executor._executor.parameters["mem"] == "3584MB"
+def test_update_parameters(tmp_path: Path) -> None:
+    with mocked_slurm() as mock:
+        executor = submitit.AutoExecutor(folder=tmp_path)
+    executor.update_parameters(mem_gb=3.5)
+    assert executor._executor.parameters["mem"] == "3584MB"
 
 
-def test_update_parameters_error() -> None:
-    with mocked_slurm() as tmp:
-        with pytest.raises(ValueError):
-            executor = slurm.SlurmExecutor(folder=tmp)
-            executor.update_parameters(blublu=12)
+def test_update_parameters_error(tmp_path: Path) -> None:
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path)
+    with pytest.raises(ValueError):
+        executor.update_parameters(blublu=12)
 
 
 def test_read_info() -> None:
@@ -336,14 +347,22 @@ def test_get_id_from_submission_command_raise() -> None:
 
 
 def test_watcher() -> None:
-    with mocked_slurm():
+    with mocked_slurm() as mock:
         watcher = slurm.SlurmInfoWatcher()
+        mock.set_job_state("12", "RUNNING")
         assert watcher.num_calls == 0
         state = watcher.get_state(job_id="11")
-        assert state == "UNKNOWN"
         assert set(watcher._info_dict.keys()) == {"12"}
-        watcher.clear()
         assert watcher._registered == {"11"}
+
+        assert state == "UNKNOWN"
+        mock.set_job_state("12", "FAILED")
+        state = watcher.get_state(job_id="12", mode="force")
+        assert state == "FAILED"
+        # TODO: this test is implementation specific. Not sure if we can rewrite it another way.
+        assert watcher._registered == {"11", "12"}
+        assert watcher._finished == {"12"}
+
 
 
 def test_get_default_parameters() -> None:
@@ -443,8 +462,9 @@ def test_slurm_missing_node_list() -> None:
 def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
     if "\n" in weird_tmp_path.name:
         pytest.skip("test doesn't support newline in 'weird_tmp_path'")
-    with mocked_slurm():
+    with mocked_slurm() as mock:
         executor = slurm.SlurmExecutor(folder=weird_tmp_path)
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
 
     # Touch the ouputfiles
@@ -469,22 +489,24 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("params", [{}, {"mem_gb": None}])  # type: ignore
 def test_slurm_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
-    with mocked_slurm():
+    with mocked_slurm() as mock:
         executor = submitit.AutoExecutor(folder=tmp_path)
         executor.update_parameters(**params, slurm_additional_parameters={"mem_per_gpu": 12})
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
     text = job.paths.submission_file.read_text()
     mem_lines = [x for x in text.splitlines() if "#SBATCH --mem" in x]
     assert len(mem_lines) == 1, f"Unexpected lines: {mem_lines}"
 
 
-def test_slurm_job_no_stderr() -> None:
+def test_slurm_job_no_stderr(tmp_path: Path) -> None:
     def fail_silently():
         raise ValueError("Too bad")
 
-    with mocked_slurm() as tmp:
-        executor = slurm.SlurmExecutor(folder=tmp)
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path)
         # Failed but no stderr
+        mock.set_job_state("12", "RUNNING")
         job = executor.submit(fail_silently)
         _mock_log_files(job, prints="job is running ...\n")
         job._results_timeout_s = 0
@@ -492,9 +514,10 @@ def test_slurm_job_no_stderr() -> None:
             job._get_outcome_and_result()
 
         # Failed but no stderr nor stdout
+        mock.set_job_state("13", "RUNNING")
         job = executor.submit(fail_silently)
         job._results_timeout_s = 0
         # Explicitly unlink stdout because submitit is writing there on startup
-        job.paths.stdout.unlink()
+        # job.paths.stdout.unlink()
         with pytest.raises(utils.UncompletedJobError, match="No output/error stream produced !"):
             job._get_outcome_and_result()
