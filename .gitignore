@@ -1,5 +1,6 @@
 # Project specific folders
 /docs/mnist_logs/
+/integration/logs/
 
 # Byte-compiled / optimized / DLL files / tmp
 __pycache__/
