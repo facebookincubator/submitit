@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import logging
 import os
 import typing as tp
 from pathlib import Path
@@ -43,9 +44,9 @@ class DebugJobEnvironment(JobEnvironment):
 class DebugJob(Job[R]):
     watcher = DebugInfoWatcher()
 
-    def __init__(self, submission: DelayedSubmission) -> None:
+    def __init__(self, folder: Path, submission: DelayedSubmission) -> None:
         job_id = f"DEBUG_{id(submission)}"
-        super().__init__(folder="./tmp", job_id=job_id)
+        super().__init__(folder=folder, job_id=job_id)
         self._submission = submission
         self.cancelled = False
 
@@ -67,7 +68,21 @@ class DebugJob(Job[R]):
         self._check_not_cancelled()
         if self._submission.done():
             return [self._submission._result]
+
+        environ_backup = dict(os.environ)
         os.environ["SUBMITIT_DEBUG_JOB_ID"] = self.job_id
+
+        root_logger = logging.getLogger("")
+        stdout_handler = logging.FileHandler(self.paths.stdout)
+        stdout_handler.setLevel(logging.DEBUG)
+        stderr_handler = logging.FileHandler(self.paths.stderr)
+        stderr_handler.setLevel(logging.WARNING)
+        root_logger.addHandler(stdout_handler)
+        root_logger.addHandler(stderr_handler)
+        root_logger.warning(
+            f"Logging is written both to stderr/stdout and to {self.paths.stdout}/err. "
+            "But call to print will only appear in the console."
+        )
         try:
             return [self._submission.result()]
         except Exception as e:
@@ -84,7 +99,9 @@ class DebugJob(Job[R]):
                 pdb.post_mortem()
             raise
         finally:
-            os.environ.pop("SUBMITIT_DEBUG_JOB_ID")
+            os.environ = environ_backup
+            root_logger.removeHandler(stdout_handler)
+            root_logger.removeHandler(stderr_handler)
 
     def exception(self) -> Optional[BaseException]:  # type: ignore
         self._check_not_cancelled()
@@ -116,13 +133,6 @@ class DebugJob(Job[R]):
     def get_info(self) -> Dict[str, str]:
         return {"STATE": self.state}
 
-    def stdout(self) -> Optional[str]:
-        # TODO: should we capture stdout/stderr ? This seems to interfere with PDB.
-        return None
-
-    def stderr(self) -> Optional[str]:
-        return None
-
 
 class DebugExecutor(Executor):
 
@@ -134,4 +144,4 @@ class DebugExecutor(Executor):
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[DelayedSubmission]
     ) -> tp.List[Job[tp.Any]]:
-        return [DebugJob(ds) for ds in delayed_submissions]
+        return [DebugJob(self.folder, ds) for ds in delayed_submissions]
