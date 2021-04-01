@@ -341,7 +341,7 @@ class SlurmExecutor(core.PicklingExecutor):
     @property
     def _submitit_command_str(self) -> str:
         return " ".join(
-            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder)),]
+            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder))]
         )
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
@@ -454,7 +454,7 @@ def _make_sbatch_string(
     ]
     parameters = {k: v for k, v in locals().items() if v and v is not None and k not in nonslurm}
     # rename and reformat parameters
-    parameters["signal"] = f"TERM@{signal_delay_s}"
+    parameters["signal"] = f"USR1@{signal_delay_s}"
     if job_name:
         parameters["job_name"] = utils.sanitize(job_name)
     if comment:
