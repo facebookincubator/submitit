@@ -172,9 +172,7 @@ class SignalHandler:
             )
         return timed_out
 
-    def bypass(
-        self, signum: int, frame: types.FrameType = None  # pylint:disable=unused-argument
-    ) -> None:
+    def bypass(self, signum: int, frame: types.FrameType = None) -> None:  # pylint:disable=unused-argument
         self._logger.warning(f"Bypassing signal {signal.Signals(signum).name}")
 
     def checkpoint_and_try_requeue(
@@ -182,7 +180,9 @@ class SignalHandler:
     ) -> None:
         timed_out = self.has_timed_out()
         case = "timed-out" if timed_out else "preempted"
-        self._logger.warning(f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}: this job is {case}.")
+        self._logger.warning(
+            f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}: this job is {case}."
+        )
 
         procid = self.env.global_rank
         if procid != 0:

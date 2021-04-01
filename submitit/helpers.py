@@ -163,9 +163,7 @@ class RsyncSnapshot:
         you'll need to `git add` the file first for it to be included
     """
 
-    def __init__(
-        self, snapshot_dir: Path, with_submodules: bool = False, exclude: tp.Sequence[str] = (),
-    ):
+    def __init__(self, snapshot_dir: Path, with_submodules: bool = False, exclude: tp.Sequence[str] = ()):
         if shutil.which("rsync") is None:
             raise RuntimeError("RsyncSnapshot requires rsync to be installed.")
         self.snapshot_dir = Path(snapshot_dir)
