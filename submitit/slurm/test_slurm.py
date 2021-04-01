@@ -160,7 +160,7 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
     fast_forward_clock(minutes=30)
     # Preempt the job after 30 minutes, the job hasn't timeout.
     with pytest.raises(SystemExit), mock_requeue(called_with=1):
-        sig.checkpoint_and_try_requeue(signal.Signals.SIGTERM)
+        sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
     # Restart the job.
     sig = get_signal_handler(job)
@@ -171,7 +171,7 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
     # We are a little bit under the requested timedout, but close enough
     # to not consider this a preemption
     with pytest.raises(SystemExit), mock_requeue(called_with=0):
-        sig.checkpoint_and_try_requeue(signal.Signals.SIGTERM)
+        sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
     # Restart the job.
     sig = get_signal_handler(job)
@@ -181,7 +181,7 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
     with mock_requeue(not_called=True), pytest.raises(
         utils.UncompletedJobError, match="timed-out too many times."
     ):
-        sig.checkpoint_and_try_requeue(signal.Signals.SIGTERM)
+        sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
 
 def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
@@ -200,7 +200,7 @@ def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> Non
 
     # Preempt the job after 30 minutes, the job hasn't timeout.
     with pytest.raises(SystemExit), mock_requeue(called_with=1):
-        sig.checkpoint_and_try_requeue(signal.Signals.SIGTERM)
+        sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
     # Restart the job from scratch
     sig = get_signal_handler(job)
@@ -210,7 +210,7 @@ def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> Non
     with mock_requeue(not_called=True), pytest.raises(
         utils.UncompletedJobError, match="timed-out and not checkpointable"
     ):
-        sig.checkpoint_and_try_requeue(signal.Signals.SIGTERM)
+        sig.checkpoint_and_try_requeue(signal.Signals.SIGUSR1)
 
 
 def test_checkpoint_and_exit(tmp_path: Path) -> None:
@@ -221,7 +221,7 @@ def test_checkpoint_and_exit(tmp_path: Path) -> None:
 
     sig = get_signal_handler(job)
     with pytest.raises(SystemExit), mock_requeue(not_called=True):
-        sig.checkpoint_and_exit(signal.Signals.SIGTERM)
+        sig.checkpoint_and_exit(signal.Signals.SIGUSR1)
 
     # checkpoint_and_exit doesn't modify timeout counters.
     delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
@@ -451,7 +451,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
             continue
         if "=" not in l:
             continue
-        key, val = l[len("#SBATCH") :].strip().split("=", 1)
+        key, val = l[len("#SBATCH"):].strip().split("=", 1)
         sbatch_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
 
     # We do not quote --output and --error values here,
