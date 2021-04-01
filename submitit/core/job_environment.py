@@ -130,10 +130,10 @@ class JobEnvironment:
         @plugin-dev: Should be adapted to the signals used in this cluster.
         """
         handler = SignalHandler(self, paths, submission)
-        signal.signal(signal.SIGTERM, handler.checkpoint_and_try_requeue)
+        signal.signal(signal.SIGUSR1, handler.checkpoint_and_try_requeue)
         # A priori we don't need other signals anymore,
         # but still log them to make it easier to debug.
-        signal.signal(signal.SIGUSR1, handler.bypass)
+        signal.signal(signal.SIGTERM, handler.bypass)
         signal.signal(signal.SIGCONT, handler.bypass)
 
     # pylint: disable=no-self-use,unused-argument
@@ -173,16 +173,16 @@ class SignalHandler:
         return timed_out
 
     def bypass(
-        self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
+        self, signum: int, frame: types.FrameType = None  # pylint:disable=unused-argument
     ) -> None:
-        self._logger.warning(f"Bypassing signal {signum}")
+        self._logger.warning(f"Bypassing signal {signal.Signal(signum).name}")
 
     def checkpoint_and_try_requeue(
-        self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
+        self, signum: int, frame: types.FrameType = None  # pylint:disable=unused-argument
     ) -> None:
         timed_out = self.has_timed_out()
         case = "timed-out" if timed_out else "preempted"
-        self._logger.warning(f"Caught signal {signum} on {socket.gethostname()}: this job is {case}.")
+        self._logger.warning(f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}: this job is {case}.")
 
         procid = self.env.global_rank
         if procid != 0:
@@ -210,7 +210,7 @@ class SignalHandler:
         self._exit()
 
     def checkpoint_and_exit(
-        self, signum: signal.Signals, frame: types.FrameType = None  # pylint:disable=unused-argument
+        self, signum: int, frame: types.FrameType = None  # pylint:disable=unused-argument
     ) -> None:
         # Note: no signal is actually bound to `checkpoint_and_exit` but this is used by plugins.
         self._logger.info(f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}")
