@@ -142,10 +142,11 @@ def run_cmd(str_args, **kwargs):
 
 
 class RsyncSnapshot:
-    """Rsync Snapshot
-    This class creates a snapshot of the git repository that the script lives in
-    when creating the snapshot.  This is useful for ensuring that remote jobs that
-    get launched don't accidentally pick up unintended local changes.
+    """Takes a snapshot of the git repository that the script lives in.
+
+    This ensures that remote jobs always use the code from when they are scheduled
+    and not the code from when they are launched / re-started.
+
 
     Parameters
     ----------
@@ -155,22 +156,32 @@ class RsyncSnapshot:
         Whether or not submodules should be included in the snapshot
     exclude: Sequence[str]
         An optional list of patterns to exclude from the snapshot
+    include: Sequence[str]
+        A list of relative file names to include from the snapshot.
+        Useful for .so or other build artifacts that are genarally not tracked by git.
 
     Note
     ----
     - Only files that are checked in to the repository are included in the snapshot.
         If you have experimental code that you would like to include in the snapshot,
-        you'll need to `git add` the file first for it to be included
+        you'll need to `git add` the file first for it to be included, or use `include` arg.
     """
 
     def __init__(
-        self, snapshot_dir: Path, with_submodules: bool = False, exclude: tp.Sequence[str] = (),
+        self,
+        snapshot_dir: Path,
+        root_dir: Path = None,
+        with_submodules: bool = False,
+        exclude: tp.Sequence[str] = (),
+        include: tp.Sequence[str] = (),
     ):
         self.available(throw=True)
         self.snapshot_dir = Path(snapshot_dir)
+        self.root_dir = root_dir or run_cmd(["git", "rev-parse", "--show-toplevel"])
         self.original_dir = Path.cwd()
         self.with_submodules = with_submodules
         self.exclude = exclude
+        self.include = include
 
     @staticmethod
     def available(throw: bool = False) -> bool:
@@ -182,15 +193,23 @@ class RsyncSnapshot:
 
     def __enter__(self) -> None:
         self.original_dir = Path.cwd()
-        self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         # Get the repository root
-        root_dir = run_cmd(["git", "rev-parse", "--show-toplevel"])
+        root_dir = str(self.root_dir)
         sub = "--recurse-submodules" if self.with_submodules else "-s"
+        # Make a shallow git clone
+        if not self.snapshot_dir.exists():
+            self.snapshot_dir.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run(["git", "clone", "--depth=2", f"file://{root_dir}", str(self.snapshot_dir)])
+
         # Get a list of all the checked in files that we can pass to rsync
+        # Is Rsync faster than a `git pull` ?
         with tempfile.NamedTemporaryFile() as tfile:
             # https://stackoverflow.com/a/51689219/4876946
             run_cmd(f"git ls-files {sub} | grep -v ^16 | cut -f2- > {tfile.name}", cwd=root_dir, shell=True)
             exclude = list(itertools.chain.from_iterable(("--exclude", pat) for pat in self.exclude))
+            with open(tfile.name, "a") as o:
+                for inc in self.include:
+                    print(inc, file=o)
             run_cmd(["rsync", "-a", "--files-from", tfile.name, root_dir, str(self.snapshot_dir)] + exclude)
         os.chdir(self.snapshot_dir)
 
