@@ -18,6 +18,7 @@ from pathlib import Path
 from .core import core
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
+from .core.utils import environment_variables as environment_variables  # noqa
 
 
 class Checkpointable:

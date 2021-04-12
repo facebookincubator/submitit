@@ -49,6 +49,8 @@ class DebugJob(Job[R]):
         super().__init__(folder=folder, job_id=job_id)
         self._submission = submission
         self.cancelled = False
+        self.environ = dict(os.environ)
+        self.environ["SUBMITIT_DEBUG_JOB_ID"] = self.job_id
 
     def submission(self) -> DelayedSubmission:
         return self._submission
@@ -70,7 +72,8 @@ class DebugJob(Job[R]):
             return [self._submission._result]
 
         environ_backup = dict(os.environ)
-        os.environ["SUBMITIT_DEBUG_JOB_ID"] = self.job_id
+        # Restore os.environ from job creation time.
+        os.environ = self.environ
 
         root_logger = logging.getLogger("")
         stdout_handler = logging.FileHandler(self.paths.stdout)
