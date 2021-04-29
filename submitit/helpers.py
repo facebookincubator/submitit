@@ -200,7 +200,7 @@ class RsyncSnapshot:
         # Make a shallow git clone
         if not self.snapshot_dir.exists():
             self.snapshot_dir.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.run(["git", "clone", "--depth=2", f"file://{root_dir}", str(self.snapshot_dir)])
+            subprocess.check_call(["git", "clone", "--depth=2", f"file://{root_dir}", str(self.snapshot_dir)])
 
         # Get a list of all the checked in files that we can pass to rsync
         # Is Rsync faster than a `git pull` ?

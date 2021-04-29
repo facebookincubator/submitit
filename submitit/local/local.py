@@ -206,6 +206,7 @@ def start_controller(
         SUBMITIT_EXECUTOR="local",
         CUDA_AVAILABLE_DEVICES=cuda_devices,
     )
+    # The LocalJob will be responsible to polling and ending this process.
     # pylint: disable=consider-using-with
     process = subprocess.Popen(
         [sys.executable, "-m", "submitit.local._local", str(folder)], shell=False, env=env

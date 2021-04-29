@@ -12,7 +12,7 @@ pre-commit>=1.15.2
 # Linters
 mypy>=0.782
 types-pkg_resources>=0.1.2
-pylint>=2.6.0
+pylint>=2.8.0
 
 # Install
 setuptools>=56.0.0

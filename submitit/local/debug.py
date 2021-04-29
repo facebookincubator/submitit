@@ -73,7 +73,8 @@ class DebugJob(Job[R]):
 
         environ_backup = dict(os.environ)
         # Restore os.environ from job creation time.
-        os.environ = self.environ
+        os.environ.clear()
+        os.environ.update(self.environ)
 
         root_logger = logging.getLogger("")
         stdout_handler = logging.FileHandler(self.paths.stdout)
@@ -102,7 +103,8 @@ class DebugJob(Job[R]):
                 pdb.post_mortem()
             raise
         finally:
-            os.environ = environ_backup
+            os.environ.clear()
+            os.environ.update(environ_backup)
             root_logger.removeHandler(stdout_handler)
             root_logger.removeHandler(stderr_handler)
 
