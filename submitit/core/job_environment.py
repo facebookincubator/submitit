@@ -86,32 +86,27 @@ class JobEnvironment:
 
     @property
     def num_tasks(self) -> int:
-        """Total number of tasks for the job
-        """
+        """Total number of tasks for the job"""
         return int(os.environ.get(self._env["num_tasks"], 1))
 
     @property
     def num_nodes(self) -> int:
-        """Total number of nodes for the job
-        """
+        """Total number of nodes for the job"""
         return int(os.environ.get(self._env["num_nodes"], 1))
 
     @property
     def node(self) -> int:
-        """Id of the current node
-        """
+        """Id of the current node"""
         return int(os.environ.get(self._env["node"], 0))
 
     @property
     def global_rank(self) -> int:
-        """Global rank of the task
-        """
+        """Global rank of the task"""
         return int(os.environ.get(self._env["global_rank"], 0))
 
     @property
     def local_rank(self) -> int:
-        """Local rank of the task, ie on the current node.
-        """
+        """Local rank of the task, ie on the current node."""
         return int(os.environ.get(self._env["local_rank"], 0))
 
     def __repr__(self) -> str:
