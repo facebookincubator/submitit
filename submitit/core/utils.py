@@ -16,9 +16,11 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
+from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union, TypeVar, cast
 
 import cloudpickle
+
+R = TypeVar("R", covariant=True)
 
 
 @contextlib.contextmanager
@@ -357,3 +359,6 @@ class CommandFunction:
                 )
                 raise FailedJobError(stderr) from subprocess_error
         return stdout
+
+async def async_cast(v: Any, type: TypeVar) -> R: 
+    return cast(v, R)
