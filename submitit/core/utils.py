@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import asyncio
 import contextlib
 import io
 import itertools
@@ -16,11 +17,17 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
-from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union, TypeVar, cast
+from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, TypeVar, Union, cast
 
 import cloudpickle
 
 R = TypeVar("R", covariant=True)
+
+
+def wrap_future(value) -> asyncio.Future:
+    f = asyncio.get_event_loop().create_future()
+    f.set_result(value)
+    return f
 
 
 @contextlib.contextmanager
@@ -360,5 +367,6 @@ class CommandFunction:
                 raise FailedJobError(stderr) from subprocess_error
         return stdout
 
-async def async_cast(v: Any, type: TypeVar) -> R: 
-    return cast(v, R)
+
+async def async_cast(v):
+    return cast(R, v)

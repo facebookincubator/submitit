@@ -4,12 +4,13 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import pytest
 import asyncio
 from pathlib import Path
 
+import pytest
+
+from . import submission, utils
 from .test_core import FakeExecutor, _three_time
-from . import core, submission, utils
 
 
 @pytest.mark.asyncio
@@ -21,6 +22,7 @@ async def test_result(tmp_path: Path):
         submission.process_job(folder=job.paths.folder)
     result = await result_task
     assert result == 24
+
 
 @pytest.mark.asyncio
 async def test_results_single(tmp_path: Path):
