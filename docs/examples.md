@@ -118,6 +118,36 @@ with futures.ThreadPoolExecutor(max_workers=10) as executor:  # This is the only
     assert sum(job.done() for job in jobs) == 10  # all done
 ```
 
+## Asyncio
+
+You can also use the asyncio coroutines if you want
+
+```python
+import asyncio
+import random
+import submitit
+import time
+
+def slow_multiplication(x, y):
+    time.sleep(x*y)
+    return x*y
+
+executor = submitit.AutoExecutor(folder="log_test")
+executor.update_parameters(timeout_min=1, slurm_partition="dev")
+
+# await a single result
+job = executor.submit(slow_multiplication, 10, 2)
+await job.async_result()
+
+# print results as they become available
+jobs = [executor.submit(slow_multiplication, k, random.randint(1, 4)) for k in range(1, 5)]
+for aws in asyncio.as_completed([j.async_result() for j in jobs]):
+    result = await aws
+    print(result)
+```
+
+Note that you can also use `sumitit.helpers.as_completed` if you don't want to use coroutines
+
 ## Errors
 
 Errors are caught and their stacktrace is recorded. When calling `job.result()`, a `FailedJobError` is raised with the available information:

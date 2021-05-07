@@ -33,3 +33,17 @@ async def test_results_single(tmp_path: Path):
         submission.process_job(folder=job.paths.folder)
     result = await result_task
     assert result == [24]
+
+
+@pytest.mark.asyncio
+async def test_results_ascompleted_single(tmp_path: Path):
+    executor = FakeExecutor(folder=tmp_path)
+    job = executor.submit(_three_time, 8)
+    with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
+        submission.process_job(folder=job.paths.folder)
+    count = 0
+    for aws in job.results_as_compteled():
+        result = await aws
+        count += 1
+        assert result == 24
+    assert count == 1

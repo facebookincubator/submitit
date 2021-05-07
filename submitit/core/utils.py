@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import asyncio
 import contextlib
 import io
 import itertools
@@ -22,12 +21,6 @@ from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Typ
 import cloudpickle
 
 R = TypeVar("R", covariant=True)
-
-
-def wrap_future(value) -> asyncio.Future:
-    f = asyncio.get_event_loop().create_future()
-    f.set_result(value)
-    return f
 
 
 @contextlib.contextmanager

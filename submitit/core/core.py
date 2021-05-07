@@ -17,7 +17,7 @@ from pathlib import Path
 from typing_extensions import TypedDict
 
 from . import logger, utils
-from .utils import R, async_cast, wrap_future
+from .utils import R, async_cast
 
 
 class InfoWatcher:
@@ -319,7 +319,7 @@ class Job(tp.Generic[R]):
         # results are ready now
         return self.results()
 
-    async def results_as_compteled(
+    def results_as_compteled(
         self, poll_interval: tp.Union[int, float] = 1
     ) -> tp.Iterator["asyncio.Future[R]"]:
         """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
@@ -341,11 +341,8 @@ class Job(tp.Generic[R]):
                 [async_cast(sub_job.async_result(poll_interval)) for sub_job in self._sub_jobs]
             )
 
-        await self._async_wait(poll_interval)
-
-        # results are ready now, just defer to the non async method as it won't block
-        # we need to wrap it all in futures though
-        return iter(map(wrap_future, self.results()))
+        # there is only one result anyway, let's just use async_result
+        return iter([asyncio.ensure_future(self.async_result())])
 
     def exception(self) -> tp.Optional[tp.Union[utils.UncompletedJobError, utils.FailedJobError]]:
         """Waits for completion and returns (not raise) the
