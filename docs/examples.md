@@ -146,7 +146,7 @@ for aws in asyncio.as_completed([j.async_result() for j in jobs]):
     print(result)
 ```
 
-Note that you can also use `sumitit.helpers.as_completed` if you don't want to use coroutines
+Note that you can also use `submitit.helpers.as_completed` if you don't want to use coroutines
 
 ## Errors
 
