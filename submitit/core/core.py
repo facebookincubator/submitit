@@ -17,7 +17,8 @@ from pathlib import Path
 from typing_extensions import TypedDict
 
 from . import logger, utils
-from .utils import R, async_cast
+
+R = tp.TypeVar("R", covariant=True)
 
 
 class InfoWatcher:
@@ -146,7 +147,7 @@ class InfoWatcher:
         self._start_time = _time.time()
         self._last_status_check = float("-inf")
 
-
+# pylint: disable=too-many-public-methods
 class Job(tp.Generic[R]):
     """Access to a cluster job information and result.
 
@@ -257,26 +258,10 @@ class Job(tp.Generic[R]):
             [self._cancel_command, f"{self.job_id}"], shell=False
         )
 
-    def _extract_single_result(self, results) -> R:
-        assert not self._sub_jobs, "You should use `results()` if your job has subtasks."
-        return results[0]
-
     def result(self) -> R:
         r = self.results()
-        return self._extract_single_result(r)
-
-    async def async_result(self, poll_interval: tp.Union[int, float] = 1) -> R:
-        """ asyncio version of the result() method.
-
-        Wait asynchornously for the result to be available by polling the self.done() method.
-
-        Parameters
-        ----------
-        poll_interval: int or float
-            how often to check if the result is available, in seconds
-        """
-        r = await self.async_results(poll_interval)
-        return self._extract_single_result(r)
+        assert not self._sub_jobs, "You should use `results()` if your job has subtasks."
+        return r[0]
 
     def results(self) -> tp.List[R]:
         """Waits for and outputs the result of the submitted function
@@ -305,6 +290,17 @@ class Job(tp.Generic[R]):
             raise job_exception  # pylint: disable=raising-bad-type
         return [result]
 
+    async def async_result(self, poll_interval: tp.Union[int, float] = 1) -> R:
+        """ asyncio version of the result() method.
+        Wait asynchornously for the result to be available by polling the self.done() method.
+        Parameters
+        ----------
+        poll_interval: int or float
+            how often to check if the result is available, in seconds
+        """
+        await self.async_wait(poll_interval)
+        return self.result()
+
     async def async_results(self, poll_interval: tp.Union[int, float] = 1) -> tp.List[R]:
         """ asyncio version of the results() method.
 
@@ -315,13 +311,13 @@ class Job(tp.Generic[R]):
         poll_interval: int or float
             how often to check if the result is available, in seconds
         """
-        await self._async_wait(poll_interval)
+        await self.async_wait(poll_interval)
         # results are ready now
         return self.results()
 
     def results_as_compteled(
         self, poll_interval: tp.Union[int, float] = 1
-    ) -> tp.Iterator["asyncio.Future[R]"]:
+    ) -> tp.Iterator[asyncio.Future]:
         """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
             of the tasks anymore as the earliest task coming back might not be the first one you sent.
 
@@ -337,12 +333,12 @@ class Job(tp.Generic[R]):
             (see https://docs.python.org/3/library/asyncio-task.html#asyncio.as_completed)
         """
         if self._sub_jobs:
-            return asyncio.as_completed(
-                [async_cast(sub_job.async_result(poll_interval)) for sub_job in self._sub_jobs]
+            yield from asyncio.as_completed(
+                [sub_job.async_result(poll_interval) for sub_job in self._sub_jobs]
             )
 
         # there is only one result anyway, let's just use async_result
-        return iter([asyncio.ensure_future(self.async_result())])
+        yield asyncio.ensure_future(self.async_result())
 
     def exception(self) -> tp.Optional[tp.Union[utils.UncompletedJobError, utils.FailedJobError]]:
         """Waits for completion and returns (not raise) the
@@ -446,7 +442,7 @@ class Job(tp.Generic[R]):
         while not self.done():
             _time.sleep(1)
 
-    async def _async_wait(self, poll_interval: tp.Union[int, float] = 1) -> None:
+    async def async_wait(self, poll_interval: tp.Union[int, float] = 1) -> None:
         """ same as wait() but with asyncio sleep.
         """
         while not self.done():
