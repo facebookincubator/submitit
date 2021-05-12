@@ -409,7 +409,7 @@ class Job(tp.Generic[R]):
 
         Note
         ----
-        This function is not full proof, and may say that the job is not terminated even
+        This function is not foolproof, and may say that the job is not terminated even
         if it is when the job failed (no result file, but job not running) because
         we avoid calling sacct/cinfo everytime done is called
         """
