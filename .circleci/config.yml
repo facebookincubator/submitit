@@ -43,6 +43,7 @@ jobs:
       - attach_workspace:
           at: venv
       - run: |
+          pip install -U setuptools
           rm -rf dist  # make sure it's clean
           python setup.py sdist > log.txt
           python -c "from pathlib import Path;lines = Path('log.txt').read_text().splitlines(); assert any('copying LICENSE' in x for x in lines)"
