@@ -147,6 +147,7 @@ class InfoWatcher:
         self._start_time = _time.time()
         self._last_status_check = float("-inf")
 
+
 # pylint: disable=too-many-public-methods
 class Job(tp.Generic[R]):
     """Access to a cluster job information and result.
@@ -315,9 +316,7 @@ class Job(tp.Generic[R]):
         # results are ready now
         return self.results()
 
-    def results_as_compteled(
-        self, poll_interval: tp.Union[int, float] = 1
-    ) -> tp.Iterator[asyncio.Future]:
+    def results_as_compteled(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future]:
         """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
             of the tasks anymore as the earliest task coming back might not be the first one you sent.
 
