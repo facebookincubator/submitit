@@ -4,7 +4,6 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import asyncio
 from pathlib import Path
 
 import pytest
