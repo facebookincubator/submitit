@@ -96,6 +96,9 @@ workflows:
       - installable:
           requires:
             - create_venv
+      - check_sdist:
+          requires:
+            - create_venv
       - test_coverage:
           requires:
             - create_venv
