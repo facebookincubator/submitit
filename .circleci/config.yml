@@ -35,6 +35,19 @@ jobs:
           at: venv
       - run: make check_format
 
+  check_sdist:
+    docker:
+      - image: circleci/python:3.6
+    steps:
+      - checkout
+      - attach_workspace:
+          at: venv
+      - run: |
+          rm -rf dist  # make sure it's clean
+          python setup.py sdist > log.txt
+          python -c "from pathlib import Path;files = Path('log.txt').read_text().split(); assert any('copying LICENSE' in x for x in lines)"
+          python -c "from pathlib import Path;files = Path('log.txt').read_text().split(); assert any('copying requirements/main.txt' in x for x in lines)"
+
   lint:
     docker:
       - image: circleci/python:3.6
