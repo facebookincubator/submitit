@@ -16,7 +16,7 @@ from .test_core import FakeExecutor, _three_time
 async def test_result(tmp_path: Path, event_loop):
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
-    result_task = event_loop.create_task(job.async_result())
+    result_task = event_loop.create_task(job.async_job().result())
     with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
         submission.process_job(folder=job.paths.folder)
     result = await result_task
@@ -27,7 +27,7 @@ async def test_result(tmp_path: Path, event_loop):
 async def test_results_single(tmp_path: Path, event_loop):
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
-    result_task = event_loop.create_task(job.async_results())
+    result_task = event_loop.create_task(job.async_job().results())
     with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
         submission.process_job(folder=job.paths.folder)
     result = await result_task
@@ -41,7 +41,7 @@ async def test_results_ascompleted_single(tmp_path: Path):
     with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
         submission.process_job(folder=job.paths.folder)
     count = 0
-    for aws in job.results_as_compteled():
+    for aws in job.async_job().results_as_compteled():
         result = await aws
         count += 1
         assert result == 24

@@ -137,11 +137,11 @@ executor.update_parameters(timeout_min=1, slurm_partition="dev")
 
 # await a single result
 job = executor.submit(slow_multiplication, 10, 2)
-await job.async_result()
+await job.async_job().result()
 
 # print results as they become available
 jobs = [executor.submit(slow_multiplication, k, random.randint(1, 4)) for k in range(1, 5)]
-for aws in asyncio.as_completed([j.async_result() for j in jobs]):
+for aws in asyncio.as_completed([j.async_job().result() for j in jobs]):
     result = await aws
     print(result)
 ```

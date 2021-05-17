@@ -291,54 +291,6 @@ class Job(tp.Generic[R]):
             raise job_exception  # pylint: disable=raising-bad-type
         return [result]
 
-    async def async_result(self, poll_interval: tp.Union[int, float] = 1) -> R:
-        """ asyncio version of the result() method.
-        Wait asynchornously for the result to be available by polling the self.done() method.
-        Parameters
-        ----------
-        poll_interval: int or float
-            how often to check if the result is available, in seconds
-        """
-        await self.async_wait(poll_interval)
-        return self.result()
-
-    async def async_results(self, poll_interval: tp.Union[int, float] = 1) -> tp.List[R]:
-        """ asyncio version of the results() method.
-
-        Waits asynchornously for ALL the results to be available by polling the self.done() method.
-
-        Parameters
-        ----------
-        poll_interval: int or float
-            how often to check if the result is available, in seconds
-        """
-        await self.async_wait(poll_interval)
-        # results are ready now
-        return self.results()
-
-    def results_as_compteled(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future]:
-        """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
-            of the tasks anymore as the earliest task coming back might not be the first one you sent.
-
-            Returns
-            -------
-            an iterable of Awaitables that can be awaited on to get the earliest result available of the remaining tasks.
-
-            Parameters
-            ----------
-            poll_interval: int or float
-                how often to check if the result is available, in seconds
-
-            (see https://docs.python.org/3/library/asyncio-task.html#asyncio.as_completed)
-        """
-        if self._sub_jobs:
-            yield from asyncio.as_completed(
-                [sub_job.async_result(poll_interval) for sub_job in self._sub_jobs]
-            )
-
-        # there is only one result anyway, let's just use async_result
-        yield asyncio.ensure_future(self.async_result())
-
     def exception(self) -> tp.Optional[tp.Union[utils.UncompletedJobError, utils.FailedJobError]]:
         """Waits for completion and returns (not raise) the
         exception containing the error log of the job
@@ -441,12 +393,6 @@ class Job(tp.Generic[R]):
         while not self.done():
             _time.sleep(1)
 
-    async def async_wait(self, poll_interval: tp.Union[int, float] = 1) -> None:
-        """ same as wait() but with asyncio sleep.
-        """
-        while not self.done():
-            await asyncio.sleep(poll_interval)
-
     def done(self, force_check: bool = False) -> bool:
         """Checks whether the job is finished.
         This is done by checking if the result file is present,
@@ -541,6 +487,12 @@ class Job(tp.Generic[R]):
             return "\n".join(stderr_not_none)
         return self._get_logs_string("stderr")
 
+    def async_job(self) -> "AsyncJobProxy[R]":
+        """Returns a proxy object that provides asyncio methods
+        for this Job.
+        """
+        return AsyncJobProxy(self)
+
     def __repr__(self) -> str:
         state = "UNKNOWN"
         try:
@@ -561,6 +513,92 @@ class Job(tp.Generic[R]):
         """Make sure jobs are registered when loaded from a pickle"""
         self.__dict__.update(state)
         self._register_in_watcher()
+
+
+class AsyncJobProxy(tp.Generic[R]):
+    def __init__(self, job: Job[R]):
+        self.job = job
+
+    async def wait(self, poll_interval: tp.Union[int, float] = 1) -> None:
+        """ same as wait() but with asyncio sleep.
+        """
+        while not self.job.done():
+            await asyncio.sleep(poll_interval)
+
+    async def result(self, poll_interval: tp.Union[int, float] = 1) -> R:
+        """ asyncio version of the result() method.
+        Wait asynchornously for the result to be available by polling the self.done() method.
+        Parameters
+        ----------
+        poll_interval: int or float
+            how often to check if the result is available, in seconds
+        """
+        await self.wait(poll_interval)
+        return self.job.result()
+
+    async def results(self, poll_interval: tp.Union[int, float] = 1) -> tp.List[R]:
+        """ asyncio version of the results() method.
+
+        Waits asynchornously for ALL the results to be available by polling the self.done() method.
+
+        Parameters
+        ----------
+        poll_interval: int or float
+            how often to check if the result is available, in seconds
+        """
+        await self.wait(poll_interval)
+        # results are ready now
+        return self.job.results()
+
+    def results_as_compteled(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future]:
+        """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
+            of the tasks anymore as the earliest task coming back might not be the first one you sent.
+
+            Returns
+            -------
+            an iterable of Awaitables that can be awaited on to get the earliest result available of the remaining tasks.
+
+            Parameters
+            ----------
+            poll_interval: int or float
+                how often to check if the result is available, in seconds
+
+            (see https://docs.python.org/3/library/asyncio-task.html#asyncio.as_completed)
+        """
+        if self.job.num_tasks > 1:
+            yield from asyncio.as_completed(
+                [self.job.task(i).async_job().result(poll_interval) for i in range(self.job.num_tasks)]
+            )
+
+        # there is only one result anyway, let's just use async result
+        yield asyncio.ensure_future(self.result())
+
+    ## proxy everything else so this just looks like a normal job
+    def __getattr__(self, item):
+        if hasattr(self.job, item):
+            return getattr(self.job, item)
+        raise AttributeError(item)
+
+    def __nonzero__(self):
+        return bool(self.job)
+
+    def __str__(self):
+        return str(self.job)
+
+    def __repr__(self):
+        return repr(self.job)
+
+    def __hash__(self):
+        return hash(self.job)
+
+    def __del__(self) -> None:
+        del self.job
+
+    def __getstate__(self) -> tp.Dict[str, tp.Any]:
+        return self.job.__getstate__()
+
+    def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
+        return self.job.__setstate__(state)
 
 
 _MSG = (
