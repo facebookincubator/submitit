@@ -46,8 +46,8 @@ jobs:
           pip install -U setuptools
           rm -rf dist  # make sure it's clean
           python setup.py sdist > log.txt
-          python -c "from pathlib import Path;lines = Path('log.txt').read_text().splitlines(); assert any('copying LICENSE' in x for x in lines)"
-          python -c "from pathlib import Path;lines = Path('log.txt').read_text().splitlines(); assert any('copying requirements/main.txt' in x for x in lines)"
+          python -c "from pathlib import Path;lines = Path('log.txt').read_text().splitlines(); assert any('copying LICENSE' in x for x in lines), lines"
+          python -c "from pathlib import Path;lines = Path('log.txt').read_text().splitlines(); assert any('copying requirements/main.txt' in x for x in lines), lines"
 
   lint:
     docker:
