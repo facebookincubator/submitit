@@ -64,7 +64,7 @@ Its main methods and attributes are:
 
 This module implements convenient functions/classes for use with `submitit`:
  - `CommandFunction`: a class transforming a shell command into a function, so as to be able to submit it as well (see examples below).
- - `Checkpointable`: base class implementing a very basic example of checkpointing (`checkpoint` method). More on this on the Checkpointing section.
+ - `Checkpointable`: base class implementing a very basic example of checkpointing (`checkpoint` method). More on this on the [Checkpointing section](https://github.com/facebookincubator/submitit/blob/master/docs/checkpointing.md).
  - `FunctionSequence`: A function that computes sequentially the output of other functions. This can be used
  to compute several independent results sequentially on a unique job, and it implements checkpointing for free.
  - `RsyncSnapshot`: A context manager that creates a snapshot of the git repository that the script lives in
