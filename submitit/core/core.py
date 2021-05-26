@@ -487,7 +487,7 @@ class Job(tp.Generic[R]):
             return "\n".join(stderr_not_none)
         return self._get_logs_string("stderr")
 
-    def async_job(self) -> "AsyncJobProxy[R]":
+    def awaitable(self) -> "AsyncJobProxy[R]":
         """Returns a proxy object that provides asyncio methods
         for this Job.
         """
@@ -567,7 +567,7 @@ class AsyncJobProxy(tp.Generic[R]):
         """
         if self.job.num_tasks > 1:
             yield from asyncio.as_completed(
-                [self.job.task(i).async_job().result(poll_interval) for i in range(self.job.num_tasks)]
+                [self.job.task(i).awaitable().result(poll_interval) for i in range(self.job.num_tasks)]
             )
 
         # there is only one result anyway, let's just use async result
