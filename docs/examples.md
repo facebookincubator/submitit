@@ -39,7 +39,7 @@ If you want to submit many jobs at once, this is the **preferred way to go** bec
 
 Here is an example on how to submit 4 additions at once, with at most 2 jobs running in parallel at any given time:
 ```python
-a = [1, 2, 3, 4],
+a = [1, 2, 3, 4]
 b = [10, 20, 30, 40]
 executor = submitit.AutoExecutor(folder=log_folder)
 # the following line tells the scheduler to only run\
