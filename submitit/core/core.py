@@ -573,33 +573,6 @@ class AsyncJobProxy(tp.Generic[R]):
         # there is only one result anyway, let's just use async result
         yield asyncio.ensure_future(self.result())
 
-    ## proxy everything else so this just looks like a normal job
-    def __getattr__(self, item):
-        if hasattr(self.job, item):
-            return getattr(self.job, item)
-        raise AttributeError(item)
-
-    def __nonzero__(self):
-        return bool(self.job)
-
-    def __str__(self):
-        return str(self.job)
-
-    def __repr__(self):
-        return repr(self.job)
-
-    def __hash__(self):
-        return hash(self.job)
-
-    def __del__(self) -> None:
-        del self.job
-
-    def __getstate__(self) -> tp.Dict[str, tp.Any]:
-        return self.job.__getstate__()
-
-    def __setstate__(self, state: tp.Dict[str, tp.Any]) -> None:
-        return self.job.__setstate__(state)
-
 
 _MSG = (
     "Interactions with jobs are not allowed within "
