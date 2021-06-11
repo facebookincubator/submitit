@@ -428,7 +428,7 @@ def _make_sbatch_string(
     signal_delay_s: int
         delay between the kill signal and the actual kill of the slurm job.
     setup: list
-        a list of command to run in sbatch befure running srun
+        a list of command to run in sbatch before running srun
     map_size: int
         number of simultaneous map/array jobs allowed
     additional_parameters: dict
