@@ -520,13 +520,12 @@ class AsyncJobProxy(tp.Generic[R]):
         self.job = job
 
     async def wait(self, poll_interval: tp.Union[int, float] = 1) -> None:
-        """ same as wait() but with asyncio sleep.
-        """
+        """same as wait() but with asyncio sleep."""
         while not self.job.done():
             await asyncio.sleep(poll_interval)
 
     async def result(self, poll_interval: tp.Union[int, float] = 1) -> R:
-        """ asyncio version of the result() method.
+        """asyncio version of the result() method.
         Wait asynchornously for the result to be available by polling the self.done() method.
         Parameters
         ----------
@@ -537,7 +536,7 @@ class AsyncJobProxy(tp.Generic[R]):
         return self.job.result()
 
     async def results(self, poll_interval: tp.Union[int, float] = 1) -> tp.List[R]:
-        """ asyncio version of the results() method.
+        """asyncio version of the results() method.
 
         Waits asynchornously for ALL the results to be available by polling the self.done() method.
 
@@ -552,18 +551,18 @@ class AsyncJobProxy(tp.Generic[R]):
 
     def results_as_compteled(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future]:
         """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
-            of the tasks anymore as the earliest task coming back might not be the first one you sent.
+        of the tasks anymore as the earliest task coming back might not be the first one you sent.
 
-            Returns
-            -------
-            an iterable of Awaitables that can be awaited on to get the earliest result available of the remaining tasks.
+        Returns
+        -------
+        an iterable of Awaitables that can be awaited on to get the earliest result available of the remaining tasks.
 
-            Parameters
-            ----------
-            poll_interval: int or float
-                how often to check if the result is available, in seconds
+        Parameters
+        ----------
+        poll_interval: int or float
+            how often to check if the result is available, in seconds
 
-            (see https://docs.python.org/3/library/asyncio-task.html#asyncio.as_completed)
+        (see https://docs.python.org/3/library/asyncio-task.html#asyncio.as_completed)
         """
         if self.job.num_tasks > 1:
             yield from asyncio.as_completed(
