@@ -11,24 +11,12 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
 from unittest.mock import patch
 
 import pytest
 
 from . import core, submission, utils
-
-
-class _SecondCall:
-    """Helps mocking CommandFunction which is like a subprocess check_output, but
-    with a second call.
-    """
-
-    def __init__(self, outputs: Any) -> None:
-        self._outputs = outputs
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        return self._outputs
 
 
 class MockedSubprocess:
@@ -37,48 +25,78 @@ class MockedSubprocess:
     SACCT_HEADER = "JobID|State"
     SACCT_JOB = "{j}|{state}\n{j}.ext+|{state}\n{j}.0|{state}"
 
-    def __init__(
-        self, state: str = "RUNNING", job_id: str = "12", shutil_which: Optional[str] = None, array: int = 0
-    ) -> None:
-        self.state = state
-        self.shutil_which = shutil_which
-        self.job_id = job_id
-        self._sacct = self.sacct(state, job_id, array)
-        self._sbatch = f"Running job {job_id}\n".encode()
+    def __init__(self, known_cmds: Sequence[str] = None) -> None:
+        self.job_sacct: Dict[str, str] = {}
+        self.last_job: str = ""
         self._subprocess_check_output = subprocess.check_output
+        self.known_cmds = known_cmds or []
+        self.job_count = 12
 
-    def __call__(self, command: List[str], **kwargs: Any) -> Any:
-        if command[0] == "sacct":
-            return self._sacct
-        elif command[0] == "sbatch":
-            return self._sbatch
-        elif command[0] == "scancel":
-            return ""
-        elif command[0] == "tail":
+    def __call__(self, command: Sequence[str], **kwargs: Any) -> bytes:
+        program = command[0]
+        if program in ["sacct", "sbatch", "scancel"]:
+            return getattr(self, program)(command[1:]).encode()
+        elif program == "tail":
             return self._subprocess_check_output(command, **kwargs)
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def sacct(self, state: str, job_id: str, array: int) -> bytes:
+    def sacct(self, _: Sequence[str]) -> str:
+        return "\n".join(self.job_sacct.values())
+
+    def sbatch(self, args: Sequence[str]) -> str:
+        """Create a "RUNNING" job."""
+        job_id = str(self.job_count)
+        self.job_count += 1
+        sbatch_file = Path(args[0])
+        array = 0
+        if sbatch_file.exists():
+            array_lines = [l for l in sbatch_file.read_text().splitlines() if "--array" in l]
+            if array_lines:
+                # SBATCH --array=0-4%3
+                array = int(array_lines[0].split("=0-")[-1].split("%")[0])
+                array += 1
+        self.set_job_state(job_id, "RUNNING", array)
+        return f"Running job {job_id}\n"
+
+    # pylint: disable=no-self-use
+    def scancel(self, _: Sequence[str]) -> str:
+        # TODO:should we call set_job_state ?
+        return ""
+
+    def set_job_state(self, job_id: str, state: str, array: int = 0) -> None:
+        self.job_sacct[job_id] = self._sacct(state, job_id, array)
+        self.last_job = job_id
+
+    def _sacct(self, state: str, job_id: str, array: int) -> str:
         if array == 0:
             lines = self.SACCT_JOB.format(j=job_id, state=state)
         else:
             lines = "\n".join(self.SACCT_JOB.format(j=f"{job_id}_{i}", state=state) for i in range(array))
-        return "\n".join((self.SACCT_HEADER, lines)).encode()
+        return "\n".join((self.SACCT_HEADER, lines))
 
     def which(self, name: str) -> Optional[str]:
-        return "here" if name == self.shutil_which else None
+        return "here" if name in self.known_cmds else None
+
+    def mock_cmd_fn(self, *args, **_):
+        # CommandFunction(cmd)() ~= subprocess.check_output(cmd)
+        return lambda: self(*args)
 
     @contextlib.contextmanager
     def context(self) -> Iterator[None]:
-        with patch(
-            "submitit.core.utils.CommandFunction",
-            new=lambda *args, **kwargs: _SecondCall(self(*args, **kwargs)),
-        ):
+        with patch("submitit.core.utils.CommandFunction", new=self.mock_cmd_fn):
             with patch("subprocess.check_output", new=self):
                 with patch("shutil.which", new=self.which):
                     with patch("subprocess.check_call", new=self):
                         yield None
+
+    # pylint: disable=no-self-use
+    @contextlib.contextmanager
+    def job_context(self, job_id: str) -> Iterator[None]:
+        with utils.environment_variables(
+            _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="slurm", SLURM_JOB_ID=str(job_id)
+        ):
+            yield None
 
 
 class FakeInfoWatcher(core.InfoWatcher):
@@ -111,8 +129,7 @@ class FakeExecutor(core.PicklingExecutor):
         return command + "2"  # this makes "echo 12"
 
     def _make_submission_command(self, submission_file_path: Path) -> List[str]:
-        """Create the submission command.
-        """
+        """Create the submission command."""
         with submission_file_path.open("r") as f:
             text: str = f.read()
         return text.split()  # this makes ["echo", "12"]

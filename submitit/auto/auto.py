@@ -118,17 +118,21 @@ class AutoExecutor(Executor):
             )
 
     @classmethod
-    def _valid_parameters(cls) -> tp.Set[str]:
+    def _typed_parameters(cls) -> tp.Dict[str, Type]:
         return {
-            "name",
-            "timeout_min",
-            "mem_gb",
-            "nodes",
-            "cpus_per_task",
-            "gpus_per_node",
-            "tasks_per_node",
-            "stderr_to_stdout",
+            "name": str,
+            "timeout_min": int,
+            "mem_gb": float,
+            "nodes": int,
+            "cpus_per_task": int,
+            "gpus_per_node": int,
+            "tasks_per_node": int,
+            "stderr_to_stdout": bool,
         }
+
+    @classmethod
+    def _valid_parameters(cls) -> tp.Set[str]:
+        return set(cls._typed_parameters().keys())
 
     def _internal_update_parameters(self, **kwargs: Any) -> None:
         """Updates submission parameters to srun/crun.
@@ -150,10 +154,11 @@ class AutoExecutor(Executor):
         # We handle None as not set.
         kwargs = {k: v for k, v in kwargs.items() if v is not None}
         # check type of replaced variables
-        generics = AutoExecutor._valid_parameters()
-        for name in generics:
+        generics = AutoExecutor._typed_parameters()
+        for name, expected_type in generics.items():
+            if expected_type == float:
+                expected_type = (int, float)  # type: ignore
             if name in kwargs:
-                expected_type = int if name != "name" else str
                 assert isinstance(kwargs[name], expected_type), (
                     f'Parameter "{name}" expected type {expected_type} ' f'(but value: "{kwargs[name]}")'
                 )
@@ -174,7 +179,7 @@ class AutoExecutor(Executor):
                 continue
 
             valid = executors[ex]._valid_parameters()
-            if arg not in valid | generics:
+            if arg not in valid and arg not in generics:
                 invalid.append(
                     f"Unknown argument '{arg}' for executor '{ex}' in parameter '{ex}_{arg}'."
                     + " Valid arguments: "

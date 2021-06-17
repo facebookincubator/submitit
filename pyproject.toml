@@ -31,6 +31,8 @@ skip_gitignore = true
       too-few-public-methods,
       useless-import-alias,
   """
+  [tool.pylint.DESIGN]
+  max-args = 6
 
   [tool.pylint.FORMAT]
   max-line-length = "140"

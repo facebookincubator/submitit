@@ -5,6 +5,7 @@
 #
 
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -13,10 +14,10 @@ from ..slurm import test_slurm
 from . import auto
 
 
-def test_slurm_executor(monkeypatch) -> None:
+def test_slurm_executor(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(debug.DebugExecutor, "_valid_parameters", lambda: {"blabla"})
     with test_slurm.mocked_slurm():
-        executor = auto.AutoExecutor(folder=".")
+        executor = auto.AutoExecutor(folder=tmp_path)
     assert executor.cluster == "slurm"
 
     # local_xxx parameter is ignored
@@ -26,7 +27,7 @@ def test_slurm_executor(monkeypatch) -> None:
 
     # shared parameter with wrong type
     with pytest.raises(AssertionError):
-        executor.update_parameters(mem_gb=2.0)  # should be int
+        executor.update_parameters(mem_gb="2.0GB")  # should be int
     # unknown shared parameter
     with pytest.raises(NameError):
         executor.update_parameters(blublu=2.0)
@@ -38,39 +39,39 @@ def test_slurm_executor(monkeypatch) -> None:
         executor.update_parameters(debug_blublu=2.0, local_num_threads=4)
 
 
-def test_local_executor() -> None:
+def test_local_executor(tmp_path: Path) -> None:
     with test_slurm.mocked_slurm():
-        executor = auto.AutoExecutor(folder=".", cluster="local")
+        executor = auto.AutoExecutor(folder=tmp_path, cluster="local")
     assert executor.cluster == "local"
     executor.update_parameters(local_cpus_per_task=2)
 
 
-def test_executor_argument() -> None:
+def test_executor_argument(tmp_path: Path) -> None:
     with test_slurm.mocked_slurm():
-        executor = auto.AutoExecutor(folder=".", slurm_max_num_timeout=22)
+        executor = auto.AutoExecutor(folder=tmp_path, slurm_max_num_timeout=22)
     assert getattr(executor._executor, "max_num_timeout", None) == 22
 
     # Local executor
-    executor = auto.AutoExecutor(folder=".", cluster="local", slurm_max_num_timeout=22)
+    executor = auto.AutoExecutor(folder=tmp_path, cluster="local", slurm_max_num_timeout=22)
     assert getattr(executor._executor, "max_num_timeout", None) != 22
 
 
-def test_executor_unknown_argument() -> None:
+def test_executor_unknown_argument(tmp_path: Path) -> None:
     with test_slurm.mocked_slurm():
         with pytest.raises(TypeError):
-            auto.AutoExecutor(folder=".", slurm_foobar=22)
+            auto.AutoExecutor(folder=tmp_path, slurm_foobar=22)
 
 
-def test_executor_deprecated_arguments() -> None:
+def test_executor_deprecated_arguments(tmp_path: Path) -> None:
     with test_slurm.mocked_slurm():
         with pytest.warns(UserWarning, match="slurm_max_num_timeout"):
-            auto.AutoExecutor(folder=".", max_num_timeout=22)
+            auto.AutoExecutor(folder=tmp_path, max_num_timeout=22)
 
 
-def test_deprecated_argument(monkeypatch) -> None:
+def test_deprecated_argument(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(debug.DebugExecutor, "_valid_parameters", lambda: {"blabla"})
     with test_slurm.mocked_slurm():
-        executor = auto.AutoExecutor(folder=".")
+        executor = auto.AutoExecutor(folder=tmp_path)
     assert executor.cluster == "slurm"
 
     # debug 'blabla' parameter is ignored
@@ -78,9 +79,9 @@ def test_deprecated_argument(monkeypatch) -> None:
         executor.update_parameters(mem_gb=2, blabla="blublu")
 
 
-def test_overriden_arguments() -> None:
+def test_overriden_arguments(tmp_path: Path) -> None:
     with test_slurm.mocked_slurm():
-        slurm_ex = auto.AutoExecutor(folder=".", cluster="slurm")
+        slurm_ex = auto.AutoExecutor(folder=tmp_path, cluster="slurm")
 
     slurm_ex.update_parameters(
         timeout_min=60, slurm_timeout_min=120, tasks_per_node=2, slurm_ntasks_per_node=3
@@ -90,13 +91,13 @@ def test_overriden_arguments() -> None:
     assert slurm_params == {"time": 120, "ntasks_per_node": 3}
 
     # others use timeout_min
-    local_ex = auto.AutoExecutor(folder=".", cluster="local")
+    local_ex = auto.AutoExecutor(folder=tmp_path, cluster="local")
     local_ex.update_parameters(timeout_min=60, slurm_time=120)
 
 
-def test_auto_batch_watcher() -> None:
-    with test_slurm.mocked_slurm() as tmp:
-        executor = auto.AutoExecutor(folder=tmp)
+def test_auto_batch_watcher(tmp_path: Path) -> None:
+    with test_slurm.mocked_slurm():
+        executor = auto.AutoExecutor(folder=tmp_path)
         with executor.batch():
             job = executor.submit(print, "hi")
         assert not job.done()

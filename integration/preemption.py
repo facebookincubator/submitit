@@ -1,3 +1,9 @@
+# Copyright (c) Facebook, Inc. and its affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
+#
+
 """Preemption tests, need to be run on a an actual cluster"""
 import logging
 import shutil
@@ -11,7 +17,7 @@ from submitit import AutoExecutor, Job
 from submitit.core import test_core
 
 FILE = Path(__file__)
-LOGS = FILE.parent.parent / "log_test" / f"{FILE.stem}_log"
+LOGS = FILE.parent / "logs" / f"{FILE.stem}_log"
 
 log = logging.getLogger("preemption_main")
 formatter = logging.Formatter("%(name)s %(levelname)s (%(asctime)s) - %(message)s")
@@ -62,12 +68,7 @@ def wait_job_is_running(job: Job) -> None:
         time.sleep(60)
 
 
-def main():
-    log.info("Hello !")
-    if LOGS.exists():
-        log.info(f"Cleaning up log folder: {LOGS}")
-        shutil.rmtree(str(LOGS))
-
+def preemption():
     job = pascal_job("learnfair", timeout_min=2 * 60)
     log.info(f"Scheduled {job}, {job.paths.stdout}")
     # log.info(job.paths.submission_file.read_text())
@@ -97,6 +98,15 @@ def main():
 
     priority_job.result()
     print("Preemption test succeeded ✅")
+
+
+def main():
+    log.info("Hello !")
+    if LOGS.exists():
+        log.info(f"Cleaning up log folder: {LOGS}")
+        shutil.rmtree(str(LOGS))
+
+    preemption()
 
 
 if __name__ == "__main__":

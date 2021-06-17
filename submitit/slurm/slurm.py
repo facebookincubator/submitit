@@ -265,7 +265,7 @@ class SlurmExecutor(core.PicklingExecutor):
         params = super()._convert_parameters(params)
         # replace type in some cases
         if "mem" in params:
-            params["mem"] = f"{params['mem']}GB"
+            params["mem"] = _convert_mem(params["mem"])
         return params
 
     def _internal_update_parameters(self, **kwargs: Any) -> None:
@@ -506,3 +506,9 @@ def _make_sbatch_string(
         f"{srun_command} --output {stdout} {stderr_flag} --unbuffered {command}\n",
     ]
     return "\n".join(lines)
+
+
+def _convert_mem(mem_gb: float) -> str:
+    if mem_gb == int(mem_gb):
+        return f"{int(mem_gb)}GB"
+    return f"{int(mem_gb * 1024)}MB"

@@ -32,23 +32,19 @@ def environment_variables(**kwargs: str) -> Iterator[None]:
 
 
 class UncompletedJobError(RuntimeError):
-    """Job is uncomplete: either unfinished or failed
-    """
+    """Job is uncomplete: either unfinished or failed"""
 
 
 class FailedJobError(UncompletedJobError):
-    """Job failed during processing
-    """
+    """Job failed during processing"""
 
 
 class FailedSubmissionError(RuntimeError):
-    """Job Submission failed
-    """
+    """Job Submission failed"""
 
 
 class JobPaths:
-    """Creates paths related to the slurm job and its submission
-    """
+    """Creates paths related to the slurm job and its submission"""
 
     def __init__(
         self, folder: Union[Path, str], job_id: Optional[str] = None, task_id: Optional[int] = None
@@ -82,8 +78,7 @@ class JobPaths:
         return self._format_id(self.folder / "%j_%t_log.out")
 
     def _format_id(self, path: Union[Path, str]) -> Path:
-        """Replace id tag by actual id if available
-        """
+        """Replace id tag by actual id if available"""
         if self.job_id is None:
             return Path(path)
         return Path(str(path).replace("%j", str(self.job_id)).replace("%t", str(self.task_id)))
@@ -94,8 +89,7 @@ class JobPaths:
 
     @staticmethod
     def get_first_id_independent_folder(folder: Union[Path, str]) -> Path:
-        """Returns the closest folder which is id independent
-        """
+        """Returns the closest folder which is id independent"""
         parts = Path(folder).expanduser().absolute().parts
         indep_parts = itertools.takewhile(lambda x: not any(tag in x for tag in ["%j", "%t"]), parts)
         return Path(*indep_parts)
@@ -180,8 +174,7 @@ def temporary_save_path(filepath: Union[Path, str]) -> Iterator[Path]:
 
 
 def archive_dev_folders(folders: List[Union[str, Path]], outfile: Optional[Union[str, Path]] = None) -> Path:
-    """Creates a tar.gz file with all provided folders
-    """
+    """Creates a tar.gz file with all provided folders"""
     assert isinstance(folders, (list, tuple)), "Only lists and tuples of folders are allowed"
     if outfile is None:
         outfile = "_dev_folders_.tar.gz"
@@ -217,8 +210,7 @@ def copy_par_file(par_file: Union[str, Path], folder: Union[str, Path]) -> Path:
 
 
 def sanitize(s: str, only_alphanum: bool = True, in_quotes: bool = True) -> str:
-    """Sanitize the string
-    """
+    """Sanitize the string"""
     if only_alphanum:
         # Replace all consecutive non-alphanum character by _
         return re.sub(r"[\W_]+", "_", s)

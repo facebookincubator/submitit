@@ -53,8 +53,35 @@ venv/requirements.txt: requirements/main.txt requirements/dev.txt
 	venv/bin/pip install --progress-bar off -U -e .[dev]
 	cat $^ > venv/requirements.txt
 
-installable: venv
+installable: installable_local installable_pypi
+
+installable_local: venv
 	(. ./venv/bin/activate ; cd /tmp ; python -c "import submitit")
+
+BUILD=dev$(CIRCLE_BUILD_NUM)
+USER_VENV=test_results/user_venv/
+CURRENT_VERSION=`grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
+TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps --progress-bar off
+
+installable_pypi:
+	[ ! -d dist ] || rm -r dist
+	# Append .$(BUILD) to the current version
+	sed -i -e 's/__version__ = "[0-9].[0-9].[0-9]/&.$(BUILD)/' ./submitit/__init__.py
+	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
+	$(BIN)python setup.py sdist bdist_wheel
+	git checkout HEAD -- ./submitit/__init__.py
+	$(BIN)pip install --progress-bar off twine
+	TWINE_PASSWORD=$$TWINE_PASSWORD_TESTPYPI $(BIN)python -m twine upload --repository testpypi dist/*
+
+	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
+	python3 -m venv $(USER_VENV)
+	$(USER_VENV)bin/pip install --progress-bar off --upgrade pip
+	# Wait for the package to be visible.
+	sleep 10
+	$(USER_VENV)bin/pip install $(TEST_PYPI) submitit==$(CURRENT_VERSION).$(BUILD) || echo "will try again"
+	# Apparently we need to try twice before finding it in the index.
+	sleep 10
+	$(USER_VENV)bin/pip install $(TEST_PYPI) submitit==$(CURRENT_VERSION).$(BUILD)
 
 clean:
 	rm -r venv
@@ -71,8 +98,8 @@ integration: venv check_format lint installable test_coverage
 
 release: integration
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
-	[[ ! -d dist ]] || rm -r dist
-	$(BIN)python setup.py sdist
+	[ ! -d dist ] || rm -r dist
+	$(BIN)python setup.py sdist bdist_wheel
 	$(BIN)pip install --progress-bar off twine
 	# Credentials are read from ~/.pypirc
 	$(BIN)python -m twine upload dist/*
