@@ -269,7 +269,7 @@ class Controller:
                 SUBMITIT_LOCAL_LOCALID=str(k), SUBMITIT_LOCAL_GLOBALID=str(k), SUBMITIT_LOCAL_JOB_ID=self.pid
             )
             self.tasks.append(
-                subprocess.Popen(
+                subprocess.Popen(  # pylint: disable=consider-using-with
                     self.command,
                     shell=False,
                     env=env,
