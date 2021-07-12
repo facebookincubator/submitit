@@ -226,7 +226,7 @@ def test_unpickling_watcher_registration(tmp_path: Path) -> None:
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 4)
     original_job_id = job._job_id
-    job._job_id = "007"
+    job._job_id = "007"  # pylint: disable=attribute-defined-outside-init
     assert job.watcher._registered == {original_job_id}  # still holds the old job id
     pkl = pickle.dumps(job)
     newjob = pickle.loads(pkl)
