@@ -387,7 +387,7 @@ def _make_sbatch_string(
     command: str,
     folder: tp.Union[str, Path],
     job_name: str = "submitit",
-    partition: str = None,
+    partition: tp.Optional[str] = None,
     time: int = 5,
     nodes: int = 1,
     ntasks_per_node: int = 1,
@@ -402,11 +402,11 @@ def _make_sbatch_string(
     mem_per_gpu: tp.Optional[str] = None,
     mem_per_cpu: tp.Optional[str] = None,
     signal_delay_s: int = 90,
-    comment: str = "",
-    constraint: str = "",
-    exclude: str = "",
-    gres: str = "",
-    exclusive: tp.Union[bool, str] = False,
+    comment: tp.Optional[str] = None,
+    constraint: tp.Optional[str] = None,
+    exclude: tp.Optional[str] = None,
+    gres: tp.Optional[str] = None,
+    exclusive: tp.Optional[tp.Union[bool, str]] = None,
     array_parallelism: int = 256,
     wckey: str = "submitit",
     stderr_to_stdout: bool = False,
@@ -456,7 +456,7 @@ def _make_sbatch_string(
         "stderr_to_stdout",
         "verbose_srun",
     ]
-    parameters = {k: v for k, v in locals().items() if v and v is not None and k not in nonslurm}
+    parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
     parameters["signal"] = f"USR1@{signal_delay_s}"
     if job_name:
