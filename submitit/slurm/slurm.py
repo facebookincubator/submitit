@@ -390,7 +390,7 @@ def _make_sbatch_string(
     partition: tp.Optional[str] = None,
     time: int = 5,
     nodes: int = 1,
-    ntasks_per_node: int = 1,
+    ntasks_per_node: tp.Optional[int] = None,
     cpus_per_task: tp.Optional[int] = None,
     cpus_per_gpu: tp.Optional[int] = None,
     num_gpus: tp.Optional[int] = None,  # legacy
