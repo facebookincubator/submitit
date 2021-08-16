@@ -6,7 +6,6 @@
 #SBATCH --exclusive
 #SBATCH --job-name=submitit
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1
 #SBATCH --open-mode=append
 #SBATCH --output=/tmp/%j_0_log.out
 #SBATCH --partition=learnfair
