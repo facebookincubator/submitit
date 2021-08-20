@@ -412,7 +412,7 @@ def _make_sbatch_string(
     stderr_to_stdout: bool = False,
     map_count: tp.Optional[int] = None,  # used internally
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
-    srun_args: tp.Optional[tp.Dict[str, tp.Any]] = None,
+    srun_args: tp.Optional[tp.Iterable[str]] = None,
 ) -> str:
     """Creates the content of an sbatch file with provided parameters
 
@@ -435,9 +435,8 @@ def _make_sbatch_string(
         Forces any parameter to a given value in sbatch. This can be useful
         to add parameters which are not currently available in submitit.
         Eg: {"mail-user": "blublu@fb.com", "mail-type": "BEGIN"}
-    srun_args: dict
-        Adds {key} {value} for non-None value and {key} where value is None
-        to the srun call.
+    srun_args: List[str]
+        Add each argument in the list to the srun call
 
     Raises
     ------
@@ -502,10 +501,7 @@ def _make_sbatch_string(
     if srun_args is None:
         srun_command = "srun"
     else:
-        extra_params = " ".join(
-            [f"{key} {value}" if value is not None else f"{key}" for key, value in srun_args.items()]
-        )
-        srun_command = f"srun {extra_params}"
+        srun_command = f"srun {' '.join(srun_args)}"
     lines += [
         "",
         "# command",
