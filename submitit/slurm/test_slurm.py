@@ -241,6 +241,7 @@ def test_make_sbatch_string() -> None:
         partition="learnfair",
         exclusive=True,
         additional_parameters=dict(blublu=12),
+        srun_args=["-vv", "--cpu-bind none"],
     )
     assert "partition" in string
     assert "--command" not in string

@@ -411,8 +411,8 @@ def _make_sbatch_string(
     wckey: str = "submitit",
     stderr_to_stdout: bool = False,
     map_count: tp.Optional[int] = None,  # used internally
-    verbose_srun: bool = False,
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
+    srun_args: tp.Optional[tp.Iterable[str]] = None,
 ) -> str:
     """Creates the content of an sbatch file with provided parameters
 
@@ -435,8 +435,8 @@ def _make_sbatch_string(
         Forces any parameter to a given value in sbatch. This can be useful
         to add parameters which are not currently available in submitit.
         Eg: {"mail-user": "blublu@fb.com", "mail-type": "BEGIN"}
-    verbose_srun: bool
-        Uses -vv option on srun call
+    srun_args: List[str]
+        Add each argument in the list to the srun call
 
     Raises
     ------
@@ -454,7 +454,7 @@ def _make_sbatch_string(
         "setup",
         "signal_delay_s",
         "stderr_to_stdout",
-        "verbose_srun",
+        "srun_args",
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
@@ -498,7 +498,10 @@ def _make_sbatch_string(
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
     stderr_flag = "" if stderr_to_stdout else f"--error {stderr}"
-    srun_command = "srun -vv" if verbose_srun else "srun"
+    if srun_args is None:
+        srun_command = "srun"
+    else:
+        srun_command = f"srun {' '.join(srun_args)}"
     lines += [
         "",
         "# command",
