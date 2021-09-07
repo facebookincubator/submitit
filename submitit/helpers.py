@@ -208,7 +208,7 @@ class RsyncSnapshot:
             # https://stackoverflow.com/a/51689219/4876946
             run_cmd(f"git ls-files {sub} | grep -v ^16 | cut -f2- > {tfile.name}", cwd=root_dir, shell=True)
             exclude = list(itertools.chain.from_iterable(("--exclude", pat) for pat in self.exclude))
-            with open(tfile.name, "a") as o:
+            with open(tfile.name, "a", encoding="utf8") as o:
                 for inc in self.include:
                     print(inc, file=o)
             run_cmd(["rsync", "-a", "--files-from", tfile.name, root_dir, str(self.snapshot_dir)] + exclude)
