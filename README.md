@@ -54,9 +54,9 @@ Quick install, in a virtualenv/conda environment where `pip` is installed (check
   ```
   conda install -c conda-forge submitit
   ```
-- master branch:
+- main branch:
   ```
-  pip install git+https://github.com/facebookincubator/submitit@master#egg=submitit
+  pip install git+https://github.com/facebookincubator/submitit@main#egg=submitit
   ```
 
 You can try running the [MNIST example](docs/mnist.py) to check that everything is working as expected (requires sklearn).
