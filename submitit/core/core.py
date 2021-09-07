@@ -312,7 +312,9 @@ class Job(tp.Generic[R]):
         if self._sub_jobs:
             all_exceptions = [sub_job.exception() for sub_job in self._sub_jobs]
             # unexpected pylint issue on correct code:
-            exceptions = [e for e in all_exceptions if e is not None]  # pylint: disable=used-before-assignment
+            exceptions = [
+                e for e in all_exceptions if e is not None  # pylint: disable=used-before-assignment
+            ]
             if not exceptions:
                 return None
             return exceptions[0]
