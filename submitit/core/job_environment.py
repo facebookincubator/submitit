@@ -49,6 +49,9 @@ class JobEnvironment:
 
     @property
     def paths(self) -> JobPaths:
+        """Provides the paths used by submitit, including
+        stdout, stderr, submitted_pickle and folder.
+        """
         folder = os.environ["SUBMITIT_FOLDER"]
         return JobPaths(folder, job_id=self.job_id, task_id=self.global_rank)
 
