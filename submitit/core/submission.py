@@ -5,6 +5,7 @@
 #
 
 import argparse
+import os
 import time
 import traceback
 from pathlib import Path
@@ -32,9 +33,9 @@ def process_job(folder: Union[Path, str]) -> None:
     -----------
     Creates a picked output file next to the job file.
     """
-    folder = Path(folder)
+    os.environ["SUBMITIT_FOLDER"] = str(folder)
     env = job_environment.JobEnvironment()
-    paths = utils.JobPaths(folder, job_id=env.job_id, task_id=env.global_rank)
+    paths = env.paths
     logger = get_logger()
     logger.info(f"Starting with {env}")
     logger.info(f"Loading pickle: {paths.submitted_pickle}")

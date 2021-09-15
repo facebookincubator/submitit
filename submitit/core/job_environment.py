@@ -47,6 +47,14 @@ class JobEnvironment:
             n = n[: -len("JobEnvironment")]
         return n.lower()
 
+    @property
+    def paths(self) -> JobPaths:
+        """Provides the paths used by submitit, including
+        stdout, stderr, submitted_pickle and folder.
+        """
+        folder = os.environ["SUBMITIT_FOLDER"]
+        return JobPaths(folder, job_id=self.job_id, task_id=self.global_rank)
+
     def activated(self) -> bool:
         """Tests if we are running inside this environment.
 
