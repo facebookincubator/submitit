@@ -219,7 +219,7 @@ class RsyncSnapshot:
         os.chdir(self.original_dir)
 
 
-def monitor_jobs(jobs: tp.Sequence[core.Job[core.R]], sleep_time_s: int = 30, test_mode: bool = False):
+def monitor_jobs(jobs: tp.Sequence[core.Job[core.R]], sleep_time_s: float = 30, test_mode: bool = False):
     """Continuously monitors given jobs until they are all done or failed.
 
     Parameters
