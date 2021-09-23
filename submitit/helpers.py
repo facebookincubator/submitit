@@ -218,7 +218,7 @@ class RsyncSnapshot:
     def __exit__(self, *args):
         os.chdir(self.original_dir)
 
-        
+
 def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
     """Continuously monitors given jobs until they are all done or failed.
     
@@ -276,7 +276,5 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
 
         time.sleep(sleep_time_s)
 
-    print(
-        f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes"
-    )
+    print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
     return done, failed_jobs
