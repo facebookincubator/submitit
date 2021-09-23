@@ -219,7 +219,7 @@ class RsyncSnapshot:
         os.chdir(self.original_dir)
 
 
-def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
+def monitor_jobs(jobs: tp.Sequence[core.Job[core.R]], sleep_time_s: int = 30, test_mode: bool = False):
     """Continuously monitors given jobs until they are all done or failed.
 
     Parameters
@@ -244,6 +244,7 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
         assert sleep_time_s >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
 
     monitoring_start_time = time.time()
+    n_jobs = len(jobs)
     done, failed_jobs = set(), set()
     while True:
         state_count = {"PENDING": 0, "RUNNING": 0}
@@ -267,9 +268,9 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
 
         print(
             f"[{date_time}] Launched {int(run_time / 60)} minutes ago,",
-            f"{state_count['RUNNING']}/{len(jobs)} jobs running,",
-            f"{len(failed_jobs)}/{len(jobs)} jobs failed,",
-            f"{len(done)}/{len(jobs)} jobs done",
+            f"{state_count['RUNNING']}/{n_jobs} jobs running,",
+            f"{len(failed_jobs)}/{n_jobs} jobs failed,",
+            f"{len(done)}/{n_jobs} jobs done",
             flush=True,
         )
 

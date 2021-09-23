@@ -102,37 +102,29 @@ def test_job_use_snapshot_modules(executor, tmp_path: Path) -> None:
 
 class FakeInfoWatcherWithTimer(core.InfoWatcher):
     # pylint: disable=abstract-method
-    def __init__(self, delay_s: int = 60, time_change: int = 5, end_result: str = "failed"):
+    def __init__(self, delay_s: int = 60, time_change: int = 0.02):
         super().__init__(delay_s)
         self.start_timer = time.time()
         self.time_change = time_change
-        self.end_result = end_result
 
     def get_state(self, job_id: str, mode: str = "standard") -> str:
-        now = time.time()
-        if now - self.start_timer < self.time_change:
+        duration = time.time() - self.start_timer
+        if duration < self.time_change:
             return "pending"
-        elif now - self.start_timer > self.time_change and now - self.start_timer < 2 * self.time_change:
+        elif 2 * self.time_change > duration > self.time_change:
             return "running"
-        return self.end_result
+        if job_id == "failed":
+            return "failed"
+        return "done"
 
 
 class FakeJobWithTimer(core.Job[core.R]):
-    def __init__(self, job_id, folder, time_change: int = 5, end_result: str = "failed"):
-        super().__init__(job_id=job_id, folder=folder)
-        self.time_change = time_change
-        self.end_result = end_result
-        self.watcher = FakeInfoWatcherWithTimer(time_change=self.time_change, end_result=self.end_result)
+    watcher = FakeInfoWatcherWithTimer()
 
 
 def test_monitor_jobs(tmp_path: Path) -> None:
-    job: FakeJobWithTimer[int] = FakeJobWithTimer(job_id="12", folder=tmp_path)
-    job2: FakeJobWithTimer[int] = FakeJobWithTimer(
-        job_id="13", folder=tmp_path, time_change=10, end_result="done"
-    )
-
-    start_time = time.time()
-    done, failed = helpers.monitor_jobs([job, job2], 5, test_mode=True)
+    job: FakeJobWithTimer[int] = FakeJobWithTimer(job_id="failed", folder=tmp_path)
+    job2: FakeJobWithTimer[int] = FakeJobWithTimer(job_id="succeeded", folder=tmp_path)
+    done, failed = helpers.monitor_jobs([job, job2], 0.02, test_mode=True)
     assert failed == {0}
     assert done == {1}
-    assert 15 < time.time() - start_time < 30
