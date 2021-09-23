@@ -135,4 +135,4 @@ def test_monitor_jobs(tmp_path: Path) -> None:
     done, failed = helpers.monitor_jobs([job, job2], 5, test_mode=True)
     assert failed == {0}
     assert done == {1}
-    assert time.time() - start_time < 30
+    assert 15 < time.time() - start_time < 30

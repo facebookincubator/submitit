@@ -259,7 +259,7 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
                 done.add(i)
 
         if len(done) + len(failed_jobs) == len(jobs):
-            print(f"All jobs finished, {failed_jobs} failed", flush=True)
+            print(f"All jobs finished, {sorted(failed_jobs)} failed", flush=True)
             break
 
         run_time = time.time() - monitoring_start_time
@@ -274,7 +274,7 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
         )
 
         if len(failed_jobs) > 0:
-            print(f"[{date_time}] Failed chunks {failed_jobs}", flush=True)
+            print(f"[{date_time}] Failed chunks {sorted(failed_jobs)}", flush=True)
 
         time.sleep(sleep_time_s)
 
