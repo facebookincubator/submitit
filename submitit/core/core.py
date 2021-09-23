@@ -126,9 +126,7 @@ class InfoWatcher:
             return
         self._num_calls += 1
         try:
-            logger.get_logger().debug(
-                f"Call #{self.num_calls} - Command {' '.join(command)}"
-            )
+            logger.get_logger().debug(f"Call #{self.num_calls} - Command {' '.join(command)}")
             self._output = subprocess.check_output(command, shell=False)
         except Exception as e:
             logger.get_logger().warning(
