@@ -221,7 +221,7 @@ class RsyncSnapshot:
 
 def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
     """Continuously monitors given jobs until they are all done or failed.
-    
+
     Parameters
     ----------
     jobs: List[Jobs]
@@ -231,7 +231,7 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
         Can't be inferior to 30s.
     test_mode: bool
         If in test mode, we do not check the length of sleep_time_s
-        
+
     Yields
     ------
     done: set
@@ -266,7 +266,10 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
         date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         print(
-            f"[{date_time}] Launched {int(run_time / 60)} minutes ago, {state_count['RUNNING']}/{len(jobs)} jobs running, {len(failed_jobs)}/{len(jobs)} jobs failed, {len(done)}/{len(jobs)} jobs done",
+            f"[{date_time}] Launched {int(run_time / 60)} minutes ago,",
+            f"{state_count['RUNNING']}/{len(jobs)} jobs running,",
+            f"{len(failed_jobs)}/{len(jobs)} jobs failed,",
+            f"{len(done)}/{len(jobs)} jobs done",
             flush=True,
         )
 

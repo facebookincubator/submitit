@@ -101,13 +101,13 @@ def test_job_use_snapshot_modules(executor, tmp_path: Path) -> None:
 
 
 class FakeInfoWatcherWithTimer(core.InfoWatcher):
+    # pylint: disable=abstract-method
     def __init__(self, delay_s: int = 60, time_change: int = 5, end_result: str = "failed"):
         super().__init__(delay_s)
         self.start_timer = time.time()
         self.time_change = time_change
         self.end_result = end_result
 
-    # pylint: disable=abstract-method
     def get_state(self, job_id: str, mode: str = "standard") -> str:
         now = time.time()
         if now - self.start_timer < self.time_change:
