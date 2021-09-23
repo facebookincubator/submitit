@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import datetime
 import itertools
 import os
 import shutil
@@ -216,3 +217,66 @@ class RsyncSnapshot:
 
     def __exit__(self, *args):
         os.chdir(self.original_dir)
+
+        
+def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
+    """Continuously monitors given jobs until they are all done or failed.
+    
+    
+    Parameters
+    ----------
+    jobs: List[Jobs]
+        A list of jobs to monitor
+    sleep_time_s: int
+        The time (in seconds) between two refreshes of the monitoring.
+        Can't be inferior to 30s.
+    test_mode: bool
+        If in test mode, we do not check the length of sleep_time_s
+        
+    Yields
+    ------
+    done: set
+        The set of jobs that has succeeded 
+    failed_jobs: set
+        The set of jobs that has failed
+    """
+
+    if not test_mode:
+        assert sleep_time_s >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
+
+    monitoring_start_time = time.time()
+    done, failed_jobs = set(), set()
+    while True:
+        state_count = {"PENDING": 0, "RUNNING": 0}
+        for i, job in enumerate(jobs):
+            if i in done or i in failed_jobs:
+                continue
+            job_state = job.state.upper()
+            if job_state in state_count:
+                state_count[job_state] += 1
+            elif job_state == "FAILED":
+                failed_jobs.add(i)
+            elif job.done():
+                done.add(i)
+
+        if len(done) + len(failed_jobs) == len(jobs):
+            print(f"All jobs finished, {failed_jobs} failed", flush=True)
+            break
+
+        run_time = time.time() - monitoring_start_time
+        date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        print(
+            f"[{date_time}] Launched {int(run_time / 60)} minutes ago, {state_count['RUNNING']}/{len(jobs)} jobs running, {len(failed_jobs)}/{len(jobs)} jobs failed, {len(done)}/{len(jobs)} jobs done",
+            flush=True,
+        )
+
+        if len(failed_jobs) > 0:
+            print(f"[{date_time}] Failed chunks {failed_jobs}", flush=True)
+
+        time.sleep(sleep_time_s)
+
+    print(
+        f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes"
+    )
+    return done, failed_jobs

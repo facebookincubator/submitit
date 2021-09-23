@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from . import helpers
-from .core import utils
+from .core import core, utils
 
 
 def _three_time(x: int) -> int:
@@ -98,3 +98,42 @@ def test_job_use_snapshot_modules(executor, tmp_path: Path) -> None:
     assert submitit_file() == Path(__file__).parent / "__init__.py"
     # In the job we should import submitit from the snapshot dir
     assert job.result() == tmp_path / "submitit/__init__.py"
+    
+    
+class FakeInfoWatcherWithTimer(core.InfoWatcher):
+    
+    def __init__(self, time_change: int = 5, end_result: str = "failed"):
+        self.start_timer = time.time()
+        self.time_change = time_change
+        self.end_result = end_result
+        super().__init__(self)
+
+    # pylint: disable=abstract-method
+    def get_state(self, job_id: str, mode: str = "standard") -> str:
+        now = time.time()
+        if now - self.start_timer < self.time_change:
+            return "pending"
+        elif now - self.start_timer > self.time_change and now - self.start_timer < 2 * self.time_change:
+            return "running"
+        elif now - self.start_timer > 2 * self.time_change:
+            return self.end_result
+
+
+class FakeJobWithTimer(core.Job[core.R]):
+    
+    def __init__(self, job_id, folder, time_change: int = 5, end_result: str = "failed"):
+        super().__init__(job_id=job_id, folder=folder)
+        self.time_change = time_change
+        self.end_result = end_result
+        self.watcher = FakeInfoWatcherWithTimer(self.time_change, self.end_result)
+        
+        
+def test_monitor_jobs(tmp_path: Path) -> None:
+    job = FakeJobWithTimer(job_id="12", folder=tmp_path)
+    job2 = FakeJobWithTimer(job_id="13", folder=tmp_path, time_change=10, end_result="done")
+
+    start_time = time.time()
+    done, failed = monitor_jobs([job, job2], 5, test_mode=True)
+    assert failed == {0}
+    assert done == {1}
+    assert time.time() - start_time < 30
