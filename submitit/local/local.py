@@ -52,7 +52,7 @@ class LocalJob(core.Job[R]):
         except Exception:
             return "UNKNOWN"
 
-    def get_info(self, mode: str = "force") -> Dict[str, str]:
+    def get_info(self, mode: str = "force") -> Dict[str, str]:  # pylint: disable=unused-argument
         """Returns information about the job as a dict."""
         assert self._process is not None
         poll = self._process.poll()
