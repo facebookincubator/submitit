@@ -222,7 +222,6 @@ class RsyncSnapshot:
 def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
     """Continuously monitors given jobs until they are all done or failed.
     
-    
     Parameters
     ----------
     jobs: List[Jobs]
@@ -236,7 +235,7 @@ def monitor_jobs(jobs, sleep_time_s=30, test_mode=False):
     Yields
     ------
     done: set
-        The set of jobs that has succeeded 
+        The set of jobs that has succeeded
     failed_jobs: set
         The set of jobs that has failed
     """
