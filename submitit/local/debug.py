@@ -135,7 +135,7 @@ class DebugJob(Job[R]):
             return "CANCELLED"
         return "QUEUED"
 
-    def get_info(self) -> Dict[str, str]:
+    def get_info(self, mode: str = "force") -> Dict[str, str]:  # pylint: disable=unused-argument
         return {"STATE": self.state}
 
 

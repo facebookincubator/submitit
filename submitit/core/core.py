@@ -126,6 +126,7 @@ class InfoWatcher:
             return
         self._num_calls += 1
         try:
+            logger.get_logger().debug(f"Call #{self.num_calls} - Command {' '.join(command)}")
             self._output = subprocess.check_output(command, shell=False)
         except Exception as e:
             logger.get_logger().warning(
@@ -440,12 +441,12 @@ class Job(tp.Generic[R]):
 
     @property
     def state(self) -> str:
-        """State of the job (forces an update)"""
-        return self.watcher.get_state(self.job_id, mode="force")
+        """State of the job (does not force an update)"""
+        return self.watcher.get_state(self.job_id, mode="standard")
 
-    def get_info(self) -> tp.Dict[str, str]:
+    def get_info(self, mode: str = "force") -> tp.Dict[str, str]:
         """Returns informations about the job as a dict (sacct call)"""
-        return self.watcher.get_info(self.job_id, mode="force")
+        return self.watcher.get_info(self.job_id, mode=mode)
 
     def _get_logs_string(self, name: str) -> tp.Optional[str]:
         """Returns a string with the content of the log file
