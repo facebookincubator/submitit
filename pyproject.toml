@@ -30,6 +30,7 @@ skip_gitignore = true
       protected-access,
       too-few-public-methods,
       useless-import-alias,
+      unspecified-encoding
   """
   [tool.pylint.DESIGN]
   max-args = 6
