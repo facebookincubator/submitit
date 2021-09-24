@@ -73,7 +73,7 @@ installable_wheel:
 
 	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
 	python3 -m venv $(USER_VENV)
-	$(USER_VENV)/bin/pip install --progress-bar dist/submitit-*any.whl
+	$(USER_VENV)/bin/pip install --progress-bar off dist/submitit-*any.whl
 	# Check that importing works
 	$(USER_VENV)/bin/python -c "import submitit"
 
