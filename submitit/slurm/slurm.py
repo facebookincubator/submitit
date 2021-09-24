@@ -363,8 +363,8 @@ class SlurmExecutor(core.PicklingExecutor):
         output = re.search(r"job (?P<id>[0-9]+)", string)
         if output is None:
             raise utils.FailedSubmissionError(
-                'Could not make sense of sbatch output "{}"\n'.format(string)
-                + "Job instance will not be able to fetch status\n"
+                f'Could not make sense of sbatch output "{string}"\n'
+                "Job instance will not be able to fetch status\n"
                 "(you may however set the job job_id manually if needed)"
             )
         return output.group("id")
@@ -488,6 +488,7 @@ def _make_sbatch_string(
         parameters.update(additional_parameters)
     # now create
     lines = ["#!/bin/bash", "", "# Parameters"]
+    # pylint: disable=consider-using-f-string
     lines += [
         "#SBATCH --{}{}".format(k.replace("_", "-"), "" if parameters[k] is True else f"={parameters[k]}")
         for k in sorted(parameters)

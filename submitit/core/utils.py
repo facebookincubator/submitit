@@ -316,7 +316,7 @@ class CommandFunction:
         Errors are provided with the internal stderr.
         """
         full_command = (
-            self.command + [str(x) for x in args] + ["--{}={}".format(x, y) for x, y in kwargs.items()]
+            self.command + [str(x) for x in args] + [f"--{x}={y}" for x, y in kwargs.items()]
         )  # TODO bad parsing
         if self.verbose:
             print(f"The following command is sent: \"{' '.join(full_command)}\"")
