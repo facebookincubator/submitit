@@ -152,7 +152,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
             return pos + 1
         if c == "[":
             last_pos = node_list.index("]", pos)
-            suffixes = _expand_id_suffix(node_list[pos + 1 : last_pos])
+            suffixes = _expand_id_suffix(node_list[pos + 1: last_pos])
             prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
             pos = last_pos + 1
         else:
@@ -363,8 +363,8 @@ class SlurmExecutor(core.PicklingExecutor):
         output = re.search(r"job (?P<id>[0-9]+)", string)
         if output is None:
             raise utils.FailedSubmissionError(
-                'Could not make sense of sbatch output "{}"\n'.format(string)
-                + "Job instance will not be able to fetch status\n"
+                f'Could not make sense of sbatch output "{string}"\n'
+                "Job instance will not be able to fetch status\n"
                 "(you may however set the job job_id manually if needed)"
             )
         return output.group("id")
@@ -378,7 +378,7 @@ class SlurmExecutor(core.PicklingExecutor):
 def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
@@ -488,6 +488,7 @@ def _make_sbatch_string(
         parameters.update(additional_parameters)
     # now create
     lines = ["#!/bin/bash", "", "# Parameters"]
+    # pylint: disable=consider-using-f-string
     lines += [
         "#SBATCH --{}{}".format(k.replace("_", "-"), "" if parameters[k] is True else f"={parameters[k]}")
         for k in sorted(parameters)

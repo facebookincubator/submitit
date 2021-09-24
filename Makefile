@@ -41,7 +41,8 @@ mypy:
 
 pylint:
 	$(BIN)pylint --version
-	$(BIN)pylint $(CODE)
+	$(BIN)pylint $(CODE) --disable=unspecified-encoding
+
 
 lint: mypy pylint
 
