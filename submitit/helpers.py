@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import collections
 import datetime
 import itertools
 import os
@@ -231,13 +232,6 @@ def monitor_jobs(jobs: tp.Sequence[core.Job[core.R]], sleep_time_s: float = 30, 
         Can't be inferior to 30s.
     test_mode: bool
         If in test mode, we do not check the length of sleep_time_s
-
-    Yields
-    ------
-    done: set
-        The set of jobs that has succeeded
-    failed_jobs: set
-        The set of jobs that has failed
     """
 
     if not test_mode:
@@ -245,22 +239,16 @@ def monitor_jobs(jobs: tp.Sequence[core.Job[core.R]], sleep_time_s: float = 30, 
 
     monitoring_start_time = time.time()
     n_jobs = len(jobs)
-    done, failed_jobs = set(), set()
     while True:
-        state_count = {"PENDING": 0, "RUNNING": 0}
+        state_jobs = collections.defaultdict(set)
         for i, job in enumerate(jobs):
-            if i in done or i in failed_jobs:
-                continue
-            job_state = job.state.upper()
-            if job_state in state_count:
-                state_count[job_state] += 1
-            elif job_state == "FAILED":
-                failed_jobs.add(i)
+            if job.state.upper() in ["FAILED", "RUNNING"]:
+                state_jobs[job.state.upper()].add(i)
             elif job.done():
-                done.add(i)
+                state_jobs["DONE"].add(i)
 
-        if len(done) + len(failed_jobs) == len(jobs):
-            print(f"All jobs finished, {sorted(failed_jobs)} failed", flush=True)
+        if len(state_jobs["DONE"]) + len(state_jobs["FAILED"]) == len(jobs):
+            print(f"All jobs finished, {sorted(state_jobs['FAILED'])} failed", flush=True)
             break
 
         run_time = time.time() - monitoring_start_time
@@ -268,16 +256,15 @@ def monitor_jobs(jobs: tp.Sequence[core.Job[core.R]], sleep_time_s: float = 30, 
 
         print(
             f"[{date_time}] Launched {int(run_time / 60)} minutes ago,",
-            f"{state_count['RUNNING']}/{n_jobs} jobs running,",
-            f"{len(failed_jobs)}/{n_jobs} jobs failed,",
-            f"{len(done)}/{n_jobs} jobs done",
+            f"{len(state_jobs['RUNNING'])}/{n_jobs} jobs running,",
+            f"{len(state_jobs['FAILED'])}/{n_jobs} jobs failed,",
+            f"{len(state_jobs['DONE'])}/{n_jobs} jobs done",
             flush=True,
         )
 
-        if len(failed_jobs) > 0:
-            print(f"[{date_time}] Failed chunks {sorted(failed_jobs)}", flush=True)
+        if len(state_jobs["FAILED"]) > 0:
+            print(f"[{date_time}] Failed chunks {sorted(state_jobs['FAILED'])}", flush=True)
 
         time.sleep(sleep_time_s)
 
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
-    return done, failed_jobs

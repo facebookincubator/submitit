@@ -125,6 +125,7 @@ class FakeJobWithTimer(core.Job[core.R]):
 def test_monitor_jobs(tmp_path: Path) -> None:
     job: FakeJobWithTimer[int] = FakeJobWithTimer(job_id="failed", folder=tmp_path)
     job2: FakeJobWithTimer[int] = FakeJobWithTimer(job_id="succeeded", folder=tmp_path)
-    done, failed = helpers.monitor_jobs([job, job2], 0.02, test_mode=True)
-    assert failed == {0}
-    assert done == {1}
+    jobs = [job, job2]
+    helpers.monitor_jobs(jobs, 0.02, test_mode=True)
+    assert all(j for j in jobs if j.done())
+    assert set(j for j in jobs if j.state.upper() == "FAILED") == {job}
