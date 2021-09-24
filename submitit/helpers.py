@@ -244,13 +244,13 @@ def monitor_jobs(
     while True:
         state_jobs = collections.defaultdict(set)
         for i, job in enumerate(jobs):
-            if job.state.upper() in ["FAILED", "RUNNING"]:
-                state_jobs[job.state.upper()].add(i)
-            elif job.done():
+            state_jobs[job.state.upper()].add(i)
+            if job.done():
                 state_jobs["DONE"].add(i)
 
-        if len(state_jobs["DONE"]) + len(state_jobs["FAILED"]) == len(jobs):
-            print(f"All jobs finished, {sorted(state_jobs['FAILED'])} failed", flush=True)
+        failed_job_indices = sorted(state_jobs["FAILED"])
+        if len(state_jobs["DONE"]) == len(jobs):
+            print(f"All jobs finished, jobs with indices {failed_job_indices} failed", flush=True)
             break
 
         run_time = time.time() - monitoring_start_time
@@ -259,13 +259,13 @@ def monitor_jobs(
         print(
             f"[{date_time}] Launched {int(run_time / 60)} minutes ago,",
             f"{len(state_jobs['RUNNING'])}/{n_jobs} jobs running,",
-            f"{len(state_jobs['FAILED'])}/{n_jobs} jobs failed,",
-            f"{len(state_jobs['DONE'])}/{n_jobs} jobs done",
+            f"{len(failed_job_indices)}/{n_jobs} jobs failed,",
+            f"{len(state_jobs['DONE']) - len(failed_job_indices)}/{n_jobs} jobs done",
             flush=True,
         )
 
-        if len(state_jobs["FAILED"]) > 0:
-            print(f"[{date_time}] Failed chunks {sorted(state_jobs['FAILED'])}", flush=True)
+        if len(failed_job_indices) > 0:
+            print(f"[{date_time}] Failed jobs, indices {failed_job_indices}", flush=True)
 
         time.sleep(sleep_time_s)
 
