@@ -43,6 +43,7 @@ pylint:
 	$(BIN)pylint --version
 	$(BIN)pylint $(CODE)
 
+
 lint: mypy pylint
 
 venv: venv/requirements.txt
@@ -53,7 +54,7 @@ venv/requirements.txt: requirements/main.txt requirements/dev.txt
 	venv/bin/pip install --progress-bar off -U -e .[dev]
 	cat $^ > venv/requirements.txt
 
-installable: installable_local installable_pypi
+installable: installable_local installable_wheel
 
 installable_local: venv
 	(. ./venv/bin/activate ; cd /tmp ; python -c "import submitit")
@@ -63,25 +64,19 @@ USER_VENV=test_results/user_venv/
 CURRENT_VERSION=`grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
 TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps --progress-bar off
 
-installable_pypi:
+installable_wheel:
 	[ ! -d dist ] || rm -r dist
 	# Append .$(BUILD) to the current version
 	sed -i -e 's/__version__ = "[0-9].[0-9].[0-9]/&.$(BUILD)/' ./submitit/__init__.py
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
 	$(BIN)python setup.py sdist bdist_wheel
 	git checkout HEAD -- ./submitit/__init__.py
-	$(BIN)pip install --progress-bar off twine
-	TWINE_PASSWORD=$$TWINE_PASSWORD_TESTPYPI $(BIN)python -m twine upload --repository testpypi dist/*
 
 	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
 	python3 -m venv $(USER_VENV)
-	$(USER_VENV)bin/pip install --progress-bar off --upgrade pip
-	# Wait for the package to be visible.
-	sleep 10
-	$(USER_VENV)bin/pip install $(TEST_PYPI) submitit==$(CURRENT_VERSION).$(BUILD) || echo "will try again"
-	# Apparently we need to try twice before finding it in the index.
-	sleep 10
-	$(USER_VENV)bin/pip install $(TEST_PYPI) submitit==$(CURRENT_VERSION).$(BUILD)
+	$(USER_VENV)/bin/pip install --progress-bar off dist/submitit-*any.whl
+	# Check that importing works
+	$(USER_VENV)/bin/python -c "import submitit"
 
 clean:
 	rm -r venv
