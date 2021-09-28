@@ -212,6 +212,10 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
         with executor.batch():
             job = executor.submit(_three_time, 8)
             job.job_id  # pylint: disable=pointless-statement
+    with executor.batch(allow_intermediate_submissions=True):
+        job = executor.submit(_three_time, 8)
+        job.job_id  # pylint: disable=pointless-statement
+        assert not executor._delayed_batch
     # empty context
     with pytest.warns(RuntimeWarning):
         with executor.batch():

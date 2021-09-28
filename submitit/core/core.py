@@ -520,6 +520,17 @@ class Job(tp.Generic[R]):
         self.__dict__.update(state)
         self._register_in_watcher()
 
+    @tp.no_type_check
+    def __getattr__(self, name: str) -> tp.Any:
+        hook = self.__dict__.pop(_GETATTR_HOOK_, None)
+        if hook is not None:
+            hook()
+            return getattr(self, name)
+        raise AttributeError
+
+
+_GETATTR_HOOK_ = "#_GETATTR_HOOK_#"
+
 
 class AsyncJobProxy(tp.Generic[R]):
     def __init__(self, job: Job[R]):
@@ -618,6 +629,7 @@ class Executor(abc.ABC):
         self.parameters = {} if parameters is None else parameters
         # storage for the batch context manager, for batch submissions:
         self._delayed_batch: tp.Optional[tp.List[tp.Tuple[Job[tp.Any], utils.DelayedSubmission]]] = None
+        self._allow_intermediate_submissions = False
 
     @classmethod
     def name(cls) -> str:
@@ -627,7 +639,14 @@ class Executor(abc.ABC):
         return n.lower()
 
     @contextlib.contextmanager
-    def batch(self) -> tp.Iterator[None]:
+    def batch(self, allow_intermediate_submissions: bool = False) -> tp.Iterator[None]:
+        """Creates a context within which all submissions are packed into a job array.
+        By default the array submissions happens when leaving the context
+
+        allow_intermediate_submissions: bool
+            submits the current batch whenever a job attribute is accessed instead of raising an exception
+        """
+        self._allow_intermediate_submissions = allow_intermediate_submissions
         if self._delayed_batch is not None:
             raise RuntimeError('Nesting "with executor.batch()" contexts is not allowed.')
         self._delayed_batch = []
@@ -642,18 +661,25 @@ class Executor(abc.ABC):
                     'Note that accesssing jobs attributes is forbidden within "with executor.batch()" context'
                 )
             raise e
+        else:
+            self._submit_delayed_batch()
         finally:
-            delayed_batch = self._delayed_batch
             self._delayed_batch = None
-        if not delayed_batch:
-            warnings.warn(
-                'No submission happened during "with executor.batch()" context.', category=RuntimeWarning
-            )
+
+    def _submit_delayed_batch(self) -> None:
+        assert self._delayed_batch is not None
+        if not self._delayed_batch:
+            if not self._allow_intermediate_submissions:
+                warnings.warn(
+                    'No submission happened during "with executor.batch()" context.', category=RuntimeWarning
+                )
             return
-        jobs, submissions = zip(*delayed_batch)
+        jobs, submissions = zip(*self._delayed_batch)
         new_jobs = self._internal_process_submissions(submissions)
         for j, new_j in zip(jobs, new_jobs):
+            j.__dict__.pop(_GETATTR_HOOK_, None)
             j.__dict__.update(new_j.__dict__)  # fill in the empty shell, the pickle way
+        self._delayed_batch = []
 
     def submit(self, fn: tp.Callable[..., R], *args: tp.Any, **kwargs: tp.Any) -> Job[R]:
         ds = utils.DelayedSubmission(fn, *args, **kwargs)
@@ -661,6 +687,8 @@ class Executor(abc.ABC):
             # ugly hack for AutoExecutor class which is known at runtime
             cls = self.job_class if self.job_class is not Job else self._executor.job_class  # type: ignore
             job: Job[R] = cls.__new__(cls)  # empty shell
+            if self._allow_intermediate_submissions:
+                job.__dict__[_GETATTR_HOOK_] = self._submit_delayed_batch
             self._delayed_batch.append((job, ds))
         else:
             job = self._internal_process_submissions([ds])[0]
