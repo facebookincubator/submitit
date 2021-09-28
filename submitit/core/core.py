@@ -21,6 +21,7 @@ from . import logger, utils
 # R as in "Result", so yes it's covariant.
 # pylint: disable=typevar-name-incorrect-variance
 R = tp.TypeVar("R", covariant=True)
+_BATCH_HOOK_ = "#_BATCH_HOOK_#"
 
 
 class InfoWatcher:
@@ -522,14 +523,11 @@ class Job(tp.Generic[R]):
 
     @tp.no_type_check
     def __getattr__(self, name: str) -> tp.Any:
-        hook = self.__dict__.pop(_GETATTR_HOOK_, None)
+        hook = self.__dict__.pop(_BATCH_HOOK_, None)
         if hook is not None:
-            hook()
+            hook()  # this submits the batch so as to fill the instance attributes
             return getattr(self, name)
         raise AttributeError
-
-
-_GETATTR_HOOK_ = "#_GETATTR_HOOK_#"
 
 
 class AsyncJobProxy(tp.Generic[R]):
@@ -643,8 +641,23 @@ class Executor(abc.ABC):
         """Creates a context within which all submissions are packed into a job array.
         By default the array submissions happens when leaving the context
 
+        Parameter
+        ---------
         allow_intermediate_submissions: bool
             submits the current batch whenever a job attribute is accessed instead of raising an exception
+
+        Example
+        -------
+        jobs = []
+        with executor.batch():
+            for k in range(12):
+                jobs.append(executor.submit(add, k, 1))
+
+        Raises
+        ------
+        AttributeError
+            if trying to access a job instance attribute while the batch is not exited, and
+            intermediate submissions are not allowed.
         """
         self._allow_intermediate_submissions = allow_intermediate_submissions
         if self._delayed_batch is not None:
@@ -677,7 +690,7 @@ class Executor(abc.ABC):
         jobs, submissions = zip(*self._delayed_batch)
         new_jobs = self._internal_process_submissions(submissions)
         for j, new_j in zip(jobs, new_jobs):
-            j.__dict__.pop(_GETATTR_HOOK_, None)
+            j.__dict__.pop(_BATCH_HOOK_, None)
             j.__dict__.update(new_j.__dict__)  # fill in the empty shell, the pickle way
         self._delayed_batch = []
 
@@ -688,7 +701,7 @@ class Executor(abc.ABC):
             cls = self.job_class if self.job_class is not Job else self._executor.job_class  # type: ignore
             job: Job[R] = cls.__new__(cls)  # empty shell
             if self._allow_intermediate_submissions:
-                job.__dict__[_GETATTR_HOOK_] = self._submit_delayed_batch
+                job.__dict__[_BATCH_HOOK_] = self._submit_delayed_batch
             self._delayed_batch.append((job, ds))
         else:
             job = self._internal_process_submissions([ds])[0]
