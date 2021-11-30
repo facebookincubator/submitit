@@ -36,7 +36,7 @@ class _MarkdownLink:
 
 def _get_root() -> Path:
     root = Path(__file__).parent.parent.absolute()
-    assert (root / "setup.py").exists(), f"Wrong root folder: {root}"
+    assert (root / "pyproject.toml").exists(), f"Wrong root folder: {root}"
     return root
 
 

@@ -2,7 +2,8 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
-#
+
+""""Python 3.6+ toolbox for submitting jobs to Slurm"""
 
 # allow explicit reimports (mypy) by renaming all imports
 from . import helpers as helpers

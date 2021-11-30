@@ -11,6 +11,8 @@ endif
 CODE=submitit
 CODE_AND_SETUP=$(CODE) setup.py docs/ integration/
 
+all: test
+
 which:
 	which $(BIN)python
 	$(BIN)python --version
@@ -46,13 +48,13 @@ pylint:
 
 lint: mypy pylint
 
-venv: venv/requirements.txt
+venv: venv/pyproject.toml
 
-venv/requirements.txt: requirements/main.txt requirements/dev.txt
+venv/pyproject.toml: pyproject.toml
 	python3 -m venv venv
 	venv/bin/pip install --progress-bar off --upgrade pip
 	venv/bin/pip install --progress-bar off -U -e .[dev]
-	cat $^ > venv/requirements.txt
+	cat $^ > $@
 
 installable: installable_local installable_wheel
 
