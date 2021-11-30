@@ -96,7 +96,7 @@ integration: venv check_format lint installable test_coverage
 release: integration
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
 	[ ! -d dist ] || rm -r dist
-	git diff
+	git diff --exit-code
 	$(BIN)python submitit/test_documentation.py
 	# Credentials are read from ~/.pypirc
 	$(BIN)python -m flit publish --setup-py --repository testpypi
