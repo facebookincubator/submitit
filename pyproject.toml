@@ -40,6 +40,8 @@ classifiers=[
         "mypy>=0.782",
         "types-pkg_resources>=0.1.2",
         "pylint>=2.8.0",
+        # Release
+        "flit>=3.5.1"
     ]
 
 [tool.black]

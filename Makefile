@@ -9,7 +9,7 @@ BIN=venv/bin/
 endif
 
 CODE=submitit
-CODE_AND_SETUP=$(CODE) setup.py docs/ integration/
+CODE_AND_DOCS=$(CODE) docs/ integration/
 
 all: test
 
@@ -29,13 +29,13 @@ test_coverage:
 
 format:
 	$(BIN)python -m pre_commit
-	$(BIN)isort $(CODE_AND_SETUP)
-	$(BIN)black $(CODE_AND_SETUP)
+	$(BIN)isort $(CODE_AND_DOCS)
+	$(BIN)black $(CODE_AND_DOCS)
 
 check_format:
-	# also formats setup.py
-	$(BIN)isort --check --diff $(CODE_AND_SETUP)
-	$(BIN)black --check --diff $(CODE_AND_SETUP)
+	# also formats docs
+	$(BIN)isort --check --diff $(CODE_AND_DOCS)
+	$(BIN)black --check --diff $(CODE_AND_DOCS)
 
 mypy:
 	$(BIN)mypy --version
@@ -71,7 +71,7 @@ installable_wheel:
 	# Append .$(BUILD) to the current version
 	sed -i -e 's/__version__ = "[0-9].[0-9].[0-9]/&.$(BUILD)/' ./submitit/__init__.py
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
-	$(BIN)python setup.py sdist bdist_wheel
+	$(BIN)python -m flit build --setup-py
 	git checkout HEAD -- ./submitit/__init__.py
 
 	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
@@ -96,7 +96,8 @@ integration: venv check_format lint installable test_coverage
 release: integration
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
 	[ ! -d dist ] || rm -r dist
-	$(BIN)python setup.py sdist bdist_wheel
-	$(BIN)pip install --progress-bar off twine
+	git diff
+	$(BIN)python submitit/test_documentation.py
 	# Credentials are read from ~/.pypirc
-	$(BIN)python -m twine upload dist/*
+	$(BIN)python -m flit publish --setup-py --repository testpypi
+	git checkout HEAD -- README.md
