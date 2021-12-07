@@ -5,8 +5,8 @@
 #
 
 import re
+import typing as tp
 from pathlib import Path
-from typing import List
 
 import submitit
 
@@ -44,11 +44,11 @@ def _get_root() -> Path:
     return root
 
 
-def _get_markdown_files(root: Path) -> List[Path]:
+def _get_markdown_files(root: Path) -> tp.List[Path]:
     return [md for pattern in ("*.md", "submitit/**/*.md", "docs/**/*.md") for md in root.glob(pattern)]
 
 
-def _get_all_markdown_links(root: Path, files: List[Path]) -> List[MarkdownLink]:
+def _get_all_markdown_links(root: Path, files: tp.List[Path]) -> tp.List[MarkdownLink]:
     """Returns a list of all existing markdown links"""
     pattern = MarkdownLink.regex
     links = []
@@ -69,7 +69,7 @@ def test_assert_markdown_links_not_broken() -> None:
     assert not broken_links
 
 
-def _replace_relative_links(regex: re.Match[str]) -> str:
+def _replace_relative_links(regex: tp.Match[str]) -> str:
     """Converts relative links into links to master
     so that links on Pypi long description are correct
     """
