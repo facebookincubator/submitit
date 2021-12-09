@@ -405,6 +405,7 @@ def _make_sbatch_string(
     comment: tp.Optional[str] = None,
     constraint: tp.Optional[str] = None,
     exclude: tp.Optional[str] = None,
+    account: tp.Optional[str] = None,
     gres: tp.Optional[str] = None,
     exclusive: tp.Optional[tp.Union[bool, str]] = None,
     array_parallelism: int = 256,
