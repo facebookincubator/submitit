@@ -249,7 +249,7 @@ class Controller:
         self.stderrs: List[IO[Any]] = []
         self.pid = str(os.getpid())
         self.folder = Path(folder)
-        signal.signal(signal.SIGTERM, self._forward_signal)
+        signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
 
     def _forward_signal(self, signum: signal.Signals, *args: Any) -> None:  # pylint:disable=unused-argument
         for task in self.tasks:
