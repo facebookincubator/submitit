@@ -691,7 +691,7 @@ class Executor(abc.ABC):
         -------
         a = [1, 2, 3]
         b = [10, 20, 30]
-        executor.submit(add, a, b)
+        executor.map_array(add, a, b)
         # jobs will compute 1 + 10, 2 + 20, 3 + 30
         """
         submissions = [utils.DelayedSubmission(fn, *args) for args in zip(*iterable)]
