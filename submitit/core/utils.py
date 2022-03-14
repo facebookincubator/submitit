@@ -25,10 +25,12 @@ import cloudpickle
 def environment_variables(**kwargs: str) -> Iterator[None]:
     backup = {x: os.environ[x] for x in kwargs if x in os.environ}
     os.environ.update(kwargs)
-    yield
-    for x in kwargs:
-        del os.environ[x]
-    os.environ.update(backup)
+    try:
+        yield
+    finally:
+        for x in kwargs:
+            del os.environ[x]
+        os.environ.update(backup)
 
 
 class UncompletedJobError(RuntimeError):
