@@ -147,7 +147,6 @@ class JobEnvironment:
         @plugin-dev:Must be overridden by JobEnvironment implementations.
             Use self.job_id to find what need to be requeued.
         """
-        ...
 
 
 class SignalHandler:

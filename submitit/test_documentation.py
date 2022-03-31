@@ -5,52 +5,56 @@
 #
 
 import re
+import typing as tp
 from pathlib import Path
-from typing import List
+
+import submitit
 
 
-class _MarkdownLink:
+class MarkdownLink:
     """Handle to a markdown link, for easy existence test and printing
     (external links are not tested)
     """
 
-    def __init__(self, root: Path, file: Path, string: str, link: str) -> None:
-        self._root = root
-        self._file = file
-        self._string = string
-        self._link = link
+    regex = re.compile(r"\[(?P<name>.+?)\]\((?P<link>\S+?)\)")
+
+    def __init__(self, root: Path, file: Path, name: str, link: str) -> None:
+        self.root = root
+        self.file = file
+        self.name = name
+        self.link = link
 
     def exists(self) -> bool:
-        if self._link.startswith("http"):
+        if self.link.startswith("http"):
             # We don't check external urls.
             return True
-        link = self._link.split("#")[0]
+        link = self.link.split("#")[0]
         if not link:
             return False
-        fullpath = self._root / self._file.parent / link
+        fullpath = self.root / self.file.parent / link
         return fullpath.exists()
 
     def __repr__(self) -> str:
-        return f"[{self._link}]({self._string}) in file {self._file}"
+        return f"[{self.link}]({self.name}) in file {self.file}"
 
 
 def _get_root() -> Path:
     root = Path(__file__).parent.parent.absolute()
-    assert (root / "setup.py").exists(), f"Wrong root folder: {root}"
+    assert (root / "pyproject.toml").exists(), f"Wrong root folder: {root}"
     return root
 
 
-def _get_markdown_files(root: Path) -> List[Path]:
+def _get_markdown_files(root: Path) -> tp.List[Path]:
     return [md for pattern in ("*.md", "submitit/**/*.md", "docs/**/*.md") for md in root.glob(pattern)]
 
 
-def _get_all_markdown_links(root: Path, files: List[Path]) -> List[_MarkdownLink]:
+def _get_all_markdown_links(root: Path, files: tp.List[Path]) -> tp.List[MarkdownLink]:
     """Returns a list of all existing markdown links"""
-    pattern = re.compile(r"\[(?P<string>.+?)\]\((?P<link>\S+?)\)")
+    pattern = MarkdownLink.regex
     links = []
     for file in files:
         for match in pattern.finditer(file.read_text()):
-            links.append(_MarkdownLink(root, file, match.group("string"), match.group("link")))
+            links.append(MarkdownLink(root, file, match.group("name"), match.group("link")))
     return links
 
 
@@ -63,3 +67,30 @@ def test_assert_markdown_links_not_broken() -> None:
     assert len(links) > 5, "There should be several hyperlinks!"
     broken_links = [l for l in links if not l.exists()]
     assert not broken_links
+
+
+def _replace_relative_links(regex: tp.Match[str]) -> str:
+    """Converts relative links into links to master
+    so that links on Pypi long description are correct
+    """
+    string: str = regex.group()
+    link = regex.group("link")
+    name = regex.group("name")
+    version = submitit.__version__
+    if not link.startswith("http") and Path(link).exists():
+        github_url = f"github.com/facebookincubator/submitit/blob/{version}"
+        string = f"[{name}](https://{github_url}/{link})"
+    return string
+
+
+def expand_links():
+    readme = _get_root() / "README.md"
+    assert readme.exists()
+
+    desc = readme.read_text(encoding="utf-8")
+    desc = re.sub(MarkdownLink.regex, _replace_relative_links, desc)
+    readme.write_text(desc)
+
+
+if __name__ == "__main__":
+    expand_links()

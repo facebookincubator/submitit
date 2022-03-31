@@ -109,6 +109,7 @@ class FakeInfoWatcher(core.InfoWatcher):
 class FakeJob(core.Job[core.R]):
 
     watcher = FakeInfoWatcher()
+    _cancel_at_deletion = False
 
 
 class FakeExecutor(core.PicklingExecutor):

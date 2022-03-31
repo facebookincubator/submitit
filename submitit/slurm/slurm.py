@@ -349,7 +349,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
     def _num_tasks(self) -> int:
         nodes: int = self.parameters.get("nodes", 1)
-        tasks_per_node: int = self.parameters.get("ntasks_per_node", 1)
+        tasks_per_node: int = max(1, self.parameters.get("ntasks_per_node", 1))
         return nodes * tasks_per_node
 
     def _make_submission_command(self, submission_file_path: Path) -> List[str]:
@@ -405,6 +405,7 @@ def _make_sbatch_string(
     comment: tp.Optional[str] = None,
     constraint: tp.Optional[str] = None,
     exclude: tp.Optional[str] = None,
+    account: tp.Optional[str] = None,
     gres: tp.Optional[str] = None,
     exclusive: tp.Optional[tp.Union[bool, str]] = None,
     array_parallelism: int = 256,
