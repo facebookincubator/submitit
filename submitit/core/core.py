@@ -627,7 +627,7 @@ class Executor(abc.ABC):
         self.parameters = {} if parameters is None else parameters
         # storage for the batch context manager, for batch submissions:
         self._delayed_batch: tp.Optional[tp.List[tp.Tuple[Job[tp.Any], utils.DelayedSubmission]]] = None
-        self._allow_implicit_submissions = False
+        self._greedy_batch_submissions = False
 
     @classmethod
     def name(cls) -> str:
@@ -637,14 +637,16 @@ class Executor(abc.ABC):
         return n.lower()
 
     @contextlib.contextmanager
-    def batch(self, allow_implicit_submissions: bool = False) -> tp.Iterator[None]:
+    def batch(self, greedy_submissions: bool = False) -> tp.Iterator[None]:
         """Creates a context within which all submissions are packed into a job array.
-        By default the array submissions happens when leaving the context
+        By default the array submissions happens when leaving the context, and trying to
+        access an attribute of unsubmitted jobs will raise an error.
 
         Parameter
         ---------
-        allow_implicit_submissions: bool
-            submits the current batch whenever a job attribute is accessed instead of raising an exception
+        greedy_submissions: bool
+            submits the current batch whenever a job attribute is accessed instead of
+            raising an exception. Beware as this may need to unbatched jobs.
 
         Example
         -------
@@ -659,9 +661,9 @@ class Executor(abc.ABC):
             if trying to access a job instance attribute while the batch is not exited, and
             intermediate submissions are not allowed.
         """
-        self._allow_implicit_submissions = allow_implicit_submissions
         if self._delayed_batch is not None:
             raise RuntimeError('Nesting "with executor.batch()" contexts is not allowed.')
+        self._greedy_batch_submissions = greedy_submissions
         self._delayed_batch = []
         try:
             yield None
@@ -682,7 +684,7 @@ class Executor(abc.ABC):
     def _submit_delayed_batch(self) -> None:
         assert self._delayed_batch is not None
         if not self._delayed_batch:
-            if not self._allow_implicit_submissions:
+            if not self._greedy_batch_submissions:
                 warnings.warn(
                     'No submission happened during "with executor.batch()" context.', category=RuntimeWarning
                 )
@@ -700,7 +702,7 @@ class Executor(abc.ABC):
             # ugly hack for AutoExecutor class which is known at runtime
             cls = self.job_class if self.job_class is not Job else self._executor.job_class  # type: ignore
             job: Job[R] = cls.__new__(cls)  # empty shell
-            if self._allow_implicit_submissions:
+            if self._greedy_batch_submissions:
                 job.__dict__[_BATCH_HOOK_] = self._submit_delayed_batch
             self._delayed_batch.append((job, ds))
         else:
