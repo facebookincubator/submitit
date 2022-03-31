@@ -242,6 +242,8 @@ def monitor_jobs(
     monitoring_start_time = time.time()
     n_jobs = len(jobs)
     while True:
+        if not test_mode:
+            jobs[0].get_info(mode="force")  # Force update once to sync the state
         state_jobs = collections.defaultdict(set)
         for i, job in enumerate(jobs):
             state_jobs[job.state.upper()].add(i)

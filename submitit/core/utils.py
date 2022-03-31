@@ -25,10 +25,12 @@ import cloudpickle
 def environment_variables(**kwargs: str) -> Iterator[None]:
     backup = {x: os.environ[x] for x in kwargs if x in os.environ}
     os.environ.update(kwargs)
-    yield
-    for x in kwargs:
-        del os.environ[x]
-    os.environ.update(backup)
+    try:
+        yield
+    finally:
+        for x in kwargs:
+            del os.environ[x]
+        os.environ.update(backup)
 
 
 class UncompletedJobError(RuntimeError):
@@ -81,7 +83,13 @@ class JobPaths:
         """Replace id tag by actual id if available"""
         if self.job_id is None:
             return Path(path)
-        return Path(str(path).replace("%j", str(self.job_id)).replace("%t", str(self.task_id)))
+        replaced_path = str(path).replace("%j", str(self.job_id)).replace("%t", str(self.task_id))
+        array_id, *array_index = str(self.job_id).split("_", 1)
+        if "%a" in replaced_path:
+            if len(array_index) != 1:
+                raise ValueError("%a is in the folder path but this is not a job array")
+            replaced_path = replaced_path.replace("%a", array_index[0])
+        return Path(replaced_path.replace("%A", array_id))
 
     def move_temporary_file(self, tmp_path: Union[Path, str], name: str) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
@@ -91,7 +99,8 @@ class JobPaths:
     def get_first_id_independent_folder(folder: Union[Path, str]) -> Path:
         """Returns the closest folder which is id independent"""
         parts = Path(folder).expanduser().absolute().parts
-        indep_parts = itertools.takewhile(lambda x: not any(tag in x for tag in ["%j", "%t"]), parts)
+        tags = ["%j", "%t", "%A", "%a"]
+        indep_parts = itertools.takewhile(lambda x: not any(tag in x for tag in tags), parts)
         return Path(*indep_parts)
 
     def __repr__(self) -> str:
@@ -260,7 +269,7 @@ def copy_process_streams(
         ready, _, _ = select.select(fds, [], [])
         for fd in ready:
             p_stream, string, std = stream_by_fd[fd]
-            raw_buf = p_stream.read(2 ** 16)
+            raw_buf = p_stream.read(2**16)
             if not raw_buf:
                 fds.remove(fd)
                 continue
@@ -316,7 +325,7 @@ class CommandFunction:
         Errors are provided with the internal stderr.
         """
         full_command = (
-            self.command + [str(x) for x in args] + ["--{}={}".format(x, y) for x, y in kwargs.items()]
+            self.command + [str(x) for x in args] + [f"--{x}={y}" for x, y in kwargs.items()]
         )  # TODO bad parsing
         if self.verbose:
             print(f"The following command is sent: \"{' '.join(full_command)}\"")

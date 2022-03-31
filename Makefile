@@ -9,7 +9,9 @@ BIN=venv/bin/
 endif
 
 CODE=submitit
-CODE_AND_SETUP=$(CODE) setup.py docs/ integration/
+CODE_AND_DOCS=$(CODE) docs/ integration/
+
+all: integration
 
 which:
 	which $(BIN)python
@@ -20,6 +22,7 @@ test:
 
 test_coverage:
 	$(BIN)pytest \
+		-v \
 		--cov=submitit --cov-report=html --cov-report=term \
 		--durations=10 \
 		--junitxml=test_results/pytest/results.xml \
@@ -27,13 +30,13 @@ test_coverage:
 
 format:
 	$(BIN)python -m pre_commit
-	$(BIN)isort $(CODE_AND_SETUP)
-	$(BIN)black $(CODE_AND_SETUP)
+	$(BIN)isort $(CODE_AND_DOCS)
+	$(BIN)black $(CODE_AND_DOCS)
 
 check_format:
-	# also formats setup.py
-	$(BIN)isort --check --diff $(CODE_AND_SETUP)
-	$(BIN)black --check --diff $(CODE_AND_SETUP)
+	# also formats docs
+	$(BIN)isort --check --diff $(CODE_AND_DOCS)
+	$(BIN)black --check --diff $(CODE_AND_DOCS)
 
 mypy:
 	$(BIN)mypy --version
@@ -43,45 +46,40 @@ pylint:
 	$(BIN)pylint --version
 	$(BIN)pylint $(CODE)
 
+
 lint: mypy pylint
 
-venv: venv/requirements.txt
+venv: venv/pyproject.toml
 
-venv/requirements.txt: requirements/main.txt requirements/dev.txt
+venv/pyproject.toml: pyproject.toml
 	python3 -m venv venv
 	venv/bin/pip install --progress-bar off --upgrade pip
 	venv/bin/pip install --progress-bar off -U -e .[dev]
-	cat $^ > venv/requirements.txt
+	cp $^ $@
 
-installable: installable_local installable_pypi
+installable: installable_local installable_wheel
 
 installable_local: venv
 	(. ./venv/bin/activate ; cd /tmp ; python -c "import submitit")
 
 BUILD=dev$(CIRCLE_BUILD_NUM)
-USER_VENV=test_results/user_venv/
+USER_VENV=/tmp/submitit_user_venv/
 CURRENT_VERSION=`grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
 TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps --progress-bar off
 
-installable_pypi:
+installable_wheel:
 	[ ! -d dist ] || rm -r dist
 	# Append .$(BUILD) to the current version
 	sed -i -e 's/__version__ = "[0-9].[0-9].[0-9]/&.$(BUILD)/' ./submitit/__init__.py
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
-	$(BIN)python setup.py sdist bdist_wheel
+	$(BIN)python -m flit build --setup-py
 	git checkout HEAD -- ./submitit/__init__.py
-	$(BIN)pip install --progress-bar off twine
-	TWINE_PASSWORD=$$TWINE_PASSWORD_TESTPYPI $(BIN)python -m twine upload --repository testpypi dist/*
 
 	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
 	python3 -m venv $(USER_VENV)
-	$(USER_VENV)bin/pip install --progress-bar off --upgrade pip
-	# Wait for the package to be visible.
-	sleep 10
-	$(USER_VENV)bin/pip install $(TEST_PYPI) submitit==$(CURRENT_VERSION).$(BUILD) || echo "will try again"
-	# Apparently we need to try twice before finding it in the index.
-	sleep 10
-	$(USER_VENV)bin/pip install $(TEST_PYPI) submitit==$(CURRENT_VERSION).$(BUILD)
+	$(USER_VENV)/bin/pip install --progress-bar off dist/submitit-*any.whl
+	# Check that importing works
+	$(USER_VENV)/bin/python -c "import submitit"
 
 clean:
 	rm -r venv
@@ -93,13 +91,15 @@ register_pre_commit: venv
 	chmod +x .git/hooks/pre-commit
 
 integration: venv check_format lint installable test_coverage
-	# Run the same tests than on CI
-	# use `make -k integration` to run all checks even if previous fails.
+	# Runs the same tests than on CI.
+	# Use `make -k integration` to run all checks even if previous fails.
 
 release: integration
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
 	[ ! -d dist ] || rm -r dist
-	$(BIN)python setup.py sdist bdist_wheel
-	$(BIN)pip install --progress-bar off twine
-	# Credentials are read from ~/.pypirc
-	$(BIN)python -m twine upload dist/*
+	git diff --exit-code
+	$(BIN)python submitit/test_documentation.py
+	# --setup-py generates a setup.py file to allow user with old
+	# versions of pip to install it without flit.
+	$(BIN)python -m flit publish --setup-py
+	git checkout HEAD -- README.md

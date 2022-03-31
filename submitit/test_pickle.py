@@ -41,16 +41,17 @@ def test_weakref_with_pickle(tmp_path):
     assert job_with_weakref(ex).result() == "world"
 
 
-def hello() -> None:
+def hello_fn() -> None:
     print("hello world")
 
 
 def test_nested_pickling(tmp_path):
     def make_pickle() -> bytes:
-        return pickle.dumps(hello)
+        return pickle.dumps(hello_fn)
 
     pkl = make_pickle()
-    assert bytes(f"{__name__}\nhello", "ascii") in pkl
+    assert bytes(__name__, "ascii") in pkl
+    assert b"hello_fn" in pkl
     ex = LocalExecutor(tmp_path)
     j = ex.submit(make_pickle)
     assert j.result() == pkl

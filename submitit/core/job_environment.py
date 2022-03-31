@@ -124,7 +124,8 @@ class JobEnvironment:
         names = ("local_rank", "node", "global_rank")
         totals = [self.num_tasks // self.num_nodes, self.num_nodes, self.num_tasks]
         info += [f"{n}={getattr(self, n)}({t})" for n, t in zip(names, totals)]
-        return "JobEnvironment({})".format(", ".join(info))
+        info_str = ", ".join(info)
+        return f"JobEnvironment({info_str})"
 
     def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
         """Set up signals handler for the current executable.
@@ -146,7 +147,6 @@ class JobEnvironment:
         @plugin-dev:Must be overridden by JobEnvironment implementations.
             Use self.job_id to find what need to be requeued.
         """
-        ...
 
 
 class SignalHandler:

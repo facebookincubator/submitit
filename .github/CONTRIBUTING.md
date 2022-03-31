@@ -11,7 +11,7 @@ but we don't have any major feature planned ahead.
 ## Pull Requests
 We actively welcome your pull requests.
 
-1. Fork the repo and create your branch from `master`.
+1. Fork the repo and create your branch from `main`.
 2. Create a virtual environment and activate it: `make venv && . venv/bin/activate`
 3. If you've added code please add tests.
 4. If you've changed APIs, please update the documentation.
