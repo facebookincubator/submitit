@@ -220,9 +220,7 @@ class RsyncSnapshot:
         os.chdir(self.original_dir)
 
 
-def _default_monitor_callable(
-    monitoring_start_time: float, n_jobs: int, state_jobs: tp.Dict[str, tp.Set[int]]
-):
+def _default_custom_logging(monitoring_start_time: float, n_jobs: int, state_jobs: tp.Dict[str, tp.Set[int]]):
     run_time = time.time() - monitoring_start_time
     date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     failed_job_indices = sorted(state_jobs["FAILED"])
@@ -242,9 +240,9 @@ def _default_monitor_callable(
 
 def monitor_jobs(
     jobs: tp.Sequence[core.Job[core.R]],
-    sleep_time_s: float = 30,
+    poll_frequency: float = 30,
     test_mode: bool = False,
-    monitor_callable: tp.Callable = _default_monitor_callable,
+    custom_logging: tp.Callable = _default_custom_logging,
 ) -> None:
     """Continuously monitors given jobs until they are all done or failed.
 
@@ -252,21 +250,25 @@ def monitor_jobs(
     ----------
     jobs: List[Jobs]
         A list of jobs to monitor
-    sleep_time_s: int
+    poll_frequency: int
         The time (in seconds) between two refreshes of the monitoring.
         Can't be inferior to 30s.
     test_mode: bool
-        If in test mode, we do not check the length of sleep_time_s
+        If in test mode, we do not check the length of poll_frequency
     """
 
     if not test_mode:
-        assert sleep_time_s >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
+        assert poll_frequency >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
+
+    n_jobs = len(jobs)
+    if n_jobs == 0:
+        print("There are no jobs to monitor")
+        return
 
     job_arrays = ", ".join(sorted(set(str(job.job_id).split("_", 1)[0] for job in jobs)))
-    print(f"Monitoring job array {job_arrays} \n")
+    print(f"Monitoring {n_jobs} jobs from job arrays {job_arrays} \n")
 
     monitoring_start_time = time.time()
-    n_jobs = len(jobs)
     while True:
         if not test_mode:
             jobs[0].get_info(mode="force")  # Force update once to sync the state
@@ -281,7 +283,7 @@ def monitor_jobs(
             print(f"All jobs finished, jobs with indices {failed_job_indices} failed", flush=True)
             break
 
-        monitor_callable(monitoring_start_time, n_jobs, state_jobs)
-        time.sleep(sleep_time_s)
+        custom_logging(monitoring_start_time, n_jobs, state_jobs)
+        time.sleep(poll_frequency)
 
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
