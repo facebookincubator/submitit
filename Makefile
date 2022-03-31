@@ -62,7 +62,7 @@ installable: installable_local installable_wheel
 installable_local: venv
 	(. ./venv/bin/activate ; cd /tmp ; python -c "import submitit")
 
-BUILD=dev$(CIRCLE_BUILD_NUM)
+BUILD=dev0$(CIRCLE_BUILD_NUM)
 USER_VENV=/tmp/submitit_user_venv/
 CURRENT_VERSION=`grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
 TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps --progress-bar off

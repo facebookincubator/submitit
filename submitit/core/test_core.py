@@ -200,6 +200,7 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
     executor = FakeExecutor(folder=tmp_path)
     with executor.batch():
         job = executor.submit(_three_time, 8)
+    assert isinstance(job, FakeJob)
     with executor.batch():  #  make sure we can send a new batch
         job = executor.submit(_three_time, 8)
     assert isinstance(job, FakeJob)

@@ -41,7 +41,7 @@ async def test_results_ascompleted_single(tmp_path: Path):
     with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
         submission.process_job(folder=job.paths.folder)
     count = 0
-    for aws in job.awaitable().results_as_compteled():
+    for aws in job.awaitable().results_as_completed():
         result = await aws
         count += 1
         assert result == 24
