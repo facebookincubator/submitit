@@ -133,14 +133,14 @@ def test_slurm_error_mocked(tmp_path: Path) -> None:
 def mock_requeue(called_with: int = None, not_called: bool = False):
     assert not_called or called_with is not None
     requeue = patch("submitit.slurm.slurm.SlurmJobEnvironment._requeue", return_value=None)
-    try:
-        with requeue as _patch:
+    with requeue as _patch:
+        try:
             yield
-    finally:
-        if not_called:
-            _patch.assert_not_called()
-        else:
-            _patch.assert_called_with(called_with)
+        finally:
+            if not_called:
+                _patch.assert_not_called()
+            else:
+                _patch.assert_called_with(called_with)
 
 
 def get_signal_handler(job: Job) -> job_environment.SignalHandler:
