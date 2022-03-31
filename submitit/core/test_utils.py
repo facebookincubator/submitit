@@ -66,14 +66,6 @@ def test_slurmpaths_id_independent() -> None:
     assert output.name == "truc"
 
 
-def test_sanitize() -> None:
-    assert utils.sanitize("AlreadySanitized") == "AlreadySanitized"
-    assert utils.sanitize("Name with space") == "Name_with_space"
-    assert utils.sanitize("Name with space", only_alphanum=False) == '"Name with space"'
-    assert utils.sanitize("Name with    many    spaces") == "Name_with_many_spaces"
-    assert utils.sanitize(" Non alph@^ Nüm%") == "_Non_alph_Nüm_"
-
-
 def test_archive_dev_folders(tmp_path: Path) -> None:
     utils.archive_dev_folders([Path(__file__).parent], outfile=tmp_path.with_suffix(".tar.gz"))
     shutil.unpack_archive(str(tmp_path.with_suffix(".tar.gz")), extract_dir=tmp_path)
