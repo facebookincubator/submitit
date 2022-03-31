@@ -220,7 +220,9 @@ class RsyncSnapshot:
         os.chdir(self.original_dir)
 
 
-def _default_monitor_callable(monitoring_start_time: float, n_jobs: int, state_jobs: tp.Dict[str, int]):
+def _default_monitor_callable(
+    monitoring_start_time: float, n_jobs: int, state_jobs: tp.Dict[str, tp.Set[int]]
+):
     run_time = time.time() - monitoring_start_time
     date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     failed_job_indices = sorted(state_jobs["FAILED"])
@@ -236,8 +238,8 @@ def _default_monitor_callable(monitoring_start_time: float, n_jobs: int, state_j
 
     if len(failed_job_indices) > 0:
         print(f"[{date_time}] Failed jobs, indices {failed_job_indices}", flush=True)
-    
-        
+
+
 def monitor_jobs(
     jobs: tp.Sequence[core.Job[core.R]],
     sleep_time_s: float = 30,
@@ -259,7 +261,7 @@ def monitor_jobs(
 
     if not test_mode:
         assert sleep_time_s >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
-        
+
     job_arrays = ", ".join(sorted(set(str(job.job_id).split("_", 1)[0] for job in jobs)))
     print(f"Monitoring job array {job_arrays} \n")
 
