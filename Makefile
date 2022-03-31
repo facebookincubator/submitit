@@ -11,7 +11,7 @@ endif
 CODE=submitit
 CODE_AND_DOCS=$(CODE) docs/ integration/
 
-all: test
+all: integration
 
 which:
 	which $(BIN)python
@@ -62,7 +62,7 @@ installable_local: venv
 	(. ./venv/bin/activate ; cd /tmp ; python -c "import submitit")
 
 BUILD=dev$(CIRCLE_BUILD_NUM)
-USER_VENV=test_results/user_venv/
+USER_VENV=/tmp/submitit_user_venv/
 CURRENT_VERSION=`grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
 TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps --progress-bar off
 
@@ -90,14 +90,15 @@ register_pre_commit: venv
 	chmod +x .git/hooks/pre-commit
 
 integration: venv check_format lint installable test_coverage
-	# Run the same tests than on CI
-	# use `make -k integration` to run all checks even if previous fails.
+	# Runs the same tests than on CI.
+	# Use `make -k integration` to run all checks even if previous fails.
 
 release: integration
 	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
 	[ ! -d dist ] || rm -r dist
 	git diff --exit-code
 	$(BIN)python submitit/test_documentation.py
-	# Credentials are read from ~/.pypirc
-	$(BIN)python -m flit publish --setup-py --repository testpypi
+	# --setup-py generates a setup.py file to allow user with old
+	# versions of pip to install it without flit.
+	$(BIN)python -m flit publish --setup-py
 	git checkout HEAD -- README.md
