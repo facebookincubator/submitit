@@ -220,8 +220,29 @@ class RsyncSnapshot:
         os.chdir(self.original_dir)
 
 
+def _default_monitor_callable(monitoring_start_time: float, n_jobs: int, state_jobs: tp.Dict[str, int]):
+    run_time = time.time() - monitoring_start_time
+    date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    failed_job_indices = sorted(state_jobs["FAILED"])
+    n_chars = len(str(n_jobs))
+
+    print(
+        f"[{date_time}] Launched {int(run_time / 60)} minutes ago,",
+        f"{len(state_jobs['RUNNING']):{n_chars}}/{n_jobs} jobs running,",
+        f"{len(failed_job_indices):{n_chars}}/{n_jobs} jobs failed,",
+        f"{len(state_jobs['DONE']) - len(failed_job_indices):{n_chars}}/{n_jobs} jobs done",
+        flush=True,
+    )
+
+    if len(failed_job_indices) > 0:
+        print(f"[{date_time}] Failed jobs, indices {failed_job_indices}", flush=True)
+    
+        
 def monitor_jobs(
-    jobs: tp.Sequence[core.Job[core.R]], sleep_time_s: float = 30, test_mode: bool = False
+    jobs: tp.Sequence[core.Job[core.R]],
+    sleep_time_s: float = 30,
+    test_mode: bool = False,
+    monitor_callable: tp.Callable = _default_monitor_callable,
 ) -> None:
     """Continuously monitors given jobs until they are all done or failed.
 
@@ -238,6 +259,9 @@ def monitor_jobs(
 
     if not test_mode:
         assert sleep_time_s >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
+        
+    job_arrays = ", ".join(sorted(set(str(job.job_id).split("_", 1)[0] for job in jobs)))
+    print(f"Monitoring job array {job_arrays} \n")
 
     monitoring_start_time = time.time()
     n_jobs = len(jobs)
@@ -255,20 +279,7 @@ def monitor_jobs(
             print(f"All jobs finished, jobs with indices {failed_job_indices} failed", flush=True)
             break
 
-        run_time = time.time() - monitoring_start_time
-        date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        print(
-            f"[{date_time}] Launched {int(run_time / 60)} minutes ago,",
-            f"{len(state_jobs['RUNNING'])}/{n_jobs} jobs running,",
-            f"{len(failed_job_indices)}/{n_jobs} jobs failed,",
-            f"{len(state_jobs['DONE']) - len(failed_job_indices)}/{n_jobs} jobs done",
-            flush=True,
-        )
-
-        if len(failed_job_indices) > 0:
-            print(f"[{date_time}] Failed jobs, indices {failed_job_indices}", flush=True)
-
+        monitor_callable(monitoring_start_time, n_jobs, state_jobs)
         time.sleep(sleep_time_s)
 
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
