@@ -200,9 +200,11 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
     executor = FakeExecutor(folder=tmp_path)
     with executor.batch():
         job = executor.submit(_three_time, 8)
+        assert isinstance(job, core.DelayedJob)
     assert isinstance(job, FakeJob)
-    with executor.batch():  #  make sure we can send a new batch
+    with executor.batch():  # make sure we can send a new batch
         job = executor.submit(_three_time, 8)
+        assert isinstance(job, core.DelayedJob)
     assert isinstance(job, FakeJob)
     # bad update
     with pytest.raises(RuntimeError):
@@ -212,11 +214,17 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
     with pytest.raises(AttributeError):
         with executor.batch():
             job = executor.submit(_three_time, 8)
+            assert isinstance(job, core.DelayedJob)
             job.job_id  # pylint: disable=pointless-statement
+        assert isinstance(job, core.DelayedJob)
+
     with executor.batch(allow_implicit_submissions=True):
         job = executor.submit(_three_time, 8)
+        assert isinstance(job, core.DelayedJob)
         job.job_id  # pylint: disable=pointless-statement
+        assert isinstance(job, FakeJob)
         assert not executor._delayed_batch
+
     # empty context
     with pytest.warns(RuntimeWarning):
         with executor.batch():
@@ -226,6 +234,8 @@ def test_fake_executor_batch(tmp_path: Path) -> None:
         with executor.batch():
             with executor.batch():
                 job = executor.submit(_three_time, 8)
+                assert isinstance(job, core.DelayedJob)
+            assert isinstance(job, FakeJob)
 
 
 def test_unpickling_watcher_registration(tmp_path: Path) -> None:
