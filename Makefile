@@ -22,6 +22,7 @@ test:
 
 test_coverage:
 	$(BIN)pytest \
+		-v \
 		--cov=submitit --cov-report=html --cov-report=term \
 		--durations=10 \
 		--junitxml=test_results/pytest/results.xml \
@@ -54,7 +55,7 @@ venv/pyproject.toml: pyproject.toml
 	python3 -m venv venv
 	venv/bin/pip install --progress-bar off --upgrade pip
 	venv/bin/pip install --progress-bar off -U -e .[dev]
-	cat $^ > $@
+	cp $^ $@
 
 installable: installable_local installable_wheel
 

@@ -269,7 +269,7 @@ def copy_process_streams(
         ready, _, _ = select.select(fds, [], [])
         for fd in ready:
             p_stream, string, std = stream_by_fd[fd]
-            raw_buf = p_stream.read(2 ** 16)
+            raw_buf = p_stream.read(2**16)
             if not raw_buf:
                 fds.remove(fd)
                 continue

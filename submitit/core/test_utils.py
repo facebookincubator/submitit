@@ -109,3 +109,12 @@ print("printed {n} lines to stderr")
     fn2 = utils.CommandFunction(["python", "-c", code.format(n=1000)])
     j2 = executor.submit(fn2)
     assert "1000 lines" in j2.result()
+
+
+def test_jobpaths(tmp_path: Path) -> None:
+    assert utils.JobPaths(tmp_path, "123").stdout == tmp_path / "123_0_log.out"
+    assert utils.JobPaths(tmp_path, "123", 1).stdout == tmp_path / "123_1_log.out"
+    assert (
+        utils.JobPaths(tmp_path / "array-%A-index-%a", "456_3").stdout
+        == tmp_path / "array-456-index-3" / "456_3_0_log.out"
+    )

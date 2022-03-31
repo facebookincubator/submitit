@@ -18,6 +18,8 @@ from typing_extensions import TypedDict
 
 from . import logger, utils
 
+# R as in "Result", so yes it's covariant.
+# pylint: disable=typevar-name-incorrect-variance
 R = tp.TypeVar("R", covariant=True)
 
 
