@@ -349,7 +349,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
     def _num_tasks(self) -> int:
         nodes: int = self.parameters.get("nodes", 1)
-        tasks_per_node: int = self.parameters.get("ntasks_per_node", 1)
+        tasks_per_node: int = max(1, self.parameters.get("ntasks_per_node", 1))
         return nodes * tasks_per_node
 
     def _make_submission_command(self, submission_file_path: Path) -> List[str]:
