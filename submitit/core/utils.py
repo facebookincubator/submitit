@@ -60,6 +60,9 @@ class JobPaths:
 
     @property
     def submission_file(self) -> Path:
+        if self.job_id and "_" in self.job_id:
+            # We only have one submission file per job array
+            return self._format_id(self.folder / "%A_submission.sh")
         return self._format_id(self.folder / "%j_submission.sh")
 
     @property
