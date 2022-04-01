@@ -559,6 +559,7 @@ class DelayedJob(Job[R]):
         # fill in the empty shell, the pickle way
         self.__dict__.pop("_submitit_executor", None)
         self.__dict__.update(new_job.__dict__)
+        # pylint: disable=attribute-defined-outside-init
         self.__class__ = new_job.__class__  # type: ignore
 
     def __repr__(self) -> str:
