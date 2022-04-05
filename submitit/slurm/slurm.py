@@ -499,7 +499,7 @@ def _make_sbatch_string(
         "",
         "# command",
         "export SUBMITIT_EXECUTOR=slurm",
-        shlex.join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args, command]),
+        _shlex_join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args, command]),
         "",
     ]
     return "\n".join(lines)
@@ -518,3 +518,8 @@ def _as_sbatch_flag(key: str, value: tp.Any) -> str:
 
     value = shlex.quote(str(value))
     return f"#SBATCH --{key}={value}"
+
+
+def _shlex_join(split_command: tp.List[str]) -> str:
+    """Same as shlex.join, but that was only added in Python 3.8"""
+    return " ".join(shlex.quote(arg) for arg in split_command)
