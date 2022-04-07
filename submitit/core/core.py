@@ -521,6 +521,51 @@ class Job(tp.Generic[R]):
         self._register_in_watcher()
 
 
+class DelayedJob(Job[R]):
+    """
+    Represents a Job that have been queue for submission by an executor,
+    but hasn't yet been scheduled.
+    Typically obtained by calling `ex.submit` within a `ex.batch()` context
+
+    Trying to read the attributes of the job will, by default, fail.
+    But if you passed `ex.batch(allow_implicit_submission=True)` then
+    the attribute read will in fact force the job submission,
+    and you'll obtain a real job instead.
+    """
+
+    def __init__(self, ex: "Executor"):
+        # pylint: disable = super-init-not-called
+        self._submitit_executor = ex
+
+    def __getattr__(self, name: str) -> tp.Any:
+        # _cancel_at_deletion is used in __del__, we don't want it to trigger submission
+        if name == "_cancel_at_deletion":
+            return False
+
+        ex = self.__dict__["_submitit_executor"]
+        # this submits the batch so as to fill the instance attributes
+        # this may return false if we try to submit within executor.batch()
+        # without passing `executor.batch(allow_implicit_submission=True)`
+        if not ex._allow_implicit_submissions:
+            raise AttributeError(
+                "Accesssing job attributes is forbidden within 'with executor.batch()' context"
+            )
+        ex._submit_delayed_batch()
+        # Ensure that _promote did get called, otherwise getattr will trigger a stack overflow
+        assert self.__class__ != DelayedJob, f"Executor {ex} didn't properly submitted {self} !"
+        return getattr(self, name)
+
+    def _promote(self, new_job: Job[tp.Any]) -> None:
+        # fill in the empty shell, the pickle way
+        self.__dict__.pop("_submitit_executor", None)
+        self.__dict__.update(new_job.__dict__)
+        # pylint: disable=attribute-defined-outside-init
+        self.__class__ = new_job.__class__  # type: ignore
+
+    def __repr__(self) -> str:
+        return object.__repr__(self)
+
+
 class AsyncJobProxy(tp.Generic[R]):
     def __init__(self, job: Job[R]):
         self.job = job
@@ -555,7 +600,7 @@ class AsyncJobProxy(tp.Generic[R]):
         # results are ready now
         return self.job.results()
 
-    def results_as_compteled(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future]:
+    def results_as_completed(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future]:
         """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
         of the tasks anymore as the earliest task coming back might not be the first one you sent.
 
@@ -618,6 +663,7 @@ class Executor(abc.ABC):
         self.parameters = {} if parameters is None else parameters
         # storage for the batch context manager, for batch submissions:
         self._delayed_batch: tp.Optional[tp.List[tp.Tuple[Job[tp.Any], utils.DelayedSubmission]]] = None
+        self._allow_implicit_submissions = False
 
     @classmethod
     def name(cls) -> str:
@@ -627,7 +673,29 @@ class Executor(abc.ABC):
         return n.lower()
 
     @contextlib.contextmanager
-    def batch(self) -> tp.Iterator[None]:
+    def batch(self, allow_implicit_submissions: bool = False) -> tp.Iterator[None]:
+        """Creates a context within which all submissions are packed into a job array.
+        By default the array submissions happens when leaving the context
+
+        Parameter
+        ---------
+        allow_implicit_submissions: bool
+            submits the current batch whenever a job attribute is accessed instead of raising an exception
+
+        Example
+        -------
+        jobs = []
+        with executor.batch():
+            for k in range(12):
+                jobs.append(executor.submit(add, k, 1))
+
+        Raises
+        ------
+        AttributeError
+            if trying to access a job instance attribute while the batch is not exited, and
+            intermediate submissions are not allowed.
+        """
+        self._allow_implicit_submissions = allow_implicit_submissions
         if self._delayed_batch is not None:
             raise RuntimeError('Nesting "with executor.batch()" contexts is not allowed.')
         self._delayed_batch = []
@@ -637,30 +705,30 @@ class Executor(abc.ABC):
             logger.get_logger().error(
                 'Caught error within "with executor.batch()" context, submissions are dropped.\n '
             )
-            if isinstance(e, AttributeError):
-                logger.get_logger().error(
-                    'Note that accesssing jobs attributes is forbidden within "with executor.batch()" context'
-                )
             raise e
+        else:
+            self._submit_delayed_batch()
         finally:
-            delayed_batch = self._delayed_batch
             self._delayed_batch = None
-        if not delayed_batch:
-            warnings.warn(
-                'No submission happened during "with executor.batch()" context.', category=RuntimeWarning
-            )
+
+    def _submit_delayed_batch(self) -> None:
+        assert self._delayed_batch is not None
+        if not self._delayed_batch:
+            if not self._allow_implicit_submissions:
+                warnings.warn(
+                    'No submission happened during "with executor.batch()" context.', category=RuntimeWarning
+                )
             return
-        jobs, submissions = zip(*delayed_batch)
+        jobs, submissions = zip(*self._delayed_batch)
         new_jobs = self._internal_process_submissions(submissions)
         for j, new_j in zip(jobs, new_jobs):
-            j.__dict__.update(new_j.__dict__)  # fill in the empty shell, the pickle way
+            j._promote(new_j)
+        self._delayed_batch = []
 
     def submit(self, fn: tp.Callable[..., R], *args: tp.Any, **kwargs: tp.Any) -> Job[R]:
         ds = utils.DelayedSubmission(fn, *args, **kwargs)
         if self._delayed_batch is not None:
-            # ugly hack for AutoExecutor class which is known at runtime
-            cls = self.job_class if self.job_class is not Job else self._executor.job_class  # type: ignore
-            job: Job[R] = cls.__new__(cls)  # empty shell
+            job: Job[R] = DelayedJob(self)
             self._delayed_batch.append((job, ds))
         else:
             job = self._internal_process_submissions([ds])[0]
