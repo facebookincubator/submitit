@@ -15,4 +15,4 @@
 
 # command
 export SUBMITIT_EXECUTOR=slurm
-srun -vv --cpu-bind none --output /tmp/%j_%t_log.out --error /tmp/%j_%t_log.err --unbuffered blublu
+srun --unbuffered --output /tmp/%j_%t_log.out --error /tmp/%j_%t_log.err -vv --cpu-bind none blublu bar

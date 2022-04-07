@@ -9,7 +9,6 @@ import io
 import itertools
 import os
 import pickle
-import re
 import select
 import shutil
 import subprocess
@@ -61,6 +60,9 @@ class JobPaths:
 
     @property
     def submission_file(self) -> Path:
+        if self.job_id and "_" in self.job_id:
+            # We only have one submission file per job array
+            return self._format_id(self.folder / "%A_submission.sh")
         return self._format_id(self.folder / "%j_submission.sh")
 
     @property
@@ -216,18 +218,6 @@ def copy_par_file(par_file: Union[str, Path], folder: Union[str, Path]) -> Path:
     dst_name = folder / par_file.name
     shutil.copy2(par_file, dst_name)
     return dst_name
-
-
-def sanitize(s: str, only_alphanum: bool = True, in_quotes: bool = True) -> str:
-    """Sanitize the string"""
-    if only_alphanum:
-        # Replace all consecutive non-alphanum character by _
-        return re.sub(r"[\W_]+", "_", s)
-    if in_quotes:
-        # Escape double quotes in the original string and put it between double quotes
-        s = s.replace('"', '\\"')
-        s = f'"{s}"'
-    return s
 
 
 def pickle_load(filename: Union[str, Path]) -> Any:

@@ -236,12 +236,12 @@ def test_checkpoint_and_exit(tmp_path: Path) -> None:
 
 def test_make_sbatch_string() -> None:
     string = slurm._make_sbatch_string(
-        command="blublu",
+        command="blublu bar",
         folder="/tmp",
         partition="learnfair",
         exclusive=True,
         additional_parameters=dict(blublu=12),
-        srun_args=["-vv", "--cpu-bind none"],
+        srun_args=["-vv", "--cpu-bind", "none"],
     )
     assert "partition" in string
     assert "--command" not in string
