@@ -236,7 +236,7 @@ def test_checkpoint_and_exit(tmp_path: Path) -> None:
 
 def test_make_sbatch_string() -> None:
     string = slurm._make_sbatch_string(
-        command="blublu",
+        command="blublu bar",
         folder="/tmp",
         partition="learnfair",
         exclusive=True,
