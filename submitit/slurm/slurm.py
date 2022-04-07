@@ -225,6 +225,10 @@ class SlurmExecutor(core.PicklingExecutor):
     max_num_timeout: int
         Maximum number of time the job can be requeued after timeout (if
         the instance is derived from helpers.Checkpointable)
+    python: str
+        command to launch python. This allow to use singularity for example.
+        Caller is responsible to provide a valid shell command here.
+        By default reuse the current python executable
 
     Note
     ----
@@ -239,8 +243,9 @@ class SlurmExecutor(core.PicklingExecutor):
 
     job_class = SlurmJob
 
-    def __init__(self, folder: Union[Path, str], max_num_timeout: int = 3) -> None:
+    def __init__(self, folder: Union[Path, str], max_num_timeout: int = 3, python: str = None) -> None:
         super().__init__(folder, max_num_timeout)
+        self.python = python
         if not self.affinity() > 0:
             raise RuntimeError('Could not detect "srun", are you indeed on a slurm cluster?')
 
@@ -340,9 +345,8 @@ class SlurmExecutor(core.PicklingExecutor):
 
     @property
     def _submitit_command_str(self) -> str:
-        return " ".join(
-            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder))]
-        )
+        python = self.python or shlex.quote(sys.executable)
+        return " ".join([python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_sbatch_string(command=command, folder=self.folder, **self.parameters)
