@@ -5,7 +5,7 @@ These algorithms can be competitive over random search if you have around 10 par
 
 ## Basics of `nevergrad`
 
-The following is a simplified version of the tutorial in [`nevergrad`'s repository](https://github.com/facebookresearch/nevergrad/README.md), you can find more details there.
+The following is a simplified version of the tutorial in [`nevergrad`'s repository](https://github.com/facebookresearch/nevergrad/blob/main/README.md), you can find more details there.
 
 ### Example of optimization
 
