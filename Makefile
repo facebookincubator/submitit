@@ -84,14 +84,19 @@ installable_wheel:
 clean:
 	rm -r venv
 
+clean_cache:
+	# Invalidates `make venv` and therefore trigger a new `pip install --upgrade`.
+	rm venv/pyproject.toml
+
 pre_commit: format lint
 
 register_pre_commit: venv
 	(grep -e "^make pre_commit$$" .git/hooks/pre-commit) || (echo "make pre_commit" >> .git/hooks/pre-commit)
 	chmod +x .git/hooks/pre-commit
 
-integration: venv check_format lint installable test_coverage
+integration: clean_cache venv check_format lint installable test_coverage
 	# Runs the same tests than on CI.
+	# clean_cache will make sure we download the last versions of linters.
 	# Use `make -k integration` to run all checks even if previous fails.
 
 release: integration
