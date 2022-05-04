@@ -253,15 +253,18 @@ def copy_process_streams(
         p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
     }
     fds = list(stream_by_fd.keys())
-
+    poller = select.poll()
+    for fd in stream_by_fd:
+        poller.register(fd, select.POLLIN | select.POLLPRI)
     while fds:
-        # `select` syscall will wait until one of the file descriptors has content.
-        ready, _, _ = select.select(fds, [], [])
-        for fd in ready:
+        # `poll` syscall will wait until one of the registered file descriptors has content.
+        ready = poller.poll()
+        for fd, _ in ready:
             p_stream, string, std = stream_by_fd[fd]
             raw_buf = p_stream.read(2**16)
             if not raw_buf:
                 fds.remove(fd)
+                poller.unregister(fd)
                 continue
             buf = raw_buf.decode()
             string.write(buf)
