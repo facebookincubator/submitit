@@ -1,6 +1,5 @@
 # Checkpointing
 
-
 ## The basics of checkpointing with `submitit`
 
 Checkpointing is trickier and requires a precise understanding of the inner working of the job pickling.
@@ -11,6 +10,8 @@ In practice, when requeuing, `submitit` will check if the callable has a `__subm
 If so, it will send it the initial arguments and the `checkpoint` method takes care of preparing the new submission.
 The `checkpoint` method must therefore have a signature able to receive all parameters from the `__call__` function of your callable.
 It must return a `DelayedSubmission` which acts exactly as `executor.submit`: you can provide any function and arguments. Alternatively, it can return `None` if for some reason it does not want to be requeued.
+
+**Important note**: for preemptions to be recognized as such, the cluster needs to be configured by an admin with the parameter `SlurmctldParameters=preempt_send_user_signal`.
 
 ## Minimal example
 
