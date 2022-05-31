@@ -100,11 +100,16 @@ integration: clean_cache venv check_format lint installable test_coverage
 	# Use `make -k integration` to run all checks even if previous fails.
 
 release: integration
-	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
+	echo "Releasing submitit $(CURRENT_VERSION)"
 	[ ! -d dist ] || rm -r dist
+	# Make sure the repo is in a clean state
 	git diff --exit-code
 	$(BIN)python submitit/test_documentation.py
 	# --setup-py generates a setup.py file to allow user with old
 	# versions of pip to install it without flit.
-	$(BIN)python -m flit publish --setup-py
+	git tag $(CURRENT_VERSION)
+	# To have a reproducible build we use the timestamp of the last commit:
+	# https://flit.pypa.io/en/latest/reproducible.html
+	SOURCE_DATE_EPOCH=`git log -n1 --format=%cd --date=unix` $(BIN)python -m flit publish --setup-py
 	git checkout HEAD -- README.md
+	git push origin $(CURRENT_VERSION)
