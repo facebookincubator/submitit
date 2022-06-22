@@ -669,7 +669,7 @@ class Executor(abc.ABC):
     def name(cls) -> str:
         n = cls.__name__
         if n.endswith("Executor"):
-            n = n[:-len("Executor")]
+            n = n[: -len("Executor")]
         return n.lower()
 
     @contextlib.contextmanager
