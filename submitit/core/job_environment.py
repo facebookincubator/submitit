@@ -134,11 +134,17 @@ class JobEnvironment:
         @plugin-dev: Should be adapted to the signals used in this cluster.
         """
         handler = SignalHandler(self, paths, submission)
-        signal.signal(signal.SIGUSR1, handler.checkpoint_and_try_requeue)
+        try:
+            signal.signal(signal.SIGUSR1, handler.checkpoint_and_try_requeue)
+        except AttributeError:  # no SIGUSR1 on Windows
+            pass
         # A priori we don't need other signals anymore,
         # but still log them to make it easier to debug.
         signal.signal(signal.SIGTERM, handler.bypass)
-        signal.signal(signal.SIGCONT, handler.bypass)
+        try:
+            signal.signal(signal.SIGCONT, handler.bypass)
+        except AttributeError:  # no SIGCONT on Windows
+            pass
 
     # pylint: disable=no-self-use,unused-argument
     def _requeue(self, countdown: int) -> None:
