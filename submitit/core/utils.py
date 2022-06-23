@@ -259,7 +259,7 @@ def copy_process_streams(
         _copy_streams_select_pipes(stream_by_fd)
 
 
-def _read_and_copy(p_stream: IO[bytes], string: io.StringIO, std: IO[str]) -> bool:
+def _read_and_copy(p_stream: IO[bytes], string: io.StringIO, std: Optional[IO[str]]) -> bool:
     """
     Returns False iff there is definitely no more to read.
     """
