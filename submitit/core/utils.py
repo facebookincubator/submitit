@@ -15,6 +15,7 @@ import subprocess
 import sys
 import tarfile
 from pathlib import Path
+from threading import Thread
 from typing import IO, Any, Callable, Dict, Iterator, List, Optional, Tuple, Type, Union
 
 import cloudpickle
@@ -231,7 +232,6 @@ def cloudpickle_dump(obj: Any, filename: Union[str, Path]) -> None:
         cloudpickle.dump(obj, ofile, pickle.HIGHEST_PROTOCOL)
 
 
-# pylint: disable=too-many-locals
 def copy_process_streams(
     process: subprocess.Popen, stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
 ):
@@ -248,10 +248,50 @@ def copy_process_streams(
         return stream
 
     p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
-    stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, IO[str]]] = {
-        p_stdout.fileno(): (p_stdout, stdout, sys.stdout),
-        p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
+    stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, Optional[IO[str]]]] = {
+        p_stdout.fileno(): (p_stdout, stdout, sys.stdout if verbose else None),
+        p_stderr.fileno(): (p_stderr, stderr, sys.stderr if verbose else None),
     }
+        
+    if os.name == "nt":
+        _copy_streams_threaded(stream_by_fd)
+    else:
+        _copy_streams_select_pipes(stream_by_fd)
+
+
+def _read_and_copy(p_stream: IO[bytes], string: io.StringIO, std: IO[str]) -> bool:
+    """
+    Returns False iff there is definitely no more to read.
+    """
+    raw_buf = p_stream.read(2**16)
+    if not raw_buf:
+        return False
+    buf = raw_buf.decode()
+    string.write(buf)
+    string.flush()
+    if std is not None:
+        std.write(buf)
+        std.flush()
+    return True
+
+
+def _read_and_copy_whole_stream_blocking(p_stream: IO[bytes], string: io.StringIO, std: IO[str]) -> None:
+    while True:
+        if not _read_and_copy(p_stream, string, std):
+            return
+
+
+def _copy_streams_threaded(stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, Optional[IO[str]]]]) -> None:
+    threads: List[Thread] = []
+    for p_stream, string, std in stream_by_fd.values():
+        t = Thread(target=_read_and_copy_whole_stream_blocking, args=(p_stream, string, std), daemon=True)
+        t.start()
+        threads.append(t)
+    for t in threads:
+        t.join()
+
+
+def _copy_streams_select_pipes(stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, Optional[IO[str]]]]) -> None:
     fds = list(stream_by_fd.keys())
     poller = select.poll()
     for fd in stream_by_fd:
@@ -261,17 +301,9 @@ def copy_process_streams(
         ready = poller.poll()
         for fd, _ in ready:
             p_stream, string, std = stream_by_fd[fd]
-            raw_buf = p_stream.read(2**16)
-            if not raw_buf:
+            if not _read_and_copy(p_stream, string, std):
                 fds.remove(fd)
                 poller.unregister(fd)
-                continue
-            buf = raw_buf.decode()
-            string.write(buf)
-            string.flush()
-            if verbose:
-                std.write(buf)
-                std.flush()
 
 
 # used in "_core", so cannot be in "helpers"
