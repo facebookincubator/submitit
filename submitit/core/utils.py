@@ -252,7 +252,7 @@ def copy_process_streams(
         p_stdout.fileno(): (p_stdout, stdout, sys.stdout if verbose else None),
         p_stderr.fileno(): (p_stderr, stderr, sys.stderr if verbose else None),
     }
-        
+
     if os.name == "nt":
         _copy_streams_threaded(stream_by_fd)
     else:
@@ -291,7 +291,9 @@ def _copy_streams_threaded(stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO,
         t.join()
 
 
-def _copy_streams_select_pipes(stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, Optional[IO[str]]]]) -> None:
+def _copy_streams_select_pipes(
+    stream_by_fd: Dict[int, Tuple[IO[bytes], io.StringIO, Optional[IO[str]]]]
+) -> None:
     fds = list(stream_by_fd.keys())
     poller = select.poll()
     for fd in stream_by_fd:
