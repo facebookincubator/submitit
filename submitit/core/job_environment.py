@@ -27,6 +27,7 @@ class JobEnvironment:
     Override _env to map environment variable to each property.
     """
 
+    USR_SIG = "USR2"
     _env: ClassVar[Dict[str, str]] = {}
 
     def __new__(cls, *args: Any) -> "JobEnvironment":
@@ -127,6 +128,10 @@ class JobEnvironment:
         info_str = ", ".join(info)
         return f"JobEnvironment({info_str})"
 
+    @staticmethod
+    def _usr_sig() -> Any:
+        return {"USR1": signal.SIGUSR1, "USR2": signal.SIGUSR2}[self.USR_SIG]
+
     def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
         """Set up signals handler for the current executable.
 
@@ -134,7 +139,7 @@ class JobEnvironment:
         @plugin-dev: Should be adapted to the signals used in this cluster.
         """
         handler = SignalHandler(self, paths, submission)
-        signal.signal(signal.SIGUSR1, handler.checkpoint_and_try_requeue)
+        signal.signal(self._usr_sig(), handler.checkpoint_and_try_requeue)
         # A priori we don't need other signals anymore,
         # but still log them to make it easier to debug.
         signal.signal(signal.SIGTERM, handler.bypass)

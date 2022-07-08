@@ -6,6 +6,7 @@
 
 import functools
 import inspect
+import signal
 import os
 import re
 import shlex
@@ -117,7 +118,7 @@ class SlurmJob(core.Job[core.R]):
         # in case of preemption, SIGTERM is sent first
         if not timeout:
             subprocess.check_call(cmd + ["SIGTERM"])
-        subprocess.check_call(cmd + ["USR1"])
+        subprocess.check_call(cmd + [SlurmJobEnvironment.USR_SIG])
 
 
 class SlurmParseException(Exception):
@@ -152,7 +153,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
             return pos + 1
         if c == "[":
             last_pos = node_list.index("]", pos)
-            suffixes = _expand_id_suffix(node_list[pos + 1 : last_pos])
+            suffixes = _expand_id_suffix(node_list[pos + 1: last_pos])
             prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
             pos = last_pos + 1
         else:
@@ -378,7 +379,7 @@ class SlurmExecutor(core.PicklingExecutor):
 def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
@@ -459,7 +460,7 @@ def _make_sbatch_string(
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
-    parameters["signal"] = f"USR1@{signal_delay_s}"
+    parameters["signal"] = f"{SlurmJobEnvironment.USR_SIG}@{signal_delay_s}"
     if num_gpus is not None:
         warnings.warn(
             '"num_gpus" is deprecated, please use "gpus_per_node" instead (overwritting with num_gpus)'
