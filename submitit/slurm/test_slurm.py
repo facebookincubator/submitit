@@ -4,8 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 import contextlib
-import signal
 import os
+import signal
 import subprocess
 import typing as tp
 from pathlib import Path
