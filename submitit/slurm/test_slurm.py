@@ -6,7 +6,6 @@
 import contextlib
 import signal
 import os
-import signal
 import subprocess
 import typing as tp
 from pathlib import Path
@@ -477,7 +476,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
             continue
         if "=" not in l:
             continue
-        key, val = l[len("#SBATCH"):].strip().split("=", 1)
+        key, val = l[len("#SBATCH") :].strip().split("=", 1)
         sbatch_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
 
     # We do not quote --output and --error values here,
