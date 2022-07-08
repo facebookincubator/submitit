@@ -128,9 +128,9 @@ class JobEnvironment:
         info_str = ", ".join(info)
         return f"JobEnvironment({info_str})"
 
-    @staticmethod
-    def _usr_sig() -> Any:
-        return {"USR1": signal.SIGUSR1, "USR2": signal.SIGUSR2}[self.USR_SIG]
+    @classmethod
+    def _usr_sig(cls) -> Any:
+        return {"USR1": signal.SIGUSR1, "USR2": signal.SIGUSR2}[cls.USR_SIG]
 
     def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
         """Set up signals handler for the current executable.
