@@ -138,7 +138,9 @@ class JobEnvironment:
         name = "SIG" + cls.USR_SIG
         out = getattr(signal, name, None)
         if out is None:
-            raise RuntimeError(f"Unknown signal {name}, you may need to unset or update env var {_PREEMPT_SIG_ENV} (Eg: USR2)")
+            raise RuntimeError(
+                f"Unknown signal {name}, you may need to unset or update env var {_PREEMPT_SIG_ENV} (Eg: USR2)"
+            )
         return out
 
     def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
