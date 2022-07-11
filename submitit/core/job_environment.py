@@ -16,6 +16,8 @@ from typing import Any, ClassVar, Dict, Optional, Sequence
 from . import logger, utils
 from .utils import DelayedSubmission, JobPaths
 
+_PREEMPT_SIG_ENV = "SUBMITIT_PREEMPT_SIGNAL"
+
 
 class JobEnvironment:
     """Describe the environment inside which the job is running.
@@ -30,7 +32,7 @@ class JobEnvironment:
     # preemption signal uses USR2 as default, but this behavior
     # can be overiden
     # CAUTION: NCCL may catch USR1 so it should be avoided
-    USR_SIG = os.environ.get("SUBMITIT_PREEMPT_SIGNAL", "USR2")
+    USR_SIG = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
     _env: ClassVar[Dict[str, str]] = {}
 
     def __new__(cls, *args: Any) -> "JobEnvironment":
@@ -133,7 +135,11 @@ class JobEnvironment:
 
     @classmethod
     def _usr_sig(cls) -> Any:
-        return {"USR1": signal.SIGUSR1, "USR2": signal.SIGUSR2}[cls.USR_SIG]
+        name = "SIG" + cls.USR_SIG
+        out = getattr(signal, name, None)
+        if out is None:
+            raise RuntimeError(f"Unknown signal {name}, you may need to unset or update env var {_PREEMPT_SIG_ENV} (Eg: USR2)")
+        return out
 
     def _handle_signals(self, paths: JobPaths, submission: DelayedSubmission) -> None:
         """Set up signals handler for the current executable.
