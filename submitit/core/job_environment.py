@@ -27,7 +27,10 @@ class JobEnvironment:
     Override _env to map environment variable to each property.
     """
 
-    USR_SIG = "USR2"
+    # preemption signal uses USR2 as default, but this behavior
+    # can be overiden
+    # CAUTION: NCCL may catch USR1 so it should be avoided
+    USR_SIG = os.environ.get("SUBMITIT_PREEMPT_SIGNAL", "USR2")
     _env: ClassVar[Dict[str, str]] = {}
 
     def __new__(cls, *args: Any) -> "JobEnvironment":
