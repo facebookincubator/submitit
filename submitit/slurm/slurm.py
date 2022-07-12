@@ -117,7 +117,7 @@ class SlurmJob(core.Job[core.R]):
         # in case of preemption, SIGTERM is sent first
         if not timeout:
             subprocess.check_call(cmd + ["SIGTERM"])
-        subprocess.check_call(cmd + ["USR1"])
+        subprocess.check_call(cmd + [SlurmJobEnvironment.USR_SIG])
 
 
 class SlurmParseException(Exception):
@@ -459,7 +459,7 @@ def _make_sbatch_string(
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
-    parameters["signal"] = f"USR1@{signal_delay_s}"
+    parameters["signal"] = f"{SlurmJobEnvironment.USR_SIG}@{signal_delay_s}"
     if num_gpus is not None:
         warnings.warn(
             '"num_gpus" is deprecated, please use "gpus_per_node" instead (overwritting with num_gpus)'

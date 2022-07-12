@@ -71,7 +71,7 @@ class LocalJob(core.Job[R]):
     def _interrupt(self) -> None:
         """Sends preemption / timeout signal to the job (for testing purpose)"""
         assert self._process is not None
-        self._process.send_signal(signal.SIGUSR1)
+        self._process.send_signal(LocalJobEnvironment._usr_sig())
 
     def __del__(self) -> None:
         if self._cancel_at_deletion:
@@ -135,7 +135,7 @@ class LocalExecutor(core.PicklingExecutor):
         - visible_gpus (Sequence[int])
         - tasks_per_node (int)
         - nodes (int). Must be 1 if specified
-        - signal_delay_s (int): USR1 signal delay before timeout
+        - signal_delay_s (int): USRX (lately: USR2) signal delay before timeout
 
         Other parameters are ignored
         """
@@ -314,7 +314,7 @@ class Controller:
                 return exit_codes
 
             if step == almost_timeout:
-                self._forward_signal(signal.SIGUSR1)
+                self._forward_signal(LocalJobEnvironment._usr_sig())
 
             time.sleep(1.0 / freq)
         return [t.poll() for t in self.tasks]
