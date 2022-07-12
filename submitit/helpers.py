@@ -5,6 +5,7 @@
 #
 
 import collections
+import contextlib
 import datetime
 import itertools
 import os
@@ -287,3 +288,25 @@ def monitor_jobs(
         time.sleep(poll_frequency)
 
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
+
+
+@contextlib.contextmanager
+def clean_env() -> tp.Iterator[None]:
+    """Removes slurm and submitit related environment variables so as to avoid interferences
+    when submiting a new job from a job.
+
+    Note
+    ----
+    A slurm job submitted from within a slurm job inherits some of its attributes, which may
+    be confusing a cause weird gres errors. Submitting within this context should prevent this.
+
+    Usage
+    -----
+    with submitit.helpers.clean_env():
+        executor.submit(...)
+    """
+    slurm_env = {x: os.environ.pop(x) for x in os.environ if x.startswith(("SLURM_", "SUBMITIT_"))}
+    try:
+        yield
+    finally:
+        os.environ.update(slurm_env)

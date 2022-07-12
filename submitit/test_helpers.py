@@ -7,6 +7,7 @@
 import os
 import time
 from pathlib import Path
+import typing as tp
 
 import pytest
 
@@ -129,3 +130,17 @@ def test_monitor_jobs(tmp_path: Path) -> None:
     helpers.monitor_jobs(jobs, 0.02, test_mode=True)
     assert all(j for j in jobs if j.done())
     assert set(j for j in jobs if j.state.upper() == "FAILED") == {job}
+
+
+def _get_env() -> tp.Dict[str, str]:
+    return {x: y for x, y in os.environ.items() if x.startswith(("SLURM_", "SUBMITIT_"))}
+
+
+def test_clean_env() -> None:
+    base = _get_env()
+    with utils.environment_variables(SLURM_BLUBLU=12, SUBMITIT_BLUBLU=12):
+        assert len(_get_env()) == len(base) + 2
+        with helpers.clean_env():
+            assert not _get_env()
+        assert len(_get_env()) == len(base) + 2
+    assert _get_env() == base
