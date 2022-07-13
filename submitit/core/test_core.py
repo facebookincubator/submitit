@@ -59,7 +59,6 @@ class MockedSubprocess:
         self.set_job_state(job_id, "RUNNING", array)
         return f"Running job {job_id}\n"
 
-    # pylint: disable=no-self-use
     def scancel(self, _: Sequence[str]) -> str:
         # TODO:should we call set_job_state ?
         return ""
@@ -90,7 +89,6 @@ class MockedSubprocess:
                     with patch("subprocess.check_call", new=self):
                         yield None
 
-    # pylint: disable=no-self-use
     @contextlib.contextmanager
     def job_context(self, job_id: str) -> Iterator[None]:
         with utils.environment_variables(

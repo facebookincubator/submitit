@@ -40,7 +40,6 @@ class DebugJobEnvironment(JobEnvironment):
 
 
 # pylint in python 3.6 is confused by generics.
-# pylint: disable=no-self-use
 class DebugJob(Job[R]):
     watcher = DebugInfoWatcher()
 

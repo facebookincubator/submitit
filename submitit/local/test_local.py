@@ -16,7 +16,7 @@ import pytest
 
 from .. import helpers
 from ..core import job_environment, test_core, utils
-from . import local
+from . import local, test_debug
 
 
 def test_local_job(tmp_path: Path) -> None:
@@ -52,34 +52,18 @@ def test_local_job(tmp_path: Path) -> None:
 
 
 def test_local_map_array(tmp_path: Path) -> None:
-    n = 5
-    data1, data2 = range(n), range(10, 10 + n)
-
-    def f(x: int, y: int) -> int:
-        assert x in data1
-        assert y in data2
-        return x + y
-
+    g = test_debug.CheckFunction(5)
     executor = local.LocalExecutor(tmp_path)
-    jobs = executor.map_array(f, data1, data2)
-
-    assert list(map(f, data1, data2)) == [j.result() for j in jobs]
+    jobs = executor.map_array(g, g.data1, g.data2)
+    assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
 
 def test_local_submit_array(tmp_path: Path) -> None:
-    n = 5
-    data1, data2 = range(n), range(10, 10 + n)
-
-    def f(x: int, y: int) -> int:
-        assert x in data1
-        assert y in data2
-        return x + y
-
+    g = test_debug.CheckFunction(5)
     executor = local.LocalExecutor(tmp_path)
-    fns = [functools.partial(f, x, y) for x, y in zip(data1, data2)]
+    fns = [functools.partial(g, x, y) for x, y in zip(g.data1, g.data2)]
     jobs = executor.submit_array(fns)
-
-    assert list(map(f, data1, data2)) == [j.result() for j in jobs]
+    assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
 
 def test_local_error(tmp_path: Path) -> None:

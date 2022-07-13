@@ -9,7 +9,7 @@
 #SBATCH --open-mode=append
 #SBATCH --output=/tmp/%j_0_log.out
 #SBATCH --partition=learnfair
-#SBATCH --signal=HUP@90
+#SBATCH --signal=USR2@90
 #SBATCH --time=5
 #SBATCH --wckey=submitit
 

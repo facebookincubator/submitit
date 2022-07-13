@@ -17,6 +17,19 @@ from ..core.job_environment import JobEnvironment
 from . import debug
 
 
+class CheckFunction:
+    """Function used for checking that computations are correct"""
+
+    def __init__(self, n: int) -> None:
+        self.data1 = list(range(n))
+        self.data2 = list(range(10, 10 + n))
+
+    def __call__(self, x: float, y: float) -> float:
+        assert x in self.data1
+        assert y in self.data2
+        return x + y
+
+
 def test_debug_job(tmp_path: Path) -> None:
     def func(p: int) -> int:
         return 2 * p
@@ -33,36 +46,20 @@ def test_debug_job(tmp_path: Path) -> None:
 
 
 def test_debug_map_array(tmp_path: Path) -> None:
-    n = 5
-    data1, data2 = range(n), range(10, 10 + n)
-
-    def g(x: int, y: int) -> int:
-        assert x in data1
-        assert y in data2
-        return x + y
-
+    g = CheckFunction(5)
     executor = debug.DebugExecutor(tmp_path)
-    jobs = executor.map_array(g, data1, data2)
+    jobs = executor.map_array(g, g.data1, g.data2)
     print(type(jobs[0]))
     print(jobs)
-
-    assert list(map(g, data1, data2)) == [j.result() for j in jobs]
+    assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
 
 def test_debug_submit_array(tmp_path: Path) -> None:
-    n = 5
-    data1, data2 = range(n), range(10, 10 + n)
-
-    def g(x: int, y: int) -> int:
-        assert x in data1
-        assert y in data2
-        return x + y
-
+    g = CheckFunction(5)
     executor = debug.DebugExecutor(tmp_path)
-    fns = [functools.partial(g, x, y) for x, y in zip(data1, data2)]
+    fns = [functools.partial(g, x, y) for x, y in zip(g.data1, g.data2)]
     jobs = executor.submit_array(fns)
-
-    assert list(map(g, data1, data2)) == [j.result() for j in jobs]
+    assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
 
 def test_debug_error(tmp_path: Path) -> None:
