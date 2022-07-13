@@ -184,7 +184,9 @@ def temporary_save_path(filepath: tp.Union[Path, str]) -> tp.Iterator[Path]:
     os.rename(tmppath, filepath)
 
 
-def archive_dev_folders(folders: tp.List[tp.Union[str, Path]], outfile: tp.Optional[tp.Union[str, Path]] = None) -> Path:
+def archive_dev_folders(
+    folders: tp.List[tp.Union[str, Path]], outfile: tp.Optional[tp.Union[str, Path]] = None
+) -> Path:
     """Creates a tar.gz file with all provided folders"""
     assert isinstance(folders, (list, tuple)), "Only lists and tuples of folders are allowed"
     if outfile is None:
@@ -261,7 +263,7 @@ def copy_process_streams(
         ready = poller.poll()
         for fd, _ in ready:
             p_stream, string, std = stream_by_fd[fd]
-            raw_buf = p_stream.read(2**16)
+            raw_buf = p_stream.read(2 ** 16)
             if not raw_buf:
                 fds.remove(fd)
                 poller.unregister(fd)
