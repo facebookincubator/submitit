@@ -71,8 +71,7 @@ def test_local_submit_array(tmp_path: Path) -> None:
     data1, data2 = range(n), range(10, 10 + n)
 
     def f(x: int, y: int) -> int:
-        assert x in data1
-        assert y in data2
+        assert x in data1 and y in data2
         return x + y
 
     executor = local.LocalExecutor(tmp_path)

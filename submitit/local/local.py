@@ -135,7 +135,7 @@ class LocalExecutor(core.PicklingExecutor):
         - visible_gpus (Sequence[int])
         - tasks_per_node (int)
         - nodes (int). Must be 1 if specified
-        - signal_delay_s (int): signal (lately: HUP) delay before timeout
+        - signal_delay_s (int): signal (lately: USR2) delay before timeout
 
         Other parameters are ignored
         """

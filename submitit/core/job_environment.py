@@ -156,7 +156,7 @@ class JobEnvironment:
         signal.signal(signal.SIGTERM, handler.bypass)
         signal.signal(signal.SIGCONT, handler.bypass)
 
-    # pylint: disable=no-self-use,unused-argument
+    # pylint: disable=unused-argument
     def _requeue(self, countdown: int) -> None:
         """Requeue the current job.
 
