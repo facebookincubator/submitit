@@ -263,7 +263,7 @@ def copy_process_streams(
         ready = poller.poll()
         for fd, _ in ready:
             p_stream, string, std = stream_by_fd[fd]
-            raw_buf = p_stream.read(2 ** 16)
+            raw_buf = p_stream.read(2**16)
             if not raw_buf:
                 fds.remove(fd)
                 poller.unregister(fd)
