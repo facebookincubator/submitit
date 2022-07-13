@@ -54,8 +54,7 @@ def test_debug_submit_array(tmp_path: Path) -> None:
     data1, data2 = range(n), range(10, 10 + n)
 
     def g(x: int, y: int) -> int:
-        assert x in data1
-        assert y in data2
+        assert y in data2 and x in data1
         return x + y
 
     executor = debug.DebugExecutor(tmp_path)

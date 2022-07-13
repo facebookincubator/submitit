@@ -89,7 +89,6 @@ class MockedSubprocess:
                     with patch("subprocess.check_call", new=self):
                         yield None
 
-    # pylint: disable=no-self-use
     @contextlib.contextmanager
     def job_context(self, job_id: str) -> Iterator[None]:
         with utils.environment_variables(
