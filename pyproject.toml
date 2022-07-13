@@ -65,6 +65,7 @@ skip_gitignore = true
   # disabled messages
   # * no-member has a lot of false positive, mypy does it better
   disable = """
+      no-self-use,
       broad-except,
       fixme,
       invalid-name,
