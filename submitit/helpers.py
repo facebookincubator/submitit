@@ -18,6 +18,7 @@ from pathlib import Path
 # pylint: disable=unused-import
 # import DelayedSubmission and CommandFunction to populate helpers namespace
 from .core import core
+from .core.job_environment import JobEnvironment
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
 from .core.utils import environment_variables as environment_variables  # noqa
@@ -287,3 +288,54 @@ def monitor_jobs(
         time.sleep(poll_frequency)
 
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
+
+
+class TorchDistributedParams(tp.NamedTuple):
+    master_addr: str
+    master_port: int
+    rank: int
+    world_size: int
+    local_rank: int
+    local_world_size: int
+
+
+def export_torch_distributed_env(
+    job_env: JobEnvironment,
+    *,
+    master_port: int = 29500,
+) -> TorchDistributedParams:
+    """Export the required environment variables to initialize PyTorch distributed (with the default env:// method).
+
+    Parameters
+    ----------
+    job_env: JobEnvironment
+        the current job environment.
+
+    Returns
+    -------
+    params: TorchDistributedParams
+        a named tuple with the master node address and port and the assigned rank, world size, local rank and local world size.
+    """
+    # See the "Environment variable initialization" section from
+    # https://pytorch.org/docs/stable/distributed.html for the complete list of
+    # environment variables required for the env:// initialization method.
+    params = TorchDistributedParams(  # pylint: disable=no-value-for-parameter
+        master_addr=job_env.hostnames[0],
+        master_port=master_port,
+        rank=job_env.global_rank,
+        world_size=job_env.num_tasks,
+        local_rank=job_env.local_rank,
+        local_world_size=job_env.num_tasks // job_env.num_nodes,
+    )
+    env_vars = {
+        "MASTER_ADDR": params.master_addr,
+        "MASTER_PORT": str(params.master_port),
+        "RANK": str(params.rank),
+        "WORLD_SIZE": str(params.world_size),
+        "LOCAL_RANK": str(params.local_rank),  # Not required
+        "LOCAL_WORLD_SIZE": str(params.local_world_size),  # Not required
+    }
+    for key in env_vars:
+        assert os.environ.get(key) is None
+    os.environ.update(env_vars)
+    return params
