@@ -293,21 +293,21 @@ def monitor_jobs(
 
 class TorchDistributedEnvironment:
     def __init__(self):
-        job_env = JobEnvironment()
-        self.master_addr = job_env.hostnames[0]
+        self._job_env = JobEnvironment()
+        self.master_addr = self._job_env.hostnames[0]
         self.master_port = self._get_master_port()
-        self.rank = job_env.global_rank
-        self.world_size = job_env.num_tasks
-        self.local_rank = job_env.local_rank
-        self.local_world_size = job_env.num_tasks // job_env.num_nodes
+        self.rank = self._job_env.global_rank
+        self.world_size = self._job_env.num_tasks
+        self.local_rank = self._job_env.local_rank
+        self.local_world_size = self._job_env.num_tasks // self._job_env.num_nodes
 
     def _get_master_port(self) -> int:
         #MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
         MIN_MASTER_PORT, MAX_MASTER_PORT = (20000, 60000)
 
-        master_port_str = os.environ("MASTER_PORT")
+        master_port_str = os.environ.get("MASTER_PORT")
         if master_port_str is None:
-            rng = random.Random(job_env.job_id)
+            rng = random.Random(self._job_env.job_id)
             return rng.randint(MIN_MASTER_PORT, MAX_MASTER_PORT)
 
         master_port = int(master_port_str)
