@@ -291,55 +291,43 @@ def monitor_jobs(
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
 
 
-class TorchDistributedEnvironment(tp.NamedTuple):
-    master_addr: str
-    master_port: int
-    rank: int
-    world_size: int
-    local_rank: int
-    local_world_size: int
+class TorchDistributedEnvironment:
+    def __init__(self):
+        job_env = JobEnvironment()
+        self.master_addr = job_env.hostnames[0]
+        self.master_port = self._get_master_port()
+        self.rank = job_env.global_rank
+        self.world_size = job_env.num_tasks
+        self.local_rank = job_env.local_rank
+        self.local_world_size = job_env.num_tasks // job_env.num_nodes
 
+    def _get_master_port(self) -> int:
+        #MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
+        MIN_MASTER_PORT, MAX_MASTER_PORT = (20000, 60000)
 
-def export_torch_distributed_env() -> TorchDistributedEnvironment:
-    """Export the required environment variables to initialize PyTorch distributed (with the default env:// method).
+        master_port_str = os.environ("MASTER_PORT")
+        if master_port_str is None:
+            rng = random.Random(job_env.job_id)
+            return rng.randint(MIN_MASTER_PORT, MAX_MASTER_PORT)
 
-    Returns
-    -------
-    params: TorchDistributedEnvironment
-        a named tuple with the master node address and port and the assigned rank, world size, local rank and local world size.
-    """
-    #MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
-    MIN_MASTER_PORT, MAX_MASTER_PORT = (20000, 60000)
-    master_port_str = os.environ("MASTER_PORT")
-    if master_port_str is None:
-        rng = random.Random(job_env.job_id)
-        master_port = rng.randint(MIN_MASTER_PORT, MAX_MASTER_PORT)
-    else:
         master_port = int(master_port_str)
-        assert master_port >= MIN_MASTER_PORT
-        assert master_port <= MAX_MASTER_PORT
+        #assert MIN_MASTER_PORT <= master_port <= MIN_MASTER_PORT
+        return master_port
 
-    # See the "Environment variable initialization" section from
-    # https://pytorch.org/docs/stable/distributed.html for the complete list of
-    # environment variables required for the env:// initialization method.
-    job_env = JobEnvironment()
-    env = TorchDistributedEnvironment(  # pylint: disable=no-value-for-parameter
-        master_addr=job_env.hostnames[0],
-        master_port=master_port,
-        rank=job_env.global_rank,
-        world_size=job_env.num_tasks,
-        local_rank=job_env.local_rank,
-        local_world_size=job_env.num_tasks // job_env.num_nodes,
-    )
-    env_vars = {
-        "MASTER_ADDR": env.master_addr,
-        "MASTER_PORT": str(env.master_port),
-        "RANK": str(env.rank),
-        "WORLD_SIZE": str(env.world_size),
-        "LOCAL_RANK": str(env.local_rank),  # Not required
-        "LOCAL_WORLD_SIZE": str(env.local_world_size),  # Not required
-    }
-    for key in env_vars:
-        assert os.environ.get(key) is None
-    os.environ.update(env_vars)
-    return env
+    def export(self) -> None:
+        """Export all the required environment variables to initialize PyTorch distributed (with the default env:// method).
+        """
+        # See the "Environment variable initialization" section from
+        # https://pytorch.org/docs/stable/distributed.html for the complete list of
+        # environment variables required for the env:// initialization method.
+        env_vars = {
+            "MASTER_ADDR": self.master_addr,
+            "MASTER_PORT": str(self.master_port),
+            "RANK": str(self.rank),
+            "WORLD_SIZE": str(self.world_size),
+            "LOCAL_RANK": str(self.local_rank),  # Not required
+            "LOCAL_WORLD_SIZE": str(self.local_world_size),  # Not required
+        }
+        for key in env_vars:
+            assert os.environ.get(key) is None
+        os.environ.update(env_vars)
