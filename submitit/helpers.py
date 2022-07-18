@@ -291,7 +291,7 @@ def monitor_jobs(
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
 
 
-class TorchDistributedParams(tp.NamedTuple):
+class TorchDistributedEnvironment(tp.NamedTuple):
     master_addr: str
     master_port: int
     rank: int
@@ -300,12 +300,12 @@ class TorchDistributedParams(tp.NamedTuple):
     local_world_size: int
 
 
-def export_torch_distributed_env() -> TorchDistributedParams:
+def export_torch_distributed_env() -> TorchDistributedEnvironment:
     """Export the required environment variables to initialize PyTorch distributed (with the default env:// method).
 
     Returns
     -------
-    params: TorchDistributedParams
+    params: TorchDistributedEnvironment
         a named tuple with the master node address and port and the assigned rank, world size, local rank and local world size.
     """
     #MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
@@ -323,7 +323,7 @@ def export_torch_distributed_env() -> TorchDistributedParams:
     # https://pytorch.org/docs/stable/distributed.html for the complete list of
     # environment variables required for the env:// initialization method.
     job_env = JobEnvironment()
-    params = TorchDistributedParams(  # pylint: disable=no-value-for-parameter
+    env = TorchDistributedEnvironment(  # pylint: disable=no-value-for-parameter
         master_addr=job_env.hostnames[0],
         master_port=master_port,
         rank=job_env.global_rank,
@@ -332,14 +332,14 @@ def export_torch_distributed_env() -> TorchDistributedParams:
         local_world_size=job_env.num_tasks // job_env.num_nodes,
     )
     env_vars = {
-        "MASTER_ADDR": params.master_addr,
-        "MASTER_PORT": str(params.master_port),
-        "RANK": str(params.rank),
-        "WORLD_SIZE": str(params.world_size),
-        "LOCAL_RANK": str(params.local_rank),  # Not required
-        "LOCAL_WORLD_SIZE": str(params.local_world_size),  # Not required
+        "MASTER_ADDR": env.master_addr,
+        "MASTER_PORT": str(env.master_port),
+        "RANK": str(env.rank),
+        "WORLD_SIZE": str(env.world_size),
+        "LOCAL_RANK": str(env.local_rank),  # Not required
+        "LOCAL_WORLD_SIZE": str(env.local_world_size),  # Not required
     }
     for key in env_vars:
         assert os.environ.get(key) is None
     os.environ.update(env_vars)
-    return params
+    return env
