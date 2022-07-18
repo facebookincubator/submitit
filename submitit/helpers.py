@@ -293,7 +293,8 @@ def monitor_jobs(
 
 class TorchDistributedEnvironment:
     def __init__(self):
-        """Construct a class holding the parameters required to properly setup PyTorch distributed (with the default env:// initialization method).
+        """Construct a class holding the parameters required to properly setup
+        PyTorch distributed (with the default env:// initialization method).
 
         Examples
         --------
@@ -323,7 +324,8 @@ class TorchDistributedEnvironment:
         return master_port
 
     def export(self) -> "TorchDistributedEnvironment":
-        """Export all the environment variables required to properly setup PyTorch distributed (with the default env:// initialization method).
+        """Export all the environment variables required to properly setup
+        PyTorch distributed (with the default env:// initialization method).
         """
         # See the "Environment variable initialization" section from
         # https://pytorch.org/docs/stable/distributed.html for the complete list of

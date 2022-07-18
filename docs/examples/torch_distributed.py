@@ -4,9 +4,9 @@ import os
 import sys
 import time
 
-import submitit
 import torch
 
+import submitit
 
 NUM_NODES = 2
 NUM_TASKS_PER_NODE = 8
