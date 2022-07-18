@@ -8,6 +8,7 @@ import collections
 import datetime
 import itertools
 import os
+import random
 import shutil
 import subprocess
 import tempfile
@@ -299,10 +300,7 @@ class TorchDistributedParams(tp.NamedTuple):
     local_world_size: int
 
 
-def export_torch_distributed_env(
-    *,
-    master_port: int = 29500,
-) -> TorchDistributedParams:
+def export_torch_distributed_env() -> TorchDistributedParams:
     """Export the required environment variables to initialize PyTorch distributed (with the default env:// method).
 
     Returns
@@ -310,6 +308,17 @@ def export_torch_distributed_env(
     params: TorchDistributedParams
         a named tuple with the master node address and port and the assigned rank, world size, local rank and local world size.
     """
+    #MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
+    MIN_MASTER_PORT, MAX_MASTER_PORT = (20000, 60000)
+    master_port_str = os.environ("MASTER_PORT")
+    if master_port_str is None:
+        rng = random.Random(job_env.job_id)
+        master_port = rng.randint(MIN_MASTER_PORT, MAX_MASTER_PORT)
+    else:
+        master_port = int(master_port_str)
+        assert master_port >= MIN_MASTER_PORT
+        assert master_port <= MAX_MASTER_PORT
+
     # See the "Environment variable initialization" section from
     # https://pytorch.org/docs/stable/distributed.html for the complete list of
     # environment variables required for the env:// initialization method.
