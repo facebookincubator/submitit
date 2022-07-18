@@ -300,16 +300,10 @@ class TorchDistributedParams(tp.NamedTuple):
 
 
 def export_torch_distributed_env(
-    job_env: JobEnvironment,
     *,
     master_port: int = 29500,
 ) -> TorchDistributedParams:
     """Export the required environment variables to initialize PyTorch distributed (with the default env:// method).
-
-    Parameters
-    ----------
-    job_env: JobEnvironment
-        the current job environment.
 
     Returns
     -------
@@ -319,6 +313,7 @@ def export_torch_distributed_env(
     # See the "Environment variable initialization" section from
     # https://pytorch.org/docs/stable/distributed.html for the complete list of
     # environment variables required for the env:// initialization method.
+    job_env = JobEnvironment()
     params = TorchDistributedParams(  # pylint: disable=no-value-for-parameter
         master_addr=job_env.hostnames[0],
         master_port=master_port,
