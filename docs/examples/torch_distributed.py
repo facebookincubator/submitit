@@ -48,8 +48,7 @@ class Task:
         assert dist_env.world_size == torch.distributed.get_world_size()
 
         # Actual task / computation
-        device = torch.device("cuda", dist_env.local_rank)
-        result = dist_env.rank * torch.ones(1).cuda(device=device)
+        result = dist_env.rank * torch.ones(1).cuda()
 
         time.sleep(120)
 
