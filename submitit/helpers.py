@@ -323,7 +323,7 @@ class TorchDistributedEnvironment:
         # assert MIN_MASTER_PORT <= master_port <= MIN_MASTER_PORT
         return master_port
 
-    def export(self, set_current_cuda_device: bool = True) -> "TorchDistributedEnvironment":
+    def export(self, set_cuda_visible_devices: bool = True) -> "TorchDistributedEnvironment":
         """Export all the environment variables required to properly setup
         PyTorch distributed (with the default env:// initialization method).
         """
@@ -341,7 +341,7 @@ class TorchDistributedEnvironment:
         for key in env_vars:
             assert os.environ.get(key) is None
         # Note: CUDA_VISIBLE_DEVICES may already be set with all available GPUs
-        if set_current_cuda_device:
+        if set_cuda_visible_devices:
             env_vars["CUDA_VISIBLE_DEVICES"] = str(self.local_rank)
         os.environ.update(env_vars)
         return self
