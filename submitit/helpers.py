@@ -311,7 +311,7 @@ class TorchDistributedEnvironment:
         self.local_world_size = self._job_env.num_tasks // self._job_env.num_nodes
 
     def _get_master_port(self) -> int:
-        #MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
+        # MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
         MIN_MASTER_PORT, MAX_MASTER_PORT = (20000, 60000)
 
         master_port_str = os.environ.get("MASTER_PORT")
@@ -320,7 +320,7 @@ class TorchDistributedEnvironment:
             return rng.randint(MIN_MASTER_PORT, MAX_MASTER_PORT)
 
         master_port = int(master_port_str)
-        #assert MIN_MASTER_PORT <= master_port <= MIN_MASTER_PORT
+        # assert MIN_MASTER_PORT <= master_port <= MIN_MASTER_PORT
         return master_port
 
     def export(self, set_current_cuda_device: bool = True) -> "TorchDistributedEnvironment":

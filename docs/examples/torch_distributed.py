@@ -19,11 +19,10 @@ LOGS_DIR = "logs"
 
 def print_env():
     for key in sorted(os.environ.keys()):
-        if not (key.startswith("SLURM_") or
-                key.startswith("SUBMITIT_") or
-                key in ("MASTER_ADDR", "MASTER_PORT",
-                        "RANK", "WORLD_SIZE",
-                        "LOCAL_RANK", "LOCAL_WORLD_SIZE")):
+        if not (
+            key.startswith(("SLURM_", "SUBMITIT_"))
+            or key in ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
+        ):
             continue
         value = os.environ[key]
         print(f"{key}={value}")
@@ -31,7 +30,7 @@ def print_env():
 
 class Task:
     def __call__(self):
-        #print_env()
+        # print_env()
         print("exporting PyTorch distributed environment variables")
         dist_env = submitit.helpers.TorchDistributedEnvironment().export()
         print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
@@ -39,7 +38,7 @@ class Task:
         print(f"world size: {dist_env.world_size}")
         print(f"local rank: {dist_env.local_rank}")
         print(f"local world size: {dist_env.local_world_size}")
-        #print_env()
+        # print_env()
 
         # Using env:// initialization method
         backend = torch.distributed.Backend.NCCL
