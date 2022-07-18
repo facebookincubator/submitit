@@ -33,8 +33,7 @@ class Task:
     def __call__(self):
         #print_env()
         print("exporting PyTorch distributed environment variables")
-        dist_env = submitit.helpers.TorchDistributedEnvironment()
-        dist_env.export()
+        dist_env = submitit.helpers.TorchDistributedEnvironment().export()
         print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
         print(f"rank: {dist_env.rank}")
         print(f"world size: {dist_env.world_size}")

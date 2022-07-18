@@ -293,6 +293,14 @@ def monitor_jobs(
 
 class TorchDistributedEnvironment:
     def __init__(self):
+        """Construct a class holding the parameters required to properly setup PyTorch distributed (with the default env:// initialization method).
+
+        Examples
+        --------
+        >>> dist_env = TorchDistributedEnvironment().export()
+        >>> torch.distributed.init_process_group(backend="nccl")
+        >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
+        """
         self._job_env = JobEnvironment()
         self.master_addr = self._job_env.hostnames[0]
         self.master_port = self._get_master_port()
@@ -314,8 +322,8 @@ class TorchDistributedEnvironment:
         #assert MIN_MASTER_PORT <= master_port <= MIN_MASTER_PORT
         return master_port
 
-    def export(self) -> None:
-        """Export all the required environment variables to initialize PyTorch distributed (with the default env:// method).
+    def export(self) -> "TorchDistributedEnvironment":
+        """Export all the environment variables required to properly setup PyTorch distributed (with the default env:// initialization method).
         """
         # See the "Environment variable initialization" section from
         # https://pytorch.org/docs/stable/distributed.html for the complete list of
@@ -331,3 +339,4 @@ class TorchDistributedEnvironment:
         for key in env_vars:
             assert os.environ.get(key) is None
         os.environ.update(env_vars)
+        return self
