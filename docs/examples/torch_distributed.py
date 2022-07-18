@@ -33,29 +33,29 @@ class Task:
     def __call__(self):
         #print_env()
         print("exporting PyTorch distributed environment variables")
-        job_env = submitit.JobEnvironment()
-        params = submitit.helpers.export_torch_distributed_env(job_env)
-        print(f"master: {params.master_addr}:{params.master_port}")
-        print(f"rank: {params.rank}")
-        print(f"world size: {params.world_size}")
-        print(f"local rank: {params.local_rank}")
-        print(f"local world size: {params.local_world_size}")
+        dist_env = submitit.helpers.TorchDistributedEnvironment()
+        dist_env.export()
+        print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
+        print(f"rank: {dist_env.rank}")
+        print(f"world size: {dist_env.world_size}")
+        print(f"local rank: {dist_env.local_rank}")
+        print(f"local world size: {dist_env.local_world_size}")
         #print_env()
 
         # Using env:// initialization method
         backend = torch.distributed.Backend.NCCL
         torch.distributed.init_process_group(backend=backend)
-        assert params.rank == torch.distributed.get_rank()
-        assert params.world_size == torch.distributed.get_world_size()
+        assert dist_env.rank == torch.distributed.get_rank()
+        assert dist_env.world_size == torch.distributed.get_world_size()
 
         # Actual task / computation
-        device = torch.device("cuda", params.local_rank)
-        result = params.rank * torch.ones(1).cuda(device=device)
+        device = torch.device("cuda", dist_env.local_rank)
+        result = dist_env.rank * torch.ones(1).cuda(device=device)
 
         time.sleep(120)
 
         torch.distributed.all_reduce(result)
-        if params.rank == 0:
+        if dist_env.rank == 0:
             print(result)
 
     def checkpoint(self):
