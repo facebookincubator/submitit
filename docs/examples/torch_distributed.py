@@ -40,20 +40,21 @@ class Task:
         print(f"local world size: {dist_env.local_world_size}")
         # print_env()
 
-        # Using env:// initialization method
-        backend = torch.distributed.Backend.NCCL
-        torch.distributed.init_process_group(backend=backend)
+        # Using the (default) env:// initialization method
+        torch.distributed.init_process_group(backend="nccl")
         assert dist_env.rank == torch.distributed.get_rank()
         assert dist_env.world_size == torch.distributed.get_world_size()
 
         # Actual task / computation
-        result = dist_env.rank * torch.ones(1).cuda()
+        tensor = dist_env.rank * torch.ones(1).cuda()
 
         time.sleep(120)
 
-        torch.distributed.all_reduce(result)
+        torch.distributed.all_reduce(tensor)
         if dist_env.rank == 0:
+            result = list(tensor)
             print(result)
+            return result
 
     def checkpoint(self):
         print("checkpointing")
@@ -72,6 +73,7 @@ def main():
     task = Task()
     job = executor.submit(task)
     submitit.helpers.monitor_jobs([job])
+    print(job.results()[0])
     return 0
 
 
