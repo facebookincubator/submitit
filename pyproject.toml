@@ -38,7 +38,7 @@ classifiers=[
         # Linters
         "mypy>=0.971",
         "types-pkg_resources>=0.1.2",
-        "pylint>=2.8.0",
+        "pylint>=2.14.0",
         # Release
         "flit>=3.5.1"
     ]
@@ -64,7 +64,6 @@ skip_gitignore = true
   # disabled messages
   # * no-member has a lot of false positive, mypy does it better
   disable = """
-      no-self-use,
       broad-except,
       fixme,
       invalid-name,
