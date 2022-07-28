@@ -57,12 +57,14 @@ jobs:
 
   test_coverage:
       docker:
+        # circleci are deprecated according to https://discuss.circleci.com/t/legacy-convenience-image-deprecation/41034/32
+        # but rsync fails to install on the new cimg.
         - image: cimg/python:3.6
       steps:
         - checkout
         - attach_workspace:
             at: venv
-        - run: sudo apt-get install rsync
+        - run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends rsync
         - run: make test_coverage
         - store_test_results:
             path: test_results
