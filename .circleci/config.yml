@@ -1,25 +1,25 @@
-# Python CircleCI 2.0 configuration file
+# Python cimg 2.0 configuration file
 #
-# Check https://circleci.com/docs/2.0/language-python/ for more details
+# Check https://cimg.com/docs/2.0/language-python/ for more details
 #
 version: 2.1
 
 jobs:
   create_venv:
     docker:
-      - image: circleci/python:3.6
+      - image: cimg/python:3.6
     steps:
       - checkout
       - restore_cache:
           keys:
-          - v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}
+          - v0-dependencies-{{ checksum "pyproject.toml" }}
           # don't fallback to using the latest cache if no exact match is found (restart from scratch
       - run: make venv
       # Save venv for later runs
       - save_cache:
           paths:
             - venv
-          key: v0-dependencies-{{ checksum "requirements/main.txt" }}-{{ checksum "requirements/dev.txt" }}
+          key: v0-dependencies-{{ checksum "pyproject.toml" }}
       # Save venv for other jobs
       - persist_to_workspace:
           root: venv
@@ -28,7 +28,7 @@ jobs:
 
   check_format:
     docker:
-      - image: circleci/python:3.6
+      - image: cimg/python:3.6
     steps:
       - checkout
       - attach_workspace:
@@ -37,7 +37,7 @@ jobs:
 
   lint:
     docker:
-      - image: circleci/python:3.6
+      - image: cimg/python:3.6
     steps:
       - checkout
       - attach_workspace:
@@ -48,7 +48,7 @@ jobs:
 
   installable:
       docker:
-        - image: circleci/python:3.6
+        - image: cimg/python:3.6
       steps:
         - checkout
         - attach_workspace:
@@ -57,7 +57,7 @@ jobs:
 
   test_coverage:
       docker:
-        - image: circleci/python:3.6
+        - image: cimg/python:3.6
       steps:
         - checkout
         - attach_workspace:
