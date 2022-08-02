@@ -292,7 +292,6 @@ def monitor_jobs(
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
 
 
-
 def clean_env() -> tp.Iterator[None]:
     """Removes slurm and submitit related environment variables so as to avoid interferences
     when submiting a new job from a job.
@@ -307,15 +306,16 @@ def clean_env() -> tp.Iterator[None]:
     with submitit.helpers.clean_env():
         executor.submit(...)
     """
-    slurm_env = {x: os.environ.pop(x) for x in os.environ if x.startswith(("SLURM_", "SUBMITIT_"))}
+    distrib_names = ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
+    cluster_env = {x: os.environ.pop(x) for x in os.environ if x.startswith(("SLURM_", "SUBMITIT_")) or x in distrib_names}
     try:
         yield
     finally:
-        os.environ.update(slurm_env)
+        os.environ.update(cluster_env)
 
 
 class TorchDistributedEnvironment:
-    def __init__(self):
+    def __init__(self) -> None:
         """Construct a class holding the parameters required to properly setup
         PyTorch distributed (with the default env:// initialization method).
 
