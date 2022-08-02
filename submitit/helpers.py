@@ -323,7 +323,11 @@ class TorchDistributedEnvironment:
         # assert MIN_MASTER_PORT <= master_port <= MIN_MASTER_PORT
         return master_port
 
-    def export(self, set_cuda_visible_devices: bool = True) -> "TorchDistributedEnvironment":
+    def export(
+        self, 
+        set_cuda_visible_devices: bool = True,
+        overwrite: bool = False,
+    ) -> "TorchDistributedEnvironment":
         """Export all the environment variables required to properly setup
         PyTorch distributed (with the default env:// initialization method) i.e.
         MASTER_ADDR, MASTER_PORT, RANK, WORLD_SIZE (to which LOCAL_RANK and
@@ -334,6 +338,9 @@ class TorchDistributedEnvironment:
         set_cuda_visible_device: bool
             if True, updates CUDA_VISIBLE_DEVICES to use only the device
             matching the local rank.
+        overwrite: bool
+            if True, overwrites the environment variables if they exist; 
+            this can be useful when launching a job from another job.
 
         Returns
         --------
@@ -352,7 +359,7 @@ class TorchDistributedEnvironment:
             "LOCAL_WORLD_SIZE": str(self.local_world_size),  # Not required
         }
         for key in env_vars:
-            if key in os.environ:
+            if key in os.environ and not overwrite:
                 raise RuntimeError(f"Cannot export environment variables as {key} is already set")
         # Note: CUDA_VISIBLE_DEVICES may already be set with all available GPUs
         if set_cuda_visible_devices:
