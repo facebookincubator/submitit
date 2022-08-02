@@ -307,7 +307,11 @@ def clean_env() -> tp.Iterator[None]:
         executor.submit(...)
     """
     distrib_names = ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
-    cluster_env = {x: os.environ.pop(x) for x in os.environ if x.startswith(("SLURM_", "SUBMITIT_")) or x in distrib_names}
+    cluster_env = {
+        x: os.environ.pop(x)
+        for x in os.environ
+        if x.startswith(("SLURM_", "SUBMITIT_")) or x in distrib_names
+    }
     try:
         yield
     finally:
