@@ -353,7 +353,7 @@ class TorchDistributedEnvironment:
         return master_port
 
     def export(
-        self, 
+        self,
         set_cuda_visible_devices: bool = True,
         overwrite: bool = False,
     ) -> "TorchDistributedEnvironment":
@@ -368,7 +368,7 @@ class TorchDistributedEnvironment:
             if True, updates CUDA_VISIBLE_DEVICES to use only the device
             matching the local rank.
         overwrite: bool
-            if True, overwrites the environment variables if they exist; 
+            if True, overwrites the environment variables if they exist;
             this can be useful when launching a job from another job.
 
         Returns
