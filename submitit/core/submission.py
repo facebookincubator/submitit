@@ -8,6 +8,7 @@ import argparse
 import os
 import time
 import traceback
+import typing as tp
 from pathlib import Path
 from typing import Union
 
@@ -33,31 +34,37 @@ def process_job(folder: Union[Path, str]) -> None:
     -----------
     Creates a picked output file next to the job file.
     """
+    folder = Path(folder)
+    submitted_pickle: tp.Optional[Path] = None
+    if folder.is_file():
+        submitted_pickle = folder
+        folder = folder.parent
     os.environ["SUBMITIT_FOLDER"] = str(folder)
     env = job_environment.JobEnvironment()
-    paths = env.paths
+    if submitted_pickle is None:
+        submitted_pickle = env.paths.submitted_pickle
     logger = get_logger()
     logger.info(f"Starting with {env}")
-    logger.info(f"Loading pickle: {paths.submitted_pickle}")
+    logger.info(f"Loading pickle: {submitted_pickle}")
     wait_time = 60
     for _ in range(wait_time):
-        if not paths.submitted_pickle.exists():
+        if not submitted_pickle.exists():
             time.sleep(1)
-    if not paths.submitted_pickle.exists():
+    if not submitted_pickle.exists():
         raise RuntimeError(
-            f"Waited for {wait_time} seconds but could not find submitted jobs in path:\n{paths.submitted_pickle}"
+            f"Waited for {wait_time} seconds but could not find submitted jobs in path:\n{submitted_pickle}"
         )
     try:
-        delayed = utils.DelayedSubmission.load(paths.submitted_pickle)
+        delayed = utils.DelayedSubmission.load(submitted_pickle)
         env = job_environment.JobEnvironment()
-        env._handle_signals(paths, delayed)
+        env._handle_signals(env.paths, delayed)
         result = delayed.result()
-        with utils.temporary_save_path(paths.result_pickle) as tmppath:  # save somewhere else, and move
+        with utils.temporary_save_path(env.paths.result_pickle) as tmppath:  # save somewhere else, and move
             utils.cloudpickle_dump(("success", result), tmppath)
             logger.info("Job completed successfully")
     except Exception as error:  # TODO: check pickle methods for capturing traceback; pickling and raising
         try:
-            with utils.temporary_save_path(paths.result_pickle) as tmppath:
+            with utils.temporary_save_path(env.paths.result_pickle) as tmppath:
                 utils.cloudpickle_dump(("error", traceback.format_exc()), tmppath)
         except Exception as dumperror:
             logger.error(f"Could not dump error:\n{error}\n\nbecause of {dumperror}")
