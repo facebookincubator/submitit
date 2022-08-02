@@ -19,6 +19,7 @@ import pytest
 from . import core, submission, utils
 
 
+# pylint: disable=no-self-use
 class MockedSubprocess:
     """Helper for mocking subprocess calls"""
 

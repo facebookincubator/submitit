@@ -5,6 +5,7 @@
 #
 
 import collections
+import contextlib
 import datetime
 import itertools
 import os
@@ -291,8 +292,36 @@ def monitor_jobs(
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
 
 
+@contextlib.contextmanager
+def clean_env() -> tp.Iterator[None]:
+    """Removes slurm and submitit related environment variables so as to avoid interferences
+    when submiting a new job from a job.
+
+    Note
+    ----
+    A slurm job submitted from within a slurm job inherits some of its attributes, which may
+    be confusing a cause weird gres errors (or pytorch distributed).
+    Submitting within this context should prevent this.
+
+    Usage
+    -----
+    with submitit.helpers.clean_env():
+        executor.submit(...)
+    """
+    distrib_names = ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
+    cluster_env = {
+        x: os.environ.pop(x)
+        for x in os.environ
+        if x.startswith(("SLURM_", "SUBMITIT_")) or x in distrib_names
+    }
+    try:
+        yield
+    finally:
+        os.environ.update(cluster_env)
+
+
 class TorchDistributedEnvironment:
-    def __init__(self):
+    def __init__(self) -> None:
         """Construct a class holding the parameters required to properly setup
         PyTorch distributed (with the default env:// initialization method).
 
