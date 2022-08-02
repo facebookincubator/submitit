@@ -299,7 +299,8 @@ def clean_env() -> tp.Iterator[None]:
     Note
     ----
     A slurm job submitted from within a slurm job inherits some of its attributes, which may
-    be confusing a cause weird gres errors. Submitting within this context should prevent this.
+    be confusing a cause weird gres errors (or pytorch distributed).
+    Submitting within this context should prevent this.
 
     Usage
     -----
