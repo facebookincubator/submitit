@@ -261,6 +261,9 @@ print(job.result())  # Wait for all tasks and returns a list of results.
 print(job.stdout())  # Concatenated stdout of all tasks
 ```
 
+## PyTorch distributed initialization
+
+Call the `export()` method of the `submitit.helpers.TorchDistributedEnvironment` class to setup all the required environment variables for PyTorch distributed with the `env://` initialization method. See [this code example](examples/torch_distributed.py).
 
 ## Even more examples
 

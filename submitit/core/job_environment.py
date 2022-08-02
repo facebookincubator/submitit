@@ -30,7 +30,7 @@ class JobEnvironment:
     """
 
     # preemption signal uses USR2 as default, but this behavior
-    # can be overiden
+    # can be overiden (eg: export SUBMITIT_PREEMPT_SIGNAL=USR2)
     # CAUTION: NCCL may catch USR1 so it should be avoided
     USR_SIG = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
     _env: ClassVar[Dict[str, str]] = {}
@@ -156,7 +156,7 @@ class JobEnvironment:
         signal.signal(signal.SIGTERM, handler.bypass)
         signal.signal(signal.SIGCONT, handler.bypass)
 
-    # pylint: disable=no-self-use,unused-argument
+    # pylint: disable=unused-argument
     def _requeue(self, countdown: int) -> None:
         """Requeue the current job.
 

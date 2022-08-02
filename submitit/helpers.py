@@ -9,6 +9,7 @@ import contextlib
 import datetime
 import itertools
 import os
+import random
 import shutil
 import subprocess
 import tempfile
@@ -19,6 +20,7 @@ from pathlib import Path
 # pylint: disable=unused-import
 # import DelayedSubmission and CommandFunction to populate helpers namespace
 from .core import core
+from .core.job_environment import JobEnvironment
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
 from .core.utils import environment_variables as environment_variables  # noqa
@@ -290,7 +292,7 @@ def monitor_jobs(
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
 
 
-@contextlib.contextmanager
+
 def clean_env() -> tp.Iterator[None]:
     """Removes slurm and submitit related environment variables so as to avoid interferences
     when submiting a new job from a job.
@@ -310,3 +312,73 @@ def clean_env() -> tp.Iterator[None]:
         yield
     finally:
         os.environ.update(slurm_env)
+
+
+class TorchDistributedEnvironment:
+    def __init__(self):
+        """Construct a class holding the parameters required to properly setup
+        PyTorch distributed (with the default env:// initialization method).
+
+        Examples
+        --------
+        >>> dist_env = TorchDistributedEnvironment().export()
+        >>> torch.distributed.init_process_group(backend="nccl")
+        >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
+        """
+        self._job_env = JobEnvironment()
+        self.master_addr = self._job_env.hostnames[0]
+        self.master_port = self._get_master_port()
+        self.rank = self._job_env.global_rank
+        self.world_size = self._job_env.num_tasks
+        self.local_rank = self._job_env.local_rank
+        self.local_world_size = self._job_env.num_tasks // self._job_env.num_nodes
+
+    def _get_master_port(self) -> int:
+        # MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
+        MIN_MASTER_PORT, MAX_MASTER_PORT = (20000, 60000)
+
+        master_port_str = os.environ.get("MASTER_PORT")
+        if master_port_str is None:
+            rng = random.Random(self._job_env.job_id)
+            return rng.randint(MIN_MASTER_PORT, MAX_MASTER_PORT)
+
+        master_port = int(master_port_str)
+        # assert MIN_MASTER_PORT <= master_port <= MIN_MASTER_PORT
+        return master_port
+
+    def export(self, set_cuda_visible_devices: bool = True) -> "TorchDistributedEnvironment":
+        """Export all the environment variables required to properly setup
+        PyTorch distributed (with the default env:// initialization method) i.e.
+        MASTER_ADDR, MASTER_PORT, RANK, WORLD_SIZE (to which LOCAL_RANK and
+        LOCAL_WORLD_SIZE are added).
+
+        Parameter
+        ----------
+        set_cuda_visible_device: bool
+            if True, updates CUDA_VISIBLE_DEVICES to use only the device
+            matching the local rank.
+
+        Returns
+        --------
+        TorchDistributedEnvironment
+            the current instance
+        """
+        # See the "Environment variable initialization" section from
+        # https://pytorch.org/docs/stable/distributed.html for the complete list of
+        # environment variables required for the env:// initialization method.
+        env_vars = {
+            "MASTER_ADDR": self.master_addr,
+            "MASTER_PORT": str(self.master_port),
+            "RANK": str(self.rank),
+            "WORLD_SIZE": str(self.world_size),
+            "LOCAL_RANK": str(self.local_rank),  # Not required
+            "LOCAL_WORLD_SIZE": str(self.local_world_size),  # Not required
+        }
+        for key in env_vars:
+            if key in os.environ:
+                raise RuntimeError(f"Cannot export environment variables as {key} is already set")
+        # Note: CUDA_VISIBLE_DEVICES may already be set with all available GPUs
+        if set_cuda_visible_devices:
+            env_vars["CUDA_VISIBLE_DEVICES"] = str(self.local_rank)
+        os.environ.update(env_vars)
+        return self
