@@ -292,6 +292,7 @@ def monitor_jobs(
     print(f"Whole process is finished, took {int((time.time() - monitoring_start_time) / 60)} minutes")
 
 
+@contextlib.contextmanager
 def clean_env() -> tp.Iterator[None]:
     """Removes slurm and submitit related environment variables so as to avoid interferences
     when submiting a new job from a job.
