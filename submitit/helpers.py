@@ -21,10 +21,10 @@ from pathlib import Path
 # import DelayedSubmission and CommandFunction to populate helpers namespace
 from .core import core
 from .core.job_environment import JobEnvironment
-from .slurm.slurm import SlurmJobEnvironment
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
 from .core.utils import environment_variables as environment_variables  # noqa
+from .slurm.slurm import SlurmJobEnvironment
 
 
 class Checkpointable:

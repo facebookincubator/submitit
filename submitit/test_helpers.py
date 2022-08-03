@@ -141,8 +141,8 @@ def test_torch_distrib_env() -> None:
         env = helpers.TorchDistributedEnvironment()
     with utils.environment_variables(SLURM_JOB_ID=12):
         env = helpers.TorchDistributedEnvironment()
-    print(env)
-    raise Exception
+    # port is deduced from job id
+    assert env.master_port == 58811
 
 
 def test_clean_env() -> None:
