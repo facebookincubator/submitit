@@ -250,7 +250,7 @@ def copy_process_streams(
         return stream
 
     p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
-    stream_by_fd: tp.Dict[int, Tuple[tp.IO[bytes], io.StringIO, tp.Optional[tp.IO[str]]]] = {
+    stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.Optional[tp.IO[str]]]] = {
         p_stdout.fileno(): (p_stdout, stdout, sys.stdout if verbose else None),
         p_stderr.fileno(): (p_stderr, stderr, sys.stderr if verbose else None),
     }
@@ -284,7 +284,7 @@ def _read_and_copy_whole_stream_blocking(p_stream: tp.IO[bytes], string: io.Stri
 
 
 def _copy_streams_threaded(stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.Optional[tp.IO[str]]]]) -> None:
-    threads: List[Thread] = []
+    threads: tp.List[Thread] = []
     for p_stream, string, std in stream_by_fd.values():
         t = Thread(target=_read_and_copy_whole_stream_blocking, args=(p_stream, string, std), daemon=True)
         t.start()
