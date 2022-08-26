@@ -277,13 +277,17 @@ def _read_and_copy(p_stream: tp.IO[bytes], string: io.StringIO, std: tp.Optional
     return True
 
 
-def _read_and_copy_whole_stream_blocking(p_stream: tp.IO[bytes], string: io.StringIO, std: tp.IO[str]) -> None:
+def _read_and_copy_whole_stream_blocking(
+    p_stream: tp.IO[bytes], string: io.StringIO, std: tp.IO[str]
+) -> None:
     while True:
         if not _read_and_copy(p_stream, string, std):
             return
 
 
-def _copy_streams_threaded(stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.Optional[tp.IO[str]]]]) -> None:
+def _copy_streams_threaded(
+    stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.Optional[tp.IO[str]]]]
+) -> None:
     threads: tp.List[Thread] = []
     for p_stream, string, std in stream_by_fd.values():
         t = Thread(target=_read_and_copy_whole_stream_blocking, args=(p_stream, string, std), daemon=True)
