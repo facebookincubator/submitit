@@ -9,7 +9,6 @@ authors = [{name = "Facebook AI Research"}]
 requires-python = ">=3.6"
 dynamic = ["version", "description"]
 
-
 dependencies = [
   "cloudpickle>=1.2.1",
   "typing_extensions>=3.7.4.2"
@@ -37,9 +36,9 @@ classifiers=[
         "isort==5.5.3",
         "pre-commit>=1.15.2",
         # Linters
-        "mypy>=0.782",
+        "mypy>=0.971",
         "types-pkg_resources>=0.1.2",
-        "pylint>=2.8.0",
+        "pylint>=2.13.9",
         # Release
         "flit>=3.5.1"
     ]
@@ -65,7 +64,6 @@ skip_gitignore = true
   # disabled messages
   # * no-member has a lot of false positive, mypy does it better
   disable = """
-      bad-continuation,
       broad-except,
       fixme,
       invalid-name,
@@ -106,3 +104,10 @@ skip_gitignore = true
       "raise NotImplementedError",
       "^\\s+\\.\\.\\.$",
     ]
+
+[tool.mypy]
+  show_error_codes = true
+
+[[tool.mypy.overrides]]
+  module = ['cloudpickle', 'ipdb', 'pytest', 'setuptools']
+  ignore_missing_imports = true
