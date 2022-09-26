@@ -57,6 +57,7 @@ def process_job(folder: Union[Path, str]) -> None:
         del delayed  # if it blocks here, you have a race condition that must be solved!
         with utils.temporary_save_path(paths.result_pickle) as tmppath:  # save somewhere else, and move
             utils.cloudpickle_dump(("success", result), tmppath)
+            del result
             logger.info("Exitting after successful completion")
     except Exception as error:  # TODO: check pickle methods for capturing traceback; pickling and raising
         try:
