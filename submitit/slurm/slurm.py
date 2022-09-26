@@ -190,7 +190,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
 
     def _requeue(self, countdown: int) -> None:
         jid = self.job_id
-        subprocess.check_call(["scontrol", "requeue", jid])
+        subprocess.check_call(["scontrol", "requeue", jid], timeout=60)
         logger.get_logger().info(f"Requeued job {jid} ({countdown} remaining timeouts)")
 
     @property
