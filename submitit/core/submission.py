@@ -53,9 +53,12 @@ def process_job(folder: Union[Path, str]) -> None:
         env = job_environment.JobEnvironment()
         env._handle_signals(paths, delayed)
         result = delayed.result()
+        logger.info("Job completed successfully")
+        del delayed  # if it blocks here, you have a race condition that must be solved!
         with utils.temporary_save_path(paths.result_pickle) as tmppath:  # save somewhere else, and move
             utils.cloudpickle_dump(("success", result), tmppath)
-            logger.info("Job completed successfully")
+            del result
+            logger.info("Exitting after successful completion")
     except Exception as error:  # TODO: check pickle methods for capturing traceback; pickling and raising
         try:
             with utils.temporary_save_path(paths.result_pickle) as tmppath:
