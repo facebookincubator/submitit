@@ -10,13 +10,20 @@ import re
 import signal
 import sys
 import time
+import weakref
 from pathlib import Path
 
 import pytest
 
 from .. import helpers
 from ..core import job_environment, test_core, utils
+from ..core.core import Executor
 from . import local, test_debug
+
+
+@pytest.fixture(name="executor")
+def _executor(tmp_path: Path) -> Executor:
+    return local.LocalExecutor(tmp_path)
 
 
 def test_local_job(tmp_path: Path) -> None:
@@ -66,17 +73,56 @@ def test_local_submit_array(tmp_path: Path) -> None:
     assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
 
-def test_local_error(tmp_path: Path) -> None:
-    def failing_job() -> None:
-        raise Exception("Failed on purpose")
+def test_local_error(executor: Executor) -> None:
+    class MyException(Exception):
+        pass
 
-    executor = local.LocalExecutor(tmp_path)
+    def failing_job() -> None:
+        raise MyException("Failed on purpose")
+
     job = executor.submit(failing_job)
     exception = job.exception()
-    assert isinstance(exception, utils.FailedJobError)
-    traceback = exception.args[0]
-    assert "Traceback" in traceback
-    assert "Failed on purpose" in traceback
+    assert isinstance(exception, MyException)
+    assert exception.args == ("Failed on purpose",)
+
+    with pytest.raises(MyException, match="Failed on purpose"):
+        job.result()
+
+
+def test_secret_local_error(executor: Executor) -> None:
+    def failing_job() -> None:
+        class MySecretException(Exception):
+            pass
+
+        raise MySecretException("Failed on purpose")
+
+    job = executor.submit(failing_job)
+    exception = job.exception()
+    assert exception is not None
+    assert type(exception).__name__ == "MySecretException"
+    assert exception.args == ("Failed on purpose",)
+
+
+def test_unpickable_result(executor: Executor) -> None:
+    def failing_job():
+        return weakref.ref(test_unpickable_result)
+
+    job = executor.submit(failing_job)
+    with pytest.raises(TypeError):
+        job.result()
+
+
+def test_unpickable_error(executor: Executor) -> None:
+    class MyException(Exception):
+        pass
+
+    def failing_job() -> None:
+        raise MyException("Failed on purpose", weakref.ref(test_unpickable_error))
+
+    job = executor.submit(failing_job)
+    exception = job.exception()
+    # Since MyException is not pickable, we will get a submitit error.
+    assert isinstance(exception, utils.UncompletedJobError)
 
 
 def test_pickle_output_from_main(tmp_path: Path) -> None:
@@ -89,19 +135,20 @@ def test_pickle_output_from_main(tmp_path: Path) -> None:
 
 
 def test_get_first_task_error(tmp_path: Path) -> None:
+    class MyException(Exception):
+        pass
+
     def flaky() -> None:
         job_env = job_environment.JobEnvironment()
         if job_env.local_rank > 0:
-            raise Exception(f"Failed on purpose: {job_env.local_rank}")
+            raise MyException(f"Failed on purpose: {job_env.local_rank}")
 
     executor = local.LocalExecutor(tmp_path)
     executor.update_parameters(tasks_per_node=3, nodes=1)
     job = executor.submit(flaky)
     exception = job.exception()
-    assert isinstance(exception, utils.FailedJobError)
-    traceback = exception.args[0]
-    assert "Traceback" in traceback
-    assert "Failed on purpose: 1" in traceback
+    assert isinstance(exception, MyException)
+    assert exception.args == ("Failed on purpose: 1",)
 
 
 def test_stdout(tmp_path: Path) -> None:

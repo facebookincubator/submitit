@@ -36,6 +36,10 @@ class UncompletedJobError(RuntimeError):
     """Job is uncomplete: either unfinished or failed"""
 
 
+class JobResultsNotFoundError(UncompletedJobError):
+    """Job has correctly exited, but we can't find the result file."""
+
+
 class FailedJobError(UncompletedJobError):
     """Job failed during processing"""
 
