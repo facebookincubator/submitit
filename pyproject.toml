@@ -38,7 +38,8 @@ classifiers=[
         # Linters
         "mypy>=0.971",
         "types-pkg_resources>=0.1.2",
-        "pylint>=2.13.9",
+        # pylint>=2.14 is for recent pythons
+        "pylint==2.13.9",
         # Release
         "flit>=3.5.1"
     ]
