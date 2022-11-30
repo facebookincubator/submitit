@@ -11,6 +11,7 @@ import pytest
 
 from ..local import debug
 from ..slurm import test_slurm
+from ..oar import test_oar
 from . import auto
 
 
@@ -20,8 +21,8 @@ def test_slurm_executor(tmp_path: Path, monkeypatch) -> None:
         executor = auto.AutoExecutor(folder=tmp_path)
     assert executor.cluster == "slurm"
 
-    # local_xxx parameter is ignored
-    executor.update_parameters(mem_gb=2, name="machin", debug_blabla="blublu")
+    # local_xxx and oar_xxx parameters are ignored
+    executor.update_parameters(mem_gb=2, name="machin", debug_blabla="blublu", oar_walltime="1:0:0")
     params = executor._executor.parameters
     assert params == {"mem": "2GB", "job_name": "machin"}
 
@@ -37,6 +38,27 @@ def test_slurm_executor(tmp_path: Path, monkeypatch) -> None:
     # check that error message contains all
     with pytest.raises(NameError, match=r"debug_blublu.*\n.*local_num_threads"):
         executor.update_parameters(debug_blublu=2.0, local_num_threads=4)
+
+def test_oar_executor(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(debug.DebugExecutor, "_valid_parameters", lambda: {"blabla"})
+    with test_oar.mocked_oar():
+        executor = auto.AutoExecutor(folder=tmp_path)
+    assert executor.cluster == "oar"
+
+    # slurm_xxx and local_xxx parameters are ignored
+    executor.update_parameters(name="machin", debug_blabla="blublu", slurm_partition="learnfair")
+    params = executor._executor.parameters
+    assert params == {"n": "machin"}
+
+    # shared parameter with wrong type
+    with pytest.raises(AssertionError):
+        executor.update_parameters(timeout_min="1:0:0")  # should be int
+    # unknown shared parameter
+    with pytest.raises(NameError):
+        executor.update_parameters(blublu=2.0)
+    # unknown oar parameter
+    with pytest.raises(NameError):
+        executor.update_parameters(oar_host_filter="blublu")
 
 
 def test_local_executor(tmp_path: Path) -> None:

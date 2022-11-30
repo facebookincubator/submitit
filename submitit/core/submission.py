@@ -58,7 +58,7 @@ def process_job(folder: Union[Path, str]) -> None:
         with utils.temporary_save_path(paths.result_pickle) as tmppath:  # save somewhere else, and move
             utils.cloudpickle_dump(("success", result), tmppath)
             del result
-            logger.info("Exitting after successful completion")
+            logger.info("Exiting after successful completion")
     except Exception as error:  # TODO: check pickle methods for capturing traceback; pickling and raising
         try:
             with utils.temporary_save_path(paths.result_pickle) as tmppath:
