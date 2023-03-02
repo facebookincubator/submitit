@@ -166,7 +166,7 @@ class Traceback:
             # noinspection PyBroadException
             try:
                 # pylint: disable=exec-used
-                exec(code, dict(current.tb_frame.f_globals), {})
+                exec(code, dict(current.tb_frame.f_globals), {"__traceback_maker": __traceback_maker})
             except Exception:
                 next_tb = sys.exc_info()[2].tb_next
                 if top_tb is None:
