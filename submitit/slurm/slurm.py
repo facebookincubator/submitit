@@ -479,7 +479,6 @@ def _make_sbatch_string(
     parameters["output"] = stdout.replace("%t", "0")
     if not stderr_to_stdout:
         parameters["error"] = stderr.replace("%t", "0")
-    parameters["open-mode"] = "append"
     if additional_parameters is not None:
         parameters.update(additional_parameters)
     # now create
