@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 import contextlib
 import os
+import signal
 import subprocess
 import typing as tp
 from pathlib import Path
@@ -14,6 +15,7 @@ import pytest
 
 import submitit
 
+from .. import helpers
 from ..core import job_environment, submission, test_core, utils
 from ..core.core import Job
 from . import oar
@@ -88,6 +90,14 @@ class MockedSubprocess:
         ):
             yield None
 
+    @contextlib.contextmanager
+    def resubmit_job_context(self, job_id: str, resubmit_job_id: str) -> tp.Iterator[oar.OarJobEnvironment]:
+         with utils.environment_variables(
+            _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="oar",
+            OAR_JOB_ID=str(job_id), OAR_ARRAY_ID=str(resubmit_job_id)
+        ):
+            yield oar.OarJobEnvironment()
+
 
 def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> None:
     """Write fake log files"""
@@ -101,7 +111,8 @@ def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> Non
 def mocked_oar() -> tp.Iterator[MockedSubprocess]:
     mock = MockedSubprocess(known_cmds=["oarsub"])
     try:
-        with mock.context():
+        with mock.context(), patch("submitit.oar.oar.OarJob._get_resubmitted_job") as resubmitted_job:
+            resubmitted_job.return_value = None
             yield mock
     finally:
         # Clear the state of the shared watcher
@@ -161,17 +172,145 @@ def test_oar_error_mocked(tmp_path: Path) -> None:
         assert isinstance(exception, utils.FailedJobError)
 
 
+@contextlib.contextmanager
+def mock_requeue(called_with: int = None, not_called: bool = False):
+    assert not_called or called_with is not None
+    requeue = patch("submitit.oar.oar.OarJobEnvironment._requeue", return_value=None)
+    with requeue as _patch:
+        try:
+            yield
+        finally:
+            if not_called:
+                _patch.assert_not_called()
+            else:
+                _patch.assert_called_with(called_with)
+
+
+def get_signal_handler(job: Job) -> job_environment.SignalHandler:
+    env = oar.OarJobEnvironment()
+    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
+    sig = job_environment.SignalHandler(env, job.paths, delayed)
+    return sig
+
+
+def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
+    usr_sig = submitit.JobEnvironment._usr_sig()
+    fs0 = helpers.FunctionSequence()
+    fs0.add(test_core._three_time, 10)
+    assert isinstance(fs0, helpers.Checkpointable)
+
+    # Start job with a 60 minutes timeout
+    with mocked_oar():
+        executor = oar.OarExecutor(folder=tmp_path, max_num_timeout=1)
+        executor.update_parameters(walltime="1:0:0")
+        job = executor.submit(fs0)
+    # If the function is checkpointed, the OAR Job type should be set to idempotent,
+    # in this way, the checkpointed job will be resubmitted automatically by OAR.
+    text = job.paths.submission_file.read_text()
+    idempotent_lines = [x for x in text.splitlines() if "#OAR -t idempotent" in x]
+    assert len(idempotent_lines) == 1, f"Unexpected lines: {idempotent_lines}"
+
+    sig = get_signal_handler(job)
+
+    fast_forward_clock(minutes=30)
+    # Preempt the job after 30 minutes
+    with pytest.raises(SystemExit), mock_requeue(called_with=1):
+        sig.checkpoint_and_try_requeue(usr_sig)
+
+    # Resubmit the job
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=50)
+
+    with mocked_oar() as mock:
+        mock.set_job_state("12", "Terminated")
+        mock.set_job_state("13", "Running")
+        with mock.resubmit_job_context("13", "12") as env:
+            assert env.array_job_id == "12"
+            submitted_pkl_12 = tmp_path / "12_submitted.pkl"
+            assert submitted_pkl_12.exists()
+            submitted_pkl_13 = tmp_path / "13_submitted.pkl"
+            assert not submitted_pkl_13.exists()
+
+    # This time the job as timed out,
+    # but we have max_num_timeout=1, so we should requeue.
+    # We are a little bit under the requested timedout, but close enough
+    # to not consider this a preemption
+    with pytest.raises(SystemExit), mock_requeue(called_with=0):
+        sig.checkpoint_and_try_requeue(usr_sig)
+
+    # Resubmit the job
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=55)
+
+    # The job has already timed out twice, we should stop here.
+    usr_sig = oar.OarJobEnvironment._usr_sig()
+    with mock_requeue(not_called=True), pytest.raises(
+        utils.UncompletedJobError, match="timed-out too many times."
+    ):
+        sig.checkpoint_and_try_requeue(usr_sig)
+
+
+def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
+    usr_sig = submitit.JobEnvironment._usr_sig()
+    # Start job with a 60 minutes timeout
+    with mocked_oar():
+        executor = oar.OarExecutor(folder=tmp_path, max_num_timeout=1)
+        executor.update_parameters(walltime="1:0:0")
+        job = executor.submit(test_core._three_time, 10)
+    # If the function is not checkpointed, the OAR Job type should not be set to idempotent
+    text = job.paths.submission_file.read_text()
+    idempotent_lines = [x for x in text.splitlines() if "#OAR -t idempotent" in x]
+    assert len(idempotent_lines) == 0, f"Unexpected lines: {idempotent_lines}"
+
+    # simulate job start
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=30)
+
+    with mock_requeue(not_called=True):
+        sig.bypass(signal.Signals.SIGTERM)
+
+    # Preempt the job after 30 minutes, the job hasn't timeout.
+    with pytest.raises(SystemExit), mock_requeue(called_with=1):
+        sig.checkpoint_and_try_requeue(usr_sig)
+
+    # Restart the job from scratch
+    sig = get_signal_handler(job)
+    fast_forward_clock(minutes=50)
+
+    # Wait 50 minutes, now the job as timed out.
+    with mock_requeue(not_called=True), pytest.raises(
+        utils.UncompletedJobError, match="timed-out and not checkpointable."
+    ):
+        sig.checkpoint_and_try_requeue(usr_sig)
+
+
+def test_checkpoint_and_exit(tmp_path: Path) -> None:
+    usr_sig = submitit.JobEnvironment._usr_sig()
+    with mocked_oar():
+        executor = oar.OarExecutor(folder=tmp_path, max_num_timeout=1)
+        executor.update_parameters(walltime="1:0:0")
+        job = executor.submit(test_core._three_time, 10)
+
+    sig = get_signal_handler(job)
+    with pytest.raises(SystemExit), mock_requeue(not_called=True):
+        sig.checkpoint_and_exit(usr_sig)
+
+    # checkpoint_and_exit doesn't modify timeout counters.
+    delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
+    assert delayed._timeout_countdown == 1
+
+
 def test_make_oarsub_string() -> None:
     string = oar._make_oarsub_string(
         command="blublu bar",
         folder="/tmp",
         queue="default",
-        additional_parameters=dict({"t": "besteffort"}),
+        additional_parameters=dict({"t": ["besteffort", "idempotent"], "p": "'chetemi AND memcore>=3337'"}),
     )
     assert "q" in string
-    assert "-t besteffort" in string
+    assert "-t besteffort -t idempotent" in string
+    assert "-p 'chetemi AND memcore>=3337'" in string
     assert "nodes" not in string
-    assert "core" not in string
     assert "gpu" not in string
     assert "--command" not in string
     record_file = Path(__file__).parent / "_oarsub_test_record.txt"

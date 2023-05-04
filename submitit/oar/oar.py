@@ -16,7 +16,8 @@ import typing as tp
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
-from ..core import core, job_environment, utils
+from .. import helpers
+from ..core import core, job_environment, logger, utils
 
 
 class OarInfoWatcher(core.InfoWatcher):
@@ -37,8 +38,6 @@ class OarInfoWatcher(core.InfoWatcher):
     }
 
     def _make_command(self) -> Optional[List[str]]:
-        # asking for array id will return all status
-        # on the other end, asking for each and every one of them individually takes a huge amount of time
         to_check = {x for x in self._registered - self._finished}
         if not to_check:
             return None
@@ -84,6 +83,12 @@ class OarJob(core.Job[core.R]):
     _cancel_command = "oardel"
     watcher = OarInfoWatcher(delay_s=600)
 
+    def __init__(self, folder: tp.Union[Path, str], job_id: str, tasks: tp.Sequence[int] = (0,)) -> None:
+        if len(tasks) > 1:
+            raise NotImplementedError
+        super().__init__(folder, job_id, tasks)
+        self._resubmitted_job = None
+
     def _interrupt(self, timeout: bool = False) -> None:
         """Sends preemption or timeout signal to the job (for testing purpose)
 
@@ -96,6 +101,93 @@ class OarJob(core.Job[core.R]):
         if not timeout:
             subprocess.check_call([self._cancel_command, "-s", "SIGTERM", self.job_id], shell=False)
         subprocess.check_call([self._cancel_command, "-c" , self.job_id], shell=False)
+
+    def cancel(self, check: bool = True) -> None:
+        """Cancels the job
+
+        Parameters
+        ----------
+        check: bool
+            whether to wait for completion and check that the command worked
+        """
+        # The "oardel --array job_id" command will cancel the job, which means on OAR cluster:
+        # the original job and the resubmitted jobs, represented by the original job's job_id in case of checkpointing,
+        # all jobs represented by the first job's job_id in case of job array,
+        # or a basic job.
+        (subprocess.check_call if check else subprocess.call)(
+            self._get_cancel_command() + [self.job_id], shell=False
+        )
+
+    def _get_cancel_command(self) -> List[str]:
+        if self._resubmitted_job is None:
+            return [self._cancel_command]
+        else:
+            # "--array" ensure to delete the original job and the resubmitted ones
+            return [self._cancel_command, '--array']
+
+    def done(self, force_check: bool = False) -> bool:
+        """Checks whether the job is finished.
+        This is done by checking if the result file is present,
+        or checking the job state regularly (at least every minute)
+
+        Parameters
+        ----------
+        force_check: bool
+            Forces the OAR state update
+
+        Returns
+        -------
+        bool
+            whether the job is finished or not
+
+        Note
+        ----
+        This function is not foolproof, and may say that the job is not terminated even
+        if it is when the job failed (no result file, but job not running) because
+        we avoid calling oarstat everytime done is called
+        """
+        # If the job is checkpointed and resubmitted,
+        # the job is done once the original job and the resubmitted one are all done.
+        if self._resubmitted_job is None:
+            if super().done(force_check):
+                if self._get_resubmitted_job() is None:
+                    return True
+            else:
+                return False
+        return self._resubmitted_job.done(force_check)
+
+    def _get_resubmitted_job(self) -> "OarJob[core.R]":
+        """Returns the resubmitted job.
+        If the job is not resubmitted, return None
+        """
+        if self._resubmitted_job is None:
+            command = ["oarstat", "--sql", f"resubmit_job_id='{self.job_id}'", "-J"]
+            try:
+                logger.get_logger().debug(f"Call command {' '.join(command)}")
+                output = subprocess.check_output(command, shell=False)
+                output_dict = self.watcher.read_info(output)
+                # resubmitted_job_id is the key of the output_dict
+                resubmitted_job_id = next(iter(output_dict.keys()), None)
+                if resubmitted_job_id is not None:
+                    self._resubmitted_job = OarJob(folder=self._paths.folder, job_id=resubmitted_job_id, tasks=[0])
+            except Exception as e:
+                logger.get_logger().error(f"Getting error with _get_resubmitted_job() by command {command}:\n")
+                raise e
+        return self._resubmitted_job
+
+    def _get_logs_string(self, name: str) -> tp.Optional[str]:
+        """Returns a string with the content of the log files
+        or None if the file does not exist yet
+
+        Parameter
+        ---------
+        name: str
+            either "stdout" or "stderr"
+        """
+        string = super()._get_logs_string(name)
+        if self._get_resubmitted_job() is not None:
+            string += self._resubmitted_job._get_logs_string(name)
+        return string
 
 
 class OarExecutor(core.PicklingExecutor):
@@ -110,7 +202,7 @@ class OarExecutor(core.PicklingExecutor):
     folder: Path/str
         folder for storing job submission/output and logs.
     max_num_timeout: int
-        Maximum number of time the job can be requeued after timeout (if
+        Maximum number of time the job can be resubmitted after timeout (if
         the instance is derived from helpers.Checkpointable)
 
     Note
@@ -125,6 +217,7 @@ class OarExecutor(core.PicklingExecutor):
     """
 
     job_class = OarJob
+    watcher = OarInfoWatcher(delay_s=600)
 
     def __init__(self, folder: Union[Path, str], max_num_timeout: int = 3) -> None:
         super().__init__(folder, max_num_timeout=max_num_timeout)
@@ -186,10 +279,31 @@ class OarExecutor(core.PicklingExecutor):
         _make_oarsub_string(command="nothing to do", folder=self.folder, **kwargs)
         super()._internal_update_parameters(**kwargs)
 
+    def _get_checkpointable_executor(self):
+        ex = OarExecutor(self.folder, self.max_num_timeout)
+        ex.update_parameters(**self.parameters)
+        # set the OAR Job type to idempotent,
+        # in this way, the checkpointed job will be resubmitted automatically by OAR.
+        ex.parameters.setdefault('additional_parameters', {})
+        ex.parameters['additional_parameters'].setdefault('t', [])
+        ex.parameters['additional_parameters']['t'].append('idempotent')
+        return ex
+
+    def _need_checkpointable_executor(self, delayed_submission: utils.DelayedSubmission):
+        return isinstance(delayed_submission.function, helpers.Checkpointable) and \
+                ('additional_parameters' not in self.parameters or \
+                't' not in self.parameters['additional_parameters'] or \
+                'idempotent' not in self.parameters['additional_parameters']['t'])
+
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]
     ) -> tp.List[core.Job[tp.Any]]:
         if len(delayed_submissions) == 1:
+            if self._need_checkpointable_executor(delayed_submissions[0]):
+                # Make a copy of the executor, since we don't want other jobs to be
+                # scheduled with idempotent type
+                executor = self._get_checkpointable_executor()
+                return executor._internal_process_submissions(delayed_submissions)
             return super()._internal_process_submissions(delayed_submissions)
         #TODO deal with job array
         raise NotImplementedError
@@ -348,6 +462,7 @@ class OarJobEnvironment(job_environment.JobEnvironment):
 
     _env = {
         "job_id": "OAR_JOB_ID",
+        "array_job_id": "OAR_ARRAY_ID",
         "nodes": "OAR_NODEFILE",
         "array_task_id": "OAR_ARRAY_INDEX",
         "num_tasks": "",
@@ -371,6 +486,13 @@ class OarJobEnvironment(job_environment.JobEnvironment):
             return [self.hostname]
 
     @property
+    def array_task_id(self) -> Optional[str]:
+        if os.environ.get(self._env["array_task_id"]):
+            # For OAR, OAR_ARRAY_INDEX starts from 1 (not 0) initially
+            return str(int(os.environ.get(self._env["array_task_id"])) -1)
+        return None
+
+    @property
     def num_nodes(self) -> int:
         """Total number of nodes for the job:"""
         # For OAR, the "num_nodes" environment variable does not exist.
@@ -388,3 +510,29 @@ class OarJobEnvironment(job_environment.JobEnvironment):
         if not self.hostnames or self.hostname not in self.hostnames:
             return 0
         return self.hostnames.index(self.hostname)
+
+    def _requeue(self, countdown: int) -> None:
+        """Requeue the current job."""
+        # Submitit requires _requeue to be overridden by plugin's JobEnvironment implementations.
+        # However, OAR does not use requeue mechanism for checkpointing, since a checkpointed job will systematically be terminated by OAR.
+        # Instead, we rely on OAR's automatic resubmission mechanism by adding idempotent type on the initial job.
+        # Note that only >60s + exit code 99 + idempotent jobs can be resubmitted automatically by OAR.
+        logger.get_logger().info(f"Exiting job {self.job_id} with 99 code, ({countdown} remaining timeouts)")
+        sys.exit(99)
+
+    @property
+    def paths(self) -> utils.JobPaths:
+        """Provides the paths used by submitit, including
+        stdout, stderr, submitted_pickle and folder.
+        """
+        folder = os.environ["SUBMITIT_FOLDER"]
+        if self.raw_job_id != self.array_job_id and self.array_task_id == "0":
+            # Since a resubmitted job is considered as a continuation of the orginal job in a job array,
+            # the array_job_id represents also the resubmit_job_id for a resubmitted job.
+            # Use here the original job's submitted pickle path instead for signal handling and checkpointing.
+            job_id = self.array_job_id
+        else:
+            # for other jobs, nothing changed, use the raw OAR job's submitted pickle path
+            job_id = self.raw_job_id
+        return utils.JobPaths(folder, job_id=job_id, task_id=self.global_rank)
+
