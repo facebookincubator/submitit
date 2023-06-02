@@ -157,6 +157,44 @@ def test_oar_job_mocked(tmp_path: Path) -> None:
         assert "_USELESS_TEST_ENV_VAR_" not in os.environ, "Test context manager seems to be failing"
 
 
+@pytest.mark.parametrize("use_batch_api", (False, True))  # type: ignore
+def test_oar_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
+    n = 5
+    with mocked_oar() as mock:
+        executor = oar.OarExecutor(folder=tmp_path)
+        data1, data2 = range(n), range(10, 10 + n)
+
+        def add(x: int, y: int) -> int:
+            assert x in data1
+            assert y in data2
+            return x + y
+
+        jobs: tp.List[Job[int]] = []
+        with patch("submitit.oar.oar.OarExecutor._get_job_id_list_from_array_id") as mock_get_job_id_list:
+            mock_get_job_id_list.return_value = ['12', '13', '14', '15', '16']
+
+            if use_batch_api:
+                with executor.batch():
+                    for d1, d2 in zip(data1, data2):
+                        jobs.append(executor.submit(add, d1, d2))
+            else:
+                jobs = executor.map_array(add, data1, data2)
+
+        array_id = jobs[0].job_id
+        assert mock_get_job_id_list.return_value == [j.job_id for j in jobs]
+
+        for job in jobs:
+            with mock.job_context(job.job_id):
+                submission.process_job(job.paths.folder)
+        # trying a oar specific method
+        jobs[0]._interrupt(timeout=True)  # type: ignore
+        assert list(map(add, data1, data2)) == [j.result() for j in jobs]
+        # check submission file
+        oarsub = Job(tmp_path, job_id=array_id).paths.submission_file.read_text()
+        array_line = [l.strip() for l in oarsub.splitlines() if "--array" in l]
+        assert array_line == ["#OAR --array 5"]
+
+
 def test_oar_error_mocked(tmp_path: Path) -> None:
     with mocked_oar() as mock:
         executor = oar.OarExecutor(folder=tmp_path)

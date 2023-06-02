@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import typing as tp
+import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Union
 
@@ -305,8 +306,40 @@ class OarExecutor(core.PicklingExecutor):
                 executor = self._get_checkpointable_executor()
                 return executor._internal_process_submissions(delayed_submissions)
             return super()._internal_process_submissions(delayed_submissions)
-        #TODO deal with job array
-        raise NotImplementedError
+        # array
+        # delayed_submissions should be either all Checkpointable functions or all non Checkpointable functions
+        if any(isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions) and \
+            any(not isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions):
+            raise Exception("OarExecutor does not support a job array that mixes checkpointable and non-checkpointable functions."
+                            "\nPlease make groups of similar function calls in the job array.")
+        folder = utils.JobPaths.get_first_id_independent_folder(self.folder)
+        folder.mkdir(parents=True, exist_ok=True)
+        timeout_min = self.parameters.get("timeout_min", 5)
+        pickle_paths = []
+        for d in delayed_submissions:
+            pickle_path = folder / f"{uuid.uuid4().hex}.pkl"
+            d.set_timeout(timeout_min, self.max_num_timeout)
+            d.dump(pickle_path)
+            pickle_paths.append(pickle_path)
+        n = len(delayed_submissions)
+        # Make a copy of the executor, since we don't want other jobs to be
+        # scheduled as arrays.
+        if self._need_checkpointable_executor(delayed_submissions[0]):
+            array_ex = self._get_checkpointable_executor()
+        else:
+            array_ex = OarExecutor(self.folder, self.max_num_timeout)
+            array_ex.update_parameters(**self.parameters)
+        array_ex.parameters["map_count"] = n
+        self._throttle()
+
+        first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
+        jobIdList = self._get_job_id_list_from_array_id(first_job.job_id)
+        jobs: List[core.Job[tp.Any]] = [
+            OarJob(folder=self.folder, job_id=f"{jid}", tasks=[0]) for jid in jobIdList
+        ] # only single task is supported for the moment.
+        for job, pickle_path in zip(jobs, pickle_paths):
+            job.paths.move_temporary_file(pickle_path, "submitted_pickle")
+        return jobs
 
     @property
     def _submitit_command_str(self) -> str:
@@ -352,6 +385,18 @@ class OarExecutor(core.PicklingExecutor):
     def affinity(cls) -> int:
         return -1 if shutil.which("oarsub") is None else 2
 
+    def _get_job_id_list_from_array_id(self, array_id) -> [str]:
+        """Returns the list of OAR jobid of a job array"""
+        command = ["oarstat", "--array", array_id, "-J"]
+        try:
+            logger.get_logger().debug(f"Call command {' '.join(command)}")
+            output = subprocess.check_output(command, shell=False)
+            output_dict = self.watcher.read_info(output)
+            return sorted(list(output_dict.keys()))
+        except Exception as e:
+            logger.get_logger().error(f"Getting error with _get_job_id_list_from_array_id() by command {command}:\n")
+            raise e
+
 
 @functools.lru_cache()
 def _get_default_parameters() -> Dict[str, Any]:
@@ -365,6 +410,7 @@ def _get_default_parameters() -> Dict[str, Any]:
 def _make_oarsub_string(
     command: str,
     folder: tp.Union[str, Path],
+    map_count: tp.Optional[int] = None,  # used internally
     nodes: tp.Optional[int] = None,
     core: tp.Optional[int] = None,
     gpu: tp.Optional[int] = None,
@@ -421,6 +467,9 @@ def _make_oarsub_string(
     paths = utils.JobPaths(folder=folder)
     parameters["O"] = str(paths.stdout).replace("%j", "%jobid%").replace("%t", "0")
     parameters["E"] = str(paths.stderr).replace("%j", "%jobid%").replace("%t", "0")
+    if map_count is not None:
+        assert isinstance(map_count, int)
+        parameters["-array"] = map_count
     # additional parameters passed here
     if additional_parameters is not None:
         parameters.update(additional_parameters)
@@ -535,4 +584,3 @@ class OarJobEnvironment(job_environment.JobEnvironment):
             # for other jobs, nothing changed, use the raw OAR job's submitted pickle path
             job_id = self.raw_job_id
         return utils.JobPaths(folder, job_id=job_id, task_id=self.global_rank)
-
