@@ -20,6 +20,22 @@ from ..core import core, job_environment, utils
 
 
 class OarInfoWatcher(core.InfoWatcher):
+
+    submitit_state_mapping = {
+        "Suspended": "SUSPENDED",
+        "Hold": "PENDING",
+        "toLaunch": "READY",
+        "Error": "FAILED",
+        "toError": "FAILED",
+        "toAckReservation": "PENDING",
+        "Waiting": "PENDING",
+        "Running": "RUNNING",
+        "Finishing": "COMPLETING",
+        "Terminated": "COMPLETED",
+        "Launching": "READY",
+        "Resuming": " REQUEUED",
+    }
+
     def _make_command(self) -> Optional[List[str]]:
         # asking for array id will return all status
         # on the other end, asking for each and every one of them individually takes a huge amount of time
@@ -55,22 +71,12 @@ class OarInfoWatcher(core.InfoWatcher):
             if len(oarstat_output_dict) == 0:
                 return {}  # one job id does not exist (yet)
             for k,v in oarstat_output_dict.items():
-                stat = {"JobID": k, "State": v.get("state"), "NodeList": v.get("assigned_network_address")}
+                stat = {
+                    "JobID": k,
+                    "State": self.submitit_state_mapping.get(v.get("state")),
+                    "NodeList": v.get("assigned_network_address")}
                 all_stats[k] = stat
         return all_stats
-
-    def is_done(self, job_id: str, mode: str = "standard") -> bool:
-        """Returns whether the job is finished.
-
-        Parameters
-        ----------
-        job_id: str
-            id of the job on the cluster
-        mode: str
-            one of "force" (forces a call), "standard" (calls regularly) or "cache" (does not call)
-        """
-        state = self.get_state(job_id, mode=mode)
-        return state not in ["Waiting", "Hold", "Launching", "Running", "Suspended", "Resuming", "Finishing", "UNKNOWN"]
 
 
 class OarJob(core.Job[core.R]):

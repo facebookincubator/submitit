@@ -45,7 +45,7 @@ class MockedSubprocess:
         return "\n".join(self.job_oarstat.values())
 
     def oarsub(self, args: Sequence[str]) -> str:
-        """Create a "Running" job."""
+        """Create a "RUNNING" job."""
         job_id = str(self.job_count)
         self.job_count += 1
         self.set_job_state(job_id, "Running", 0)
@@ -129,7 +129,7 @@ def test_oar_job_mocked(tmp_path: Path) -> None:
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
         # First mock job always have id 12
         assert job.job_id == "12"
-        assert job.state == "Running"
+        assert job.state == "RUNNING"
         assert job.stdout() is None
         _mock_log_files(job, errors="This is the error log\n", prints="hop")
         job._results_timeout_s = 0
@@ -237,7 +237,7 @@ def test_read_info() -> None:
         }
     }"""
     output = oar.OarInfoWatcher().read_info(example)
-    assert output["1924697"] == {"JobID": '1924697', "NodeList" : None, "State" : 'Running'}
+    assert output["1924697"] == {"JobID": '1924697', "NodeList" : None, "State" : 'RUNNING'}
 
 
 def test_watcher() -> None:
@@ -250,7 +250,7 @@ def test_watcher() -> None:
         assert watcher._registered == {"11"}
 
         assert state == "UNKNOWN"
-        mock.set_job_state("12", "FAILED")
+        mock.set_job_state("12", "Error")
         state = watcher.get_state(job_id="12", mode="force")
         assert state == "FAILED"
         # TODO: this test is implementation specific. Not sure if we can rewrite it another way.
