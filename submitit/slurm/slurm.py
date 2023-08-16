@@ -152,7 +152,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
             return pos + 1
         if c == "[":
             last_pos = node_list.index("]", pos)
-            suffixes = _expand_id_suffix(node_list[pos + 1 : last_pos])
+            suffixes = _expand_id_suffix(node_list[pos + 1: last_pos])
             prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
             pos = last_pos + 1
         else:
@@ -378,7 +378,7 @@ class SlurmExecutor(core.PicklingExecutor):
 def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
@@ -407,6 +407,10 @@ def _make_sbatch_string(
     exclude: tp.Optional[str] = None,
     account: tp.Optional[str] = None,
     gres: tp.Optional[str] = None,
+    mail_type: tp.Optional[str] = None,
+    mail_user: tp.Optional[str] = None,
+    nodelist: tp.Optional[str] = None,
+    dependency: tp.Optional[str] = None,
     exclusive: tp.Optional[tp.Union[bool, str]] = None,
     array_parallelism: int = 256,
     wckey: str = "submitit",
