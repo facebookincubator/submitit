@@ -72,7 +72,7 @@ def wait_job_is_running(job: Job) -> None:
 
 
 def preemption():
-    job = pascal_job("learnfair", timeout_min=2 * 60)
+    job = pascal_job("learnlab", timeout_min=2 * 60)
     log.info(f"Scheduled {job}, {job.paths.stdout}")
     # log.info(job.paths.submission_file.read_text())
 
