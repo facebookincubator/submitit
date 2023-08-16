@@ -226,7 +226,7 @@ class SlurmExecutor(core.PicklingExecutor):
         Maximum number of time the job can be requeued after timeout (if
         the instance is derived from helpers.Checkpointable)
     python: str
-        command to launch python. This allow to use singularity for example.
+        Command to launch python. This allow to use singularity for example.
         Caller is responsible to provide a valid shell command here.
         By default reuse the current python executable
 
