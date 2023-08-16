@@ -378,7 +378,7 @@ class SlurmExecutor(core.PicklingExecutor):
 def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
