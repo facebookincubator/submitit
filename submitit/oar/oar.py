@@ -450,7 +450,7 @@ def _make_oarsub_string(
     # OAR resource hierarchy: nodes > gpu > core
     resource_hierarchy = ""
     if nodes is not None:
-        resource_hierarchy = "/nodes=%d" % nodes
+        resource_hierarchy += "/nodes=%d" % nodes
     if gpu is not None:
         resource_hierarchy += "/gpu=%d" % gpu
     if core is not None:
@@ -471,7 +471,7 @@ def _make_oarsub_string(
     parameters["E"] = parameters["O"] if stderr_to_stdout else str(paths.stderr).replace("%j", "%jobid%").replace("%t", "0")
     if map_count is not None:
         assert isinstance(map_count, int)
-        parameters["-array"] = map_count
+        parameters["array"] = map_count
     # additional parameters passed here
     if additional_parameters is not None:
         parameters.update(additional_parameters)
@@ -487,14 +487,15 @@ def _make_oarsub_string(
 
 
 def _as_oar_flag(key: str, value: tp.Any) -> str:
-    key = key.replace("_", "-")
-    if isinstance(value, list):
-        values = " ".join(f"-{key} {v}" for v in value)
-        return f"#OAR {values}"
-    elif isinstance(value, str):
-        return f"#OAR -{key} {value}"
+    if len(key) == 1:
+        key = f"-{key}"
     else:
-        return f"#OAR -{key} {str(value)}"
+        key = f"--{key}"
+    if isinstance(value, list):
+        values = " ".join(f"{key} {v}" for v in value)
+        return f"#OAR {values}"
+    else:
+        return f"#OAR {key} {value}"
 
 
 def _timeout_min_to_oar_walltime(timeout_min: int) -> str:
