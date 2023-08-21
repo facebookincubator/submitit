@@ -361,11 +361,9 @@ class OarExecutor(core.PicklingExecutor):
         # we read from this temp file, and submit using an inline command.
         with open(submission_file_path) as f:
             submission_script_lines = f.readlines()
-        oarsub_options = [line[5:].strip() for line in submission_script_lines if line.startswith("#OAR ")]
-        oarsub_cmd = " ".join(["oarsub "] + oarsub_options)
-        inline_script_lines = [line for line in submission_script_lines if not line.startswith("#")]
-        inline_cmd = "".join(inline_script_lines)
-        return shlex.split(oarsub_cmd) + [inline_cmd]
+        oarsub_options = [item for line in submission_script_lines if line.startswith("#OAR ") for item in line[5:].split()]
+        inline_script_lines = [line.strip() for line in submission_script_lines if not line.startswith("#") and line != '\n']
+        return ["oarsub"] + oarsub_options + [ "; ".join(inline_script_lines) ]
 
     @staticmethod
     def _get_job_id_from_submission_command(string: Union[bytes, str]) -> str:
