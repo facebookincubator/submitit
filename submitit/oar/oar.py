@@ -249,8 +249,8 @@ class OarExecutor(core.PicklingExecutor):
 
         Below are the parameters that differ from OAR documentation:
 
-        folder: str/Path
-            folder where print logs and error logs will be written
+        setup: list
+            a list of command to run in sbatch before running srun
         additional_parameters: dict
             add OAR parameters which are not currently available in submitit.
             Eg: {"t": ["besteffort", "idempotent"]} will be prepended as "#OAR -t besteffort -t idempotent" in the OAR submition file.
@@ -417,6 +417,7 @@ def _make_oarsub_string(
     walltime: tp.Optional[str] = None,
     timeout_min: tp.Optional[int] = None,
     queue: tp.Optional[str] = None,
+    setup: tp.Optional[tp.List[str]] = None,
     n: str = "submitit",
     additional_parameters: tp.Optional[tp.Dict[str, tp.Union[List[str], str]]] = None,
 ) -> str:
@@ -431,6 +432,8 @@ def _make_oarsub_string(
 
     folder: str/Path
         folder where print logs and error logs will be written
+    setup: list
+        a list of command to run in sbatch befure running srun
     additional_parameters: dict
         add OAR parameters which are not currently available in submitit.
         Eg: {"t": ["besteffort", "idempotent"]} will be prepended as "#OAR -t besteffort -t idempotent" in the OAR submition file.
@@ -477,6 +480,9 @@ def _make_oarsub_string(
     lines = ["#!/bin/bash", "", "# Parameters"]
     for k in sorted(parameters):
         lines.append(_as_oar_flag(k, parameters[k]))
+    # environment setup:
+    if setup is not None:
+        lines += ["", "# setup"] + setup
     lines += ["", "# command", "export SUBMITIT_EXECUTOR=oar", command, ""]
     return "\n".join(lines)
 
