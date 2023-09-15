@@ -419,6 +419,7 @@ def _make_oarsub_string(
     queue: tp.Optional[str] = None,
     setup: tp.Optional[tp.List[str]] = None,
     n: str = "submitit",
+    stderr_to_stdout: bool = False,
     additional_parameters: tp.Optional[tp.Dict[str, tp.Union[List[str], str]]] = None,
 ) -> str:
     """Creates the content of a bash file with provided parameters
@@ -469,7 +470,7 @@ def _make_oarsub_string(
     # stdout and stderr passed to OAR "-O" and "-E" options
     paths = utils.JobPaths(folder=folder)
     parameters["O"] = str(paths.stdout).replace("%j", "%jobid%").replace("%t", "0")
-    parameters["E"] = str(paths.stderr).replace("%j", "%jobid%").replace("%t", "0")
+    parameters["E"] = parameters["O"] if stderr_to_stdout else str(paths.stderr).replace("%j", "%jobid%").replace("%t", "0")
     if map_count is not None:
         assert isinstance(map_count, int)
         parameters["-array"] = map_count
