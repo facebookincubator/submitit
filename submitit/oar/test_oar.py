@@ -2,13 +2,13 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+
 import contextlib
 import os
 import signal
 import subprocess
 import typing as tp
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional, Sequence
 from unittest.mock import patch
 
 import pytest
@@ -27,14 +27,14 @@ class MockedSubprocess:
 
     OARSTAT_JOB = '{{"{j}" : {{"state" : "{state}"}}}}'
 
-    def __init__(self, known_cmds: Sequence[str] = None) -> None:
-        self.job_oarstat: Dict[str, str] = {}
+    def __init__(self, known_cmds: tp.Optional[tp.Sequence[str]] = None) -> None:
+        self.job_oarstat: tp.Dict[str, str] = {}
         self.last_job: str = ""
         self._subprocess_check_output = subprocess.check_output
-        self.known_cmds = known_cmds or []
+        self.known_cmds = known_cmds if known_cmds is not None else []
         self.job_count = 12
 
-    def __call__(self, command: Sequence[str], **kwargs: Any) -> bytes:
+    def __call__(self, command: tp.Sequence[str], **kwargs: tp.Any) -> bytes:
         program = command[0]
         if program in ["oarstat", "oarsub", "oardel"]:
             return getattr(self, program)(command[1:]).encode()
@@ -43,17 +43,17 @@ class MockedSubprocess:
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def oarstat(self, _: Sequence[str]) -> str:
+    def oarstat(self, _: tp.Sequence[str]) -> str:
         return "\n".join(self.job_oarstat.values())
 
-    def oarsub(self, args: Sequence[str]) -> str:
+    def oarsub(self, args: tp.Sequence[str]) -> str:
         """Create a "RUNNING" job."""
         job_id = str(self.job_count)
         self.job_count += 1
         self.set_job_state(job_id, "Running", 0)
         return f"OAR_JOB_ID={job_id}\n"
 
-    def oardel(self, _: Sequence[str]) -> str:
+    def oardel(self, _: tp.Sequence[str]) -> str:
         # TODO:should we call set_job_state ?
         return ""
 
@@ -68,7 +68,7 @@ class MockedSubprocess:
             lines = "\n".join(self.OARSTAT_JOB.format(j=f"{job_id}_{i}", state=state) for i in range(array))
         return lines
 
-    def which(self, name: str) -> Optional[str]:
+    def which(self, name: str) -> tp.Optional[str]:
         return "here" if name in self.known_cmds else None
 
     def mock_cmd_fn(self, *args, **_):
@@ -76,7 +76,7 @@ class MockedSubprocess:
         return lambda: self(*args)
 
     @contextlib.contextmanager
-    def context(self) -> Iterator[None]:
+    def context(self) -> tp.Iterator[None]:
         with patch("submitit.core.utils.CommandFunction", new=self.mock_cmd_fn):
             with patch("subprocess.check_output", new=self):
                 with patch("shutil.which", new=self.which):
@@ -84,7 +84,7 @@ class MockedSubprocess:
                         yield None
 
     @contextlib.contextmanager
-    def job_context(self, job_id: str) -> Iterator[None]:
+    def job_context(self, job_id: str) -> tp.Iterator[None]:
         with utils.environment_variables(
             _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="oar", OAR_JOB_ID=str(job_id)
         ):
@@ -92,9 +92,11 @@ class MockedSubprocess:
 
     @contextlib.contextmanager
     def resubmit_job_context(self, job_id: str, resubmit_job_id: str) -> tp.Iterator[oar.OarJobEnvironment]:
-         with utils.environment_variables(
-            _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="oar",
-            OAR_JOB_ID=str(job_id), OAR_ARRAY_ID=str(resubmit_job_id)
+        with utils.environment_variables(
+            _USELESS_TEST_ENV_VAR_="1",
+            SUBMITIT_EXECUTOR="oar",
+            OAR_JOB_ID=str(job_id),
+            OAR_ARRAY_ID=str(resubmit_job_id),
         ):
             yield oar.OarJobEnvironment()
 
@@ -171,7 +173,7 @@ def test_oar_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
 
         jobs: tp.List[Job[int]] = []
         with patch("submitit.oar.oar.OarExecutor._get_job_id_list_from_array_id") as mock_get_job_id_list:
-            mock_get_job_id_list.return_value = ['12', '13', '14', '15', '16']
+            mock_get_job_id_list.return_value = ["12", "13", "14", "15", "16"]
 
             if use_batch_api:
                 with executor.batch():
@@ -211,7 +213,7 @@ def test_oar_error_mocked(tmp_path: Path) -> None:
 
 
 @contextlib.contextmanager
-def mock_requeue(called_with: int = None, not_called: bool = False):
+def mock_requeue(called_with: tp.Optional[int] = None, not_called: bool = False):
     assert not_called or called_with is not None
     requeue = patch("submitit.oar.oar.OarJobEnvironment._requeue", return_value=None)
     with requeue as _patch:
@@ -414,7 +416,7 @@ def test_read_info() -> None:
         }
     }"""
     output = oar.OarInfoWatcher().read_info(example)
-    assert output["1924697"] == {"JobID": '1924697', "NodeList" : None, "State" : 'RUNNING'}
+    assert output["1924697"] == {"JobID": "1924697", "NodeList": None, "State": "RUNNING"}
 
 
 def test_watcher() -> None:
@@ -462,11 +464,13 @@ def _mock_oar_node_file(node_file_path, node_list: str) -> None:
 
 
 def test_oar_node_file() -> None:
-    with with_oar_job_nodefile('chetemi-7.lille.grid5000.fr\n') as env:
-        assert env.hostnames == ['chetemi-7.lille.grid5000.fr']
+    with with_oar_job_nodefile("chetemi-7.lille.grid5000.fr\n") as env:
+        assert env.hostnames == ["chetemi-7.lille.grid5000.fr"]
         assert env.num_nodes == 1
         assert env.node == 0
-    with with_oar_job_nodefile('chetemi-8.lille.grid5000.fr\nchetemi-8.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\n') as env:
+    with with_oar_job_nodefile(
+        "chetemi-8.lille.grid5000.fr\nchetemi-8.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\n"
+    ) as env:
         assert ["chetemi-7.lille.grid5000.fr", "chetemi-8.lille.grid5000.fr"] == env.hostnames
         assert env.num_nodes == 2
         assert env.node == 0
@@ -476,7 +480,7 @@ def test_oar_node_file() -> None:
 def test_oar_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
     with mocked_oar():
         executor = submitit.AutoExecutor(folder=tmp_path)
-        executor.update_parameters(**params, oar_additional_parameters={"t": 'besteffort'})
+        executor.update_parameters(**params, oar_additional_parameters={"t": "besteffort"})
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
     text = job.paths.submission_file.read_text()
     best_effort_lines = [x for x in text.splitlines() if "#OAR -t besteffort" in x]

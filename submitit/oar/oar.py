@@ -15,7 +15,6 @@ import sys
 import typing as tp
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Union
 
 from .. import helpers
 from ..core import core, job_environment, logger, utils
@@ -38,7 +37,7 @@ class OarInfoWatcher(core.InfoWatcher):
         "Resuming": " REQUEUED",
     }
 
-    def _make_command(self) -> Optional[List[str]]:
+    def _make_command(self) -> tp.Optional[tp.List[str]]:
         to_check = {x for x in self._registered - self._finished}
         if not to_check:
             return None
@@ -61,20 +60,21 @@ class OarInfoWatcher(core.InfoWatcher):
         info = self.get_info(job_id, mode=mode)
         return info.get("State") or "UNKNOWN"
 
-    def read_info(self, string: Union[bytes, str]) -> Dict[str, Dict[str, str]]:
+    def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
         """Reads the output of oarstat and returns a dictionary containing main information"""
-        all_stats: Dict[str, Dict[str, str]] = {}
+        all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
         if string:
             if not isinstance(string, str):
                 string = string.decode()
             oarstat_output_dict = json.loads(string)
             if len(oarstat_output_dict) == 0:
                 return {}  # one job id does not exist (yet)
-            for k,v in oarstat_output_dict.items():
+            for k, v in oarstat_output_dict.items():
                 stat = {
                     "JobID": k,
                     "State": self.submitit_state_mapping.get(v.get("state")),
-                    "NodeList": v.get("assigned_network_address")}
+                    "NodeList": v.get("assigned_network_address"),
+                }
                 all_stats[k] = stat
         return all_stats
 
@@ -101,7 +101,7 @@ class OarJob(core.Job[core.R]):
         # in case of preemption, the job will be checkpointed with signal 12 (SIGUSR2)
         if not timeout:
             subprocess.check_call([self._cancel_command, "-s", "SIGTERM", self.job_id], shell=False)
-        subprocess.check_call([self._cancel_command, "-c" , self.job_id], shell=False)
+        subprocess.check_call([self._cancel_command, "-c", self.job_id], shell=False)
 
     def cancel(self, check: bool = True) -> None:
         """Cancels the job
@@ -119,12 +119,12 @@ class OarJob(core.Job[core.R]):
             self._get_cancel_command() + [self.job_id], shell=False
         )
 
-    def _get_cancel_command(self) -> List[str]:
+    def _get_cancel_command(self) -> tp.List[str]:
         if self._resubmitted_job is None:
             return [self._cancel_command]
         else:
             # "--array" ensure to delete the original job and the resubmitted ones
-            return [self._cancel_command, '--array']
+            return [self._cancel_command, "--array"]
 
     def done(self, force_check: bool = False) -> bool:
         """Checks whether the job is finished.
@@ -153,11 +153,11 @@ class OarJob(core.Job[core.R]):
             if super().done(force_check):
                 if self._get_resubmitted_job() is None:
                     return True
-            else:
-                return False
-        return self._resubmitted_job.done(force_check)
+            return False
+        else:
+            return self._resubmitted_job.done(force_check)
 
-    def _get_resubmitted_job(self) -> "OarJob[core.R]":
+    def _get_resubmitted_job(self) -> tp.Optional["OarJob[core.R]"]:
         """Returns the resubmitted job.
         If the job is not resubmitted, return None
         """
@@ -170,9 +170,16 @@ class OarJob(core.Job[core.R]):
                 # resubmitted_job_id is the key of the output_dict
                 resubmitted_job_id = next(iter(output_dict.keys()), None)
                 if resubmitted_job_id is not None:
-                    self._resubmitted_job = OarJob(folder=self._paths.folder, job_id=resubmitted_job_id, tasks=[0])
+                    self._resubmitted_job = OarJob(
+                        folder=self._paths.folder, job_id=resubmitted_job_id, tasks=[0]
+                    )
+                    return self._resubmitted_job
+                else:
+                    return None
             except Exception as e:
-                logger.get_logger().error(f"Getting error with _get_resubmitted_job() by command {command}:\n")
+                logger.get_logger().error(
+                    f"Getting error with _get_resubmitted_job() by command {command}:\n"
+                )
                 raise e
         return self._resubmitted_job
 
@@ -186,8 +193,12 @@ class OarJob(core.Job[core.R]):
             either "stdout" or "stderr"
         """
         string = super()._get_logs_string(name)
-        if self._get_resubmitted_job() is not None:
-            string += self._resubmitted_job._get_logs_string(name)
+        resubmitted_job = self._get_resubmitted_job()
+        if string is not None:
+            if resubmitted_job is not None:
+                resubmitted_logs = resubmitted_job._get_logs_string(name)
+                if resubmitted_logs is not None:
+                    string += resubmitted_logs
         return string
 
 
@@ -220,7 +231,7 @@ class OarExecutor(core.PicklingExecutor):
     job_class = OarJob
     watcher = OarInfoWatcher(delay_s=600)
 
-    def __init__(self, folder: Union[Path, str], max_num_timeout: int = 3) -> None:
+    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3) -> None:
         super().__init__(folder, max_num_timeout=max_num_timeout)
         if not self.affinity() > 0:
             raise RuntimeError('Could not detect "oarsub", are you indeed on a OAR cluster?')
@@ -232,14 +243,17 @@ class OarExecutor(core.PicklingExecutor):
             "timeout_min": "timeout_min",
             "nodes": "nodes",
             "gpus_per_node": "gpu",
+            "mem_gb": "",
+            "cpus_per_task": "",
+            "tasks_per_node": "",
         }
 
     @classmethod
-    def _valid_parameters(cls) -> Set[str]:
+    def _valid_parameters(cls) -> tp.Set[str]:
         """Parameters that can be set through update_parameters"""
         return set(_get_default_parameters())
 
-    def _internal_update_parameters(self, **kwargs: Any) -> None:
+    def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
         """Updates oar submission parameters
 
         Parameters
@@ -269,13 +283,13 @@ class OarExecutor(core.PicklingExecutor):
             raise ValueError(
                 f"Unavailable parameter(s): {in_valid_parameters}\nValid parameters are:\n  - {string}"
             )
-        if 'walltime' in kwargs:
+        if "walltime" in kwargs:
             # use updated OAR specific parameter walltime by default if present
-            kwargs['timeout_min'] = _oar_walltime_to_timeout_min(kwargs['walltime'])
-        elif 'timeout_min' in kwargs:
+            kwargs["timeout_min"] = _oar_walltime_to_timeout_min(kwargs["walltime"])
+        elif "timeout_min" in kwargs:
             # if shared parameter timeout_min is updated but not the OAR specific parameter walltime,
             # then convert timeout_min in minutes to [hour:min:sec|hour:min|hour] format for OAR.
-            kwargs['walltime'] = _timeout_min_to_oar_walltime(kwargs['timeout_min'])
+            kwargs["walltime"] = _timeout_min_to_oar_walltime(kwargs["timeout_min"])
         # check that new parameters are correct
         _make_oarsub_string(command="nothing to do", folder=self.folder, **kwargs)
         super()._internal_update_parameters(**kwargs)
@@ -285,16 +299,17 @@ class OarExecutor(core.PicklingExecutor):
         ex.update_parameters(**self.parameters)
         # set the OAR Job type to idempotent,
         # in this way, the checkpointed job will be resubmitted automatically by OAR.
-        ex.parameters.setdefault('additional_parameters', {})
-        ex.parameters['additional_parameters'].setdefault('t', [])
-        ex.parameters['additional_parameters']['t'].append('idempotent')
+        ex.parameters.setdefault("additional_parameters", {})
+        ex.parameters["additional_parameters"].setdefault("t", [])
+        ex.parameters["additional_parameters"]["t"].append("idempotent")
         return ex
 
     def _need_checkpointable_executor(self, delayed_submission: utils.DelayedSubmission):
-        return isinstance(delayed_submission.function, helpers.Checkpointable) and \
-                ('additional_parameters' not in self.parameters or \
-                't' not in self.parameters['additional_parameters'] or \
-                'idempotent' not in self.parameters['additional_parameters']['t'])
+        return isinstance(delayed_submission.function, helpers.Checkpointable) and (
+            "additional_parameters" not in self.parameters
+            or "t" not in self.parameters["additional_parameters"]
+            or "idempotent" not in self.parameters["additional_parameters"]["t"]
+        )
 
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]
@@ -308,10 +323,13 @@ class OarExecutor(core.PicklingExecutor):
             return super()._internal_process_submissions(delayed_submissions)
         # array
         # delayed_submissions should be either all Checkpointable functions or all non Checkpointable functions
-        if any(isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions) and \
-            any(not isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions):
-            raise Exception("OarExecutor does not support a job array that mixes checkpointable and non-checkpointable functions."
-                            "\nPlease make groups of similar function calls in the job array.")
+        if any(isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions) and any(
+            not isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions
+        ):
+            raise Exception(
+                "OarExecutor does not support a job array that mixes checkpointable and non-checkpointable functions."
+                "\nPlease make groups of similar function calls in the job array."
+            )
         folder = utils.JobPaths.get_first_id_independent_folder(self.folder)
         folder.mkdir(parents=True, exist_ok=True)
         timeout_min = self.parameters.get("timeout_min", 5)
@@ -334,9 +352,9 @@ class OarExecutor(core.PicklingExecutor):
 
         first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
         jobIdList = self._get_job_id_list_from_array_id(first_job.job_id)
-        jobs: List[core.Job[tp.Any]] = [
+        jobs: tp.List[core.Job[tp.Any]] = [
             OarJob(folder=self.folder, job_id=f"{jid}", tasks=[0]) for jid in jobIdList
-        ] # only single task is supported for the moment.
+        ]  # only single task is supported for the moment.
         for job, pickle_path in zip(jobs, pickle_paths):
             job.paths.move_temporary_file(pickle_path, "submitted_pickle")
         return jobs
@@ -353,7 +371,7 @@ class OarExecutor(core.PicklingExecutor):
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_oarsub_string(command=command, folder=self.folder, **self.parameters)
 
-    def _make_submission_command(self, submission_file_path: Path) -> List[str]:
+    def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
         # For OAR cluster, the submission file needs to exist at the submission time
         # AND at the job launch time.
         # That's why we should override this parameter of _submit_command method from PicklingExecutor.
@@ -361,12 +379,16 @@ class OarExecutor(core.PicklingExecutor):
         # we read from this temp file, and submit using an inline command.
         with open(submission_file_path) as f:
             submission_script_lines = f.readlines()
-        oarsub_options = [item for line in submission_script_lines if line.startswith("#OAR ") for item in line[5:].split()]
-        inline_script_lines = [line.strip() for line in submission_script_lines if not line.startswith("#") and line != '\n']
-        return ["oarsub"] + oarsub_options + [ "; ".join(inline_script_lines) ]
+        oarsub_options = [
+            item for line in submission_script_lines if line.startswith("#OAR ") for item in line[5:].split()
+        ]
+        inline_script_lines = [
+            line.strip() for line in submission_script_lines if not line.startswith("#") and line != "\n"
+        ]
+        return ["oarsub"] + oarsub_options + ["; ".join(inline_script_lines)]
 
     @staticmethod
-    def _get_job_id_from_submission_command(string: Union[bytes, str]) -> str:
+    def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
         """Returns the job ID from the output of oarsub string"""
         if not isinstance(string, str):
             string = string.decode()
@@ -383,7 +405,7 @@ class OarExecutor(core.PicklingExecutor):
     def affinity(cls) -> int:
         return -1 if shutil.which("oarsub") is None else 2
 
-    def _get_job_id_list_from_array_id(self, array_id) -> [str]:
+    def _get_job_id_list_from_array_id(self, array_id) -> tp.List[str]:
         """Returns the list of OAR jobid of a job array"""
         command = ["oarstat", "--array", array_id, "-J"]
         try:
@@ -392,15 +414,17 @@ class OarExecutor(core.PicklingExecutor):
             output_dict = self.watcher.read_info(output)
             return sorted(list(output_dict.keys()))
         except Exception as e:
-            logger.get_logger().error(f"Getting error with _get_job_id_list_from_array_id() by command {command}:\n")
+            logger.get_logger().error(
+                f"Getting error with _get_job_id_list_from_array_id() by command {command}:\n"
+            )
             raise e
 
 
 @functools.lru_cache()
-def _get_default_parameters() -> Dict[str, Any]:
+def _get_default_parameters() -> tp.Dict[str, tp.Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_oarsub_string)
-    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults) # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
@@ -418,7 +442,7 @@ def _make_oarsub_string(
     setup: tp.Optional[tp.List[str]] = None,
     n: str = "submitit",
     stderr_to_stdout: bool = False,
-    additional_parameters: tp.Optional[tp.Dict[str, tp.Union[List[str], str]]] = None,
+    additional_parameters: tp.Optional[tp.Dict[str, tp.Union[tp.List[str], str]]] = None,
 ) -> str:
     """Creates the content of a bash file with provided parameters
 
@@ -444,7 +468,7 @@ def _make_oarsub_string(
         In case an erroneous keyword argument is added, a list of all eligible parameters
         is printed, with their default values
     """
-    parameters = {}
+    parameters: tp.Dict[str, tp.Any] = {}
     # resource request passed to the "-l" option
     # OAR needs to have the resource request on a single line, otherwise it is considered as a moldable job.
     # OAR resource hierarchy: nodes > gpu > core
@@ -454,7 +478,7 @@ def _make_oarsub_string(
     if gpu is not None:
         resource_hierarchy += "/gpu=%d" % gpu
     if core is not None:
-        resource_hierarchy +=  "/core=%d" % core
+        resource_hierarchy += "/core=%d" % core
     if walltime is not None:
         walltime = "walltime=%s" % walltime
     resource_request = ",".join(filter(None, (resource_hierarchy, walltime)))
@@ -468,13 +492,16 @@ def _make_oarsub_string(
     # stdout and stderr passed to OAR "-O" and "-E" options
     paths = utils.JobPaths(folder=folder)
     parameters["O"] = str(paths.stdout).replace("%j", "%jobid%").replace("%t", "0")
-    parameters["E"] = parameters["O"] if stderr_to_stdout else str(paths.stderr).replace("%j", "%jobid%").replace("%t", "0")
+    parameters["E"] = (
+        parameters["O"] if stderr_to_stdout else str(paths.stderr).replace("%j", "%jobid%").replace("%t", "0")
+    )
     if map_count is not None:
         assert isinstance(map_count, int)
-        parameters["array"] = map_count
+        parameters["array"] = str(map_count)
     # additional parameters passed here
     if additional_parameters is not None:
-        parameters.update(additional_parameters)
+        for k, v in additional_parameters.items():
+            parameters[k] = v
     # now create the bash file with OAR options
     lines = ["#!/bin/bash", "", "# Parameters"]
     for k in sorted(parameters):
@@ -506,7 +533,7 @@ def _timeout_min_to_oar_walltime(timeout_min: int) -> str:
 
 def _oar_walltime_to_timeout_min(walltime: str) -> int:
     # Split the walltime string in [hour:min:sec|hour:min|hour] format
-    parts = walltime.split(':')
+    parts = walltime.split(":")
     hours = int(parts[0])
     minutes = int(parts[1]) if len(parts) > 1 else 0
     seconds = int(parts[2]) if len(parts) > 2 else 0
@@ -526,7 +553,7 @@ class OarJobEnvironment(job_environment.JobEnvironment):
     }
 
     @property
-    def hostnames(self) -> List[str]:
+    def hostnames(self) -> tp.List[str]:
         # Parse the content of the "OAR_NODEFILE" environment variable,
         # which gives access to the list of hostnames that are part of the current job.
         nodes_file_path = os.environ.get(self._env["nodes"], "")
@@ -541,10 +568,11 @@ class OarJobEnvironment(job_environment.JobEnvironment):
             return [self.hostname]
 
     @property
-    def array_task_id(self) -> Optional[str]:
-        if os.environ.get(self._env["array_task_id"]):
+    def array_task_id(self) -> tp.Optional[str]:
+        array_task_id_str = os.environ.get(self._env["array_task_id"])
+        if array_task_id_str is not None:
             # For OAR, OAR_ARRAY_INDEX starts from 1 (not 0) initially
-            return str(int(os.environ.get(self._env["array_task_id"])) -1)
+            return str(int(array_task_id_str) - 1)
         return None
 
     @property
@@ -552,7 +580,7 @@ class OarJobEnvironment(job_environment.JobEnvironment):
         """Total number of nodes for the job:"""
         # For OAR, the "num_nodes" environment variable does not exist.
         # We count the number of hostnames for the current job.
-        if not self.hostnames:
+        if self.hostnames is None:
             return 1
         return len(self.hostnames)
 
