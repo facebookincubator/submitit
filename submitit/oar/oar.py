@@ -20,6 +20,7 @@ from .. import helpers
 from ..core import core, job_environment, logger, utils
 
 
+# pylint: disable=duplicate-code
 class OarInfoWatcher(core.InfoWatcher):
 
     submitit_state_mapping = {
@@ -38,7 +39,7 @@ class OarInfoWatcher(core.InfoWatcher):
     }
 
     def _make_command(self) -> tp.Optional[tp.List[str]]:
-        to_check = {x for x in self._registered - self._finished}
+        to_check = sorted(set(self._registered - self._finished))
         if not to_check:
             return None
         command = ["oarstat", "-f", "-J"]
@@ -88,7 +89,7 @@ class OarJob(core.Job[core.R]):
         if len(tasks) > 1:
             raise NotImplementedError
         super().__init__(folder, job_id, tasks)
-        self._resubmitted_job = None
+        self._resubmitted_job: tp.Optional[OarJob[core.R]] = None
 
     def _interrupt(self, timeout: bool = False) -> None:
         """Sends preemption or timeout signal to the job (for testing purpose)
@@ -174,8 +175,6 @@ class OarJob(core.Job[core.R]):
                         folder=self._paths.folder, job_id=resubmitted_job_id, tasks=[0]
                     )
                     return self._resubmitted_job
-                else:
-                    return None
             except Exception as e:
                 logger.get_logger().error(
                     f"Getting error with _get_resubmitted_job() by command {command}:\n"
@@ -216,6 +215,10 @@ class OarExecutor(core.PicklingExecutor):
     max_num_timeout: int
         Maximum number of time the job can be resubmitted after timeout (if
         the instance is derived from helpers.Checkpointable)
+    python: str
+        Command to launch python. This allow to use singularity for example.
+        Caller is responsible to provide a valid shell command here.
+        By default reuse the current python executable
 
     Note
     ----
@@ -231,8 +234,9 @@ class OarExecutor(core.PicklingExecutor):
     job_class = OarJob
     watcher = OarInfoWatcher(delay_s=600)
 
-    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3) -> None:
+    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3, python: str = None) -> None:
         super().__init__(folder, max_num_timeout=max_num_timeout)
+        self.python = python
         if not self.affinity() > 0:
             raise RuntimeError('Could not detect "oarsub", are you indeed on a OAR cluster?')
 
@@ -259,7 +263,7 @@ class OarExecutor(core.PicklingExecutor):
         Parameters
         ----------
         See oar documentation for most parameters.
-        Most useful parameters are: core, walltime, gpu, queue.
+        Most useful parameters are: cores, walltime, gpu, queue.
 
         Below are the parameters that differ from OAR documentation:
 
@@ -326,7 +330,7 @@ class OarExecutor(core.PicklingExecutor):
         if any(isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions) and any(
             not isinstance(d.function, helpers.Checkpointable) for d in delayed_submissions
         ):
-            raise Exception(
+            raise ValueError(
                 "OarExecutor does not support a job array that mixes checkpointable and non-checkpointable functions."
                 "\nPlease make groups of similar function calls in the job array."
             )
@@ -361,9 +365,8 @@ class OarExecutor(core.PicklingExecutor):
 
     @property
     def _submitit_command_str(self) -> str:
-        return " ".join(
-            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder))]
-        )
+        python = self.python or shlex.quote(sys.executable)
+        return " ".join([python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
 
     def _num_tasks(self) -> int:
         return 1
@@ -434,7 +437,7 @@ def _make_oarsub_string(
     folder: tp.Union[str, Path],
     map_count: tp.Optional[int] = None,  # used internally
     nodes: tp.Optional[int] = None,
-    core: tp.Optional[int] = None,
+    cores: tp.Optional[int] = None,
     gpu: tp.Optional[int] = None,
     walltime: tp.Optional[str] = None,
     timeout_min: tp.Optional[int] = None,
@@ -449,7 +452,7 @@ def _make_oarsub_string(
     Parameters
     ----------
     See oar documentation for most parameters.
-    Most useful parameters are: core, walltime, gpu, queue.
+    Most useful parameters are: cores, walltime, gpu, queue.
 
     Below are the parameters that differ from OAR documentation:
 
@@ -474,13 +477,13 @@ def _make_oarsub_string(
     # OAR resource hierarchy: nodes > gpu > core
     resource_hierarchy = ""
     if nodes is not None:
-        resource_hierarchy += "/nodes=%d" % nodes
+        resource_hierarchy += f"/nodes={nodes}"
     if gpu is not None:
-        resource_hierarchy += "/gpu=%d" % gpu
-    if core is not None:
-        resource_hierarchy += "/core=%d" % core
+        resource_hierarchy += f"/gpu={gpu}"
+    if cores is not None:
+        resource_hierarchy += f"/core={cores}"
     if walltime is not None:
-        walltime = "walltime=%s" % walltime
+        walltime = f"walltime={walltime}"
     resource_request = ",".join(filter(None, (resource_hierarchy, walltime)))
     if resource_request:
         parameters["l"] = resource_request

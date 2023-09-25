@@ -15,9 +15,9 @@ from .local.debug import DebugExecutor as DebugExecutor
 from .local.debug import DebugJob as DebugJob
 from .local.local import LocalExecutor as LocalExecutor
 from .local.local import LocalJob as LocalJob
-from .slurm.slurm import SlurmExecutor as SlurmExecutor
-from .slurm.slurm import SlurmJob as SlurmJob
 from .oar.oar import OarExecutor as OarExecutor
 from .oar.oar import OarJob as OarJob
+from .slurm.slurm import SlurmExecutor as SlurmExecutor
+from .slurm.slurm import SlurmJob as SlurmJob
 
 __version__ = "1.4.6"

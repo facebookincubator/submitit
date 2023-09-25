@@ -10,8 +10,8 @@ from pathlib import Path
 import pytest
 
 from ..local import debug
-from ..slurm import test_slurm
 from ..oar import test_oar
+from ..slurm import test_slurm
 from . import auto
 
 
@@ -38,6 +38,7 @@ def test_slurm_executor(tmp_path: Path, monkeypatch) -> None:
     # check that error message contains all
     with pytest.raises(NameError, match=r"debug_blublu.*\n.*local_num_threads"):
         executor.update_parameters(debug_blublu=2.0, local_num_threads=4)
+
 
 def test_oar_executor(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(debug.DebugExecutor, "_valid_parameters", lambda: {"blabla"})

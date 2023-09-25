@@ -21,7 +21,7 @@ from ..core.core import Job
 from . import oar
 
 
-# pylint: disable=no-self-use
+# pylint: disable=no-self-use, disable=duplicate-code
 class MockedSubprocess:
     """Helper for mocking subprocess calls"""
 
@@ -46,6 +46,7 @@ class MockedSubprocess:
     def oarstat(self, _: tp.Sequence[str]) -> str:
         return "\n".join(self.job_oarstat.values())
 
+    # pylint: disable=unused-argument
     def oarsub(self, args: tp.Sequence[str]) -> str:
         """Create a "RUNNING" job."""
         job_id = str(self.job_count)
@@ -159,6 +160,7 @@ def test_oar_job_mocked(tmp_path: Path) -> None:
         assert "_USELESS_TEST_ENV_VAR_" not in os.environ, "Test context manager seems to be failing"
 
 
+# pylint: disable=too-many-locals
 @pytest.mark.parametrize("use_batch_api", (False, True))  # type: ignore
 def test_oar_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
     n = 5
@@ -195,6 +197,38 @@ def test_oar_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
         oarsub = Job(tmp_path, job_id=array_id).paths.submission_file.read_text()
         array_line = [l.strip() for l in oarsub.splitlines() if "--array" in l]
         assert array_line == ["#OAR --array 5"]
+
+
+def test_get_job_id_list_from_array_id(tmp_path: Path) -> None:
+    with mocked_oar() as mock:
+        executor = oar.OarExecutor(folder=tmp_path)
+        job = executor.submit(test_core.do_nothing, 1, 2, error=12)
+        with mock.job_context(job.job_id):
+            oar_output_dict = {"12": {"state": "Running"}}
+            with patch("submitit.oar.oar.OarInfoWatcher.read_info") as mock_read_info:
+                mock_read_info.return_value = oar_output_dict
+            result = executor._get_job_id_list_from_array_id(array_id="12")
+            assert result == ["12"]
+
+
+def test_get_job_id_from_submission_command(tmp_path: Path) -> None:
+    with mocked_oar() as mock:
+        executor = oar.OarExecutor(folder=tmp_path)
+        job = executor.submit(test_core.do_nothing, 1, 2, error=12)
+        with mock.job_context(job.job_id):
+            oarsub_output = "OAR_JOB_ID=123456"
+            result = executor._get_job_id_from_submission_command(oarsub_output)
+        assert result == "123456"
+
+
+def test_get_job_id_from_submission_command_failure(tmp_path: Path) -> None:
+    with mocked_oar() as mock:
+        executor = oar.OarExecutor(folder=tmp_path)
+        job = executor.submit(test_core.do_nothing, 1, 2, error=12)
+        with mock.job_context(job.job_id):
+            oarsub_output = "Invalid output\n"
+            with pytest.raises(utils.FailedSubmissionError):
+                executor._get_job_id_from_submission_command(oarsub_output)
 
 
 def test_oar_error_mocked(tmp_path: Path) -> None:
@@ -270,6 +304,12 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
             assert submitted_pkl_12.exists()
             submitted_pkl_13 = tmp_path / "13_submitted.pkl"
             assert not submitted_pkl_13.exists()
+            _mock_log_files(job, errors="This is the error log\n", prints="hop")
+            assert job._get_logs_string(name="stdout") == "hop"
+
+    # The job 12 is terminated, but the resubmitted job 13 is running
+    # The job should not be done
+    assert job.done(force_check=False) is False
 
     # This time the job as timed out,
     # but we have max_num_timeout=1, so we should requeue.
@@ -288,6 +328,8 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
         utils.UncompletedJobError, match="timed-out too many times."
     ):
         sig.checkpoint_and_try_requeue(usr_sig)
+        # This time the job should be done
+        assert job.done(force_check=False) is True
 
 
 def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
@@ -340,6 +382,56 @@ def test_checkpoint_and_exit(tmp_path: Path) -> None:
     assert delayed._timeout_countdown == 1
 
 
+def test_need_checkpointable_executor(tmp_path: Path) -> None:
+    with mocked_oar():
+        fs0 = helpers.FunctionSequence()
+        fs0.add(test_core._three_time, 10)
+
+        executor = oar.OarExecutor(folder=tmp_path)
+        delayed = utils.DelayedSubmission(fs0)
+
+        assert isinstance(fs0, helpers.Checkpointable)
+        assert executor._need_checkpointable_executor(delayed) is True
+
+
+def test_num_tasks(tmp_path: Path) -> None:
+    with mocked_oar():
+        executor = oar.OarExecutor(folder=tmp_path, max_num_timeout=1)
+        executor.update_parameters(walltime="1:0:0")
+        job = executor.submit(test_core._three_time, 10)
+
+        assert executor._num_tasks() == 1
+        if len(job._tasks) > 1:
+            raise NotImplementedError
+
+
+def test_stderr_to_stdout(tmp_path: Path) -> None:
+    with mocked_oar():
+        executor = submitit.AutoExecutor(folder=tmp_path)
+        executor.update_parameters(stderr_to_stdout=True)
+        job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
+    text = job.paths.submission_file.read_text()
+    stdout_lines = [x for x in text.splitlines() if "#OAR -O" in x]
+    assert stdout_lines[0].endswith(".out")
+    stderr_lines = [x for x in text.splitlines() if "#OAR -E" in x]
+    assert stderr_lines[0].endswith(".out")
+    assert not stderr_lines[0].endswith(".err")
+
+
+def test_as_oar_flag(tmp_path: Path) -> None:
+    assert oar._as_oar_flag("queue", "production") == "#OAR --queue production"
+    assert oar._as_oar_flag("n", "submitit") == "#OAR -n submitit"
+    with mocked_oar():
+        executor = submitit.AutoExecutor(folder=tmp_path)
+        executor.update_parameters(oar_additional_parameters=dict({"queue": "production", "n": "submitit"}))
+        job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
+    text = job.paths.submission_file.read_text()
+    stdout_lines = [x for x in text.splitlines() if "#OAR --queue production" in x]
+    assert len(stdout_lines) == 1
+    stdout_lines = [x for x in text.splitlines() if "#OAR -n submitit" in x]
+    assert len(stdout_lines) == 1
+
+
 def test_make_oarsub_string() -> None:
     string = oar._make_oarsub_string(
         command="blublu bar",
@@ -376,7 +468,7 @@ def test_make_oarsub_string_gpu() -> None:
 
 
 def test_make_oarsub_string_core() -> None:
-    string = oar._make_oarsub_string(command="blublu", folder="/tmp", core=2)
+    string = oar._make_oarsub_string(command="blublu", folder="/tmp", cores=2)
     assert "-l /core=2" in string
 
 
@@ -385,13 +477,13 @@ def test_make_oarsub_string_gpu_and_nodes() -> None:
     assert "-l /nodes=1/gpu=2" in string
 
 
-def test_make_oarsub_string_core_and_nodes() -> None:
-    string = oar._make_oarsub_string(command="blublu", folder="/tmp", core=2, nodes=1)
+def test_make_oarsub_string_cores_and_nodes() -> None:
+    string = oar._make_oarsub_string(command="blublu", folder="/tmp", cores=2, nodes=1)
     assert "-l /nodes=1/core=2" in string
 
 
-def test_make_oarsub_string_core_gpu_and_nodes() -> None:
-    string = oar._make_oarsub_string(command="blublu", folder="/tmp", gpu=2, nodes=1, core=4)
+def test_make_oarsub_string_cores_gpu_and_nodes() -> None:
+    string = oar._make_oarsub_string(command="blublu", folder="/tmp", gpu=2, nodes=1, cores=4)
     assert "-l /nodes=1/gpu=2/core=4" in string
 
 
@@ -409,6 +501,14 @@ def test_update_parameters_error(tmp_path: Path) -> None:
         executor.update_parameters(blublu=12)
 
 
+def test_make_command() -> None:
+    watcher = oar.OarInfoWatcher()
+    watcher._registered = {"1", "2", "3"}
+    watcher._finished = {"2", "4"}
+    result = watcher._make_command()
+    assert result == ["oarstat", "-f", "-J", "-j", "1", "-j", "3"]
+
+
 def test_read_info() -> None:
     example = """{
         "1924697" : {
@@ -417,6 +517,19 @@ def test_read_info() -> None:
     }"""
     output = oar.OarInfoWatcher().read_info(example)
     assert output["1924697"] == {"JobID": "1924697", "NodeList": None, "State": "RUNNING"}
+
+
+def test_read_info_empty() -> None:
+    example = ""
+    output = oar.OarInfoWatcher().read_info(example)
+    assert not output
+
+
+def test_get_state() -> None:
+    with mocked_oar() as mock:
+        mock.set_job_state("12", "Running")
+        state = oar.OarInfoWatcher().get_state(job_id="12")
+        assert state == "RUNNING"
 
 
 def test_watcher() -> None:
@@ -447,7 +560,7 @@ def test_name() -> None:
 
 
 @contextlib.contextmanager
-def with_oar_job_nodefile(node_list: str) -> tp.Iterator[oar.OarJobEnvironment]:
+def with_oar_nodefile(node_list: str) -> tp.Iterator[oar.OarJobEnvironment]:
     node_file_path = Path(__file__).parent / "_oar_node_file.txt"
     _mock_oar_node_file(node_file_path, node_list)
     os.environ["OAR_JOB_ID"] = "1"
@@ -463,17 +576,51 @@ def _mock_oar_node_file(node_file_path, node_list: str) -> None:
         file.write(node_list)
 
 
-def test_oar_node_file() -> None:
-    with with_oar_job_nodefile("chetemi-7.lille.grid5000.fr\n") as env:
+def test_hostnames() -> None:
+    with with_oar_nodefile("chetemi-7.lille.grid5000.fr\n") as env:
         assert env.hostnames == ["chetemi-7.lille.grid5000.fr"]
-        assert env.num_nodes == 1
-        assert env.node == 0
-    with with_oar_job_nodefile(
+    with with_oar_nodefile(
         "chetemi-8.lille.grid5000.fr\nchetemi-8.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\n"
     ) as env:
         assert ["chetemi-7.lille.grid5000.fr", "chetemi-8.lille.grid5000.fr"] == env.hostnames
+
+
+def test_num_nodes() -> None:
+    with with_oar_nodefile("chetemi-7.lille.grid5000.fr\n") as env:
+        assert env.num_nodes == 1
+    with with_oar_nodefile(
+        "chetemi-8.lille.grid5000.fr\nchetemi-8.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\nchetemi-7.lille.grid5000.fr\n"
+    ) as env:
         assert env.num_nodes == 2
+
+
+def test_array_task_id() -> None:
+    with with_oar_nodefile("chetemi-7.lille.grid5000.fr\n") as env:
+        assert env.array_task_id is None
+
+
+def test_node() -> None:
+    with with_oar_nodefile("chetemi-7.lille.grid5000.fr\n") as env:
         assert env.node == 0
+
+
+@contextlib.contextmanager
+def with_oar_environment(
+    raw_job_id: str, array_job_id: str, array_task_id: str
+) -> tp.Iterator[oar.OarJobEnvironment]:
+    os.environ["OAR_JOB_ID"] = raw_job_id
+    os.environ["OAR_ARRAY_ID"] = array_job_id
+    os.environ["OAR_ARRAY_INDEX"] = array_task_id
+    yield oar.OarJobEnvironment()
+    del os.environ["OAR_ARRAY_INDEX"]
+    del os.environ["OAR_ARRAY_ID"]
+    del os.environ["OAR_JOB_ID"]
+
+
+def test_paths() -> None:
+    with with_oar_environment("1", "1", "0") as env:
+        paths = env.paths
+        assert paths.job_id == "1"
 
 
 @pytest.mark.parametrize("params", [{}, {"timeout_min": None}])  # type: ignore
@@ -488,6 +635,7 @@ def test_oar_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
 
 
 def test_timeout_min_to_oar_walltime(tmp_path: Path) -> None:
+    assert oar._timeout_min_to_oar_walltime(90) == "01:30"
     with mocked_oar():
         executor = submitit.AutoExecutor(folder=tmp_path)
         executor.update_parameters(timeout_min=90)
@@ -495,6 +643,10 @@ def test_timeout_min_to_oar_walltime(tmp_path: Path) -> None:
     text = job.paths.submission_file.read_text()
     walltime_lines = [x for x in text.splitlines() if "#OAR -l walltime=01:30" in x]
     assert len(walltime_lines) == 1, f"Unexpected lines: {walltime_lines}"
+
+
+def test_oar_walltime_to_timeout_min() -> None:
+    assert oar._oar_walltime_to_timeout_min("1:30:00") == 90
 
 
 def test_oar_walltime_wins_over_timeout_min(tmp_path: Path) -> None:
