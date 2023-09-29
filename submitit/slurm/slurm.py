@@ -152,7 +152,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
             return pos + 1
         if c == "[":
             last_pos = node_list.index("]", pos)
-            suffixes = _expand_id_suffix(node_list[pos + 1 : last_pos])
+            suffixes = _expand_id_suffix(node_list[pos + 1: last_pos])
             prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
             pos = last_pos + 1
         else:
@@ -382,7 +382,7 @@ class SlurmExecutor(core.PicklingExecutor):
 def _get_default_parameters() -> Dict[str, Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
@@ -422,6 +422,7 @@ def _make_sbatch_string(
     map_count: tp.Optional[int] = None,  # used internally
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
     srun_args: tp.Optional[tp.Iterable[str]] = None,
+    use_srun: bool = True,
 ) -> str:
     """Creates the content of an sbatch file with provided parameters
 
@@ -464,6 +465,7 @@ def _make_sbatch_string(
         "signal_delay_s",
         "stderr_to_stdout",
         "srun_args",
+        "use_srun",
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
@@ -500,17 +502,20 @@ def _make_sbatch_string(
         lines += ["", "# setup"] + setup
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
-    stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
-    if srun_args is None:
-        srun_args = []
 
-    srun_cmd = _shlex_join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args])
+    if use_srun:
+        stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
+        if srun_args is None:
+            srun_args = []
+        srun_cmd = _shlex_join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args])
+        command = " ".join((srun_cmd, command))
+
     lines += [
         "",
         "# command",
         "export SUBMITIT_EXECUTOR=slurm",
         # The input "command" is supposed to be a valid shell command
-        " ".join((srun_cmd, command)),
+        command,
         "",
     ]
     return "\n".join(lines)
