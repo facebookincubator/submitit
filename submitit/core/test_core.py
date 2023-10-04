@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Sequence, Union
+import typing as tp
 from unittest.mock import patch
 
 import pytest
@@ -26,14 +26,14 @@ class MockedSubprocess:
     SACCT_HEADER = "JobID|State"
     SACCT_JOB = "{j}|{state}\n{j}.ext+|{state}\n{j}.0|{state}"
 
-    def __init__(self, known_cmds: Sequence[str] = None) -> None:
-        self.job_sacct: Dict[str, str] = {}
+    def __init__(self, known_cmds: tp.Optional[tp.Sequence[str]] = None) -> None:
+        self.job_sacct: tp.Dict[str, str] = {}
         self.last_job: str = ""
         self._subprocess_check_output = subprocess.check_output
         self.known_cmds = known_cmds or []
         self.job_count = 12
 
-    def __call__(self, command: Sequence[str], **kwargs: Any) -> bytes:
+    def __call__(self, command: tp.Sequence[str], **kwargs: tp.Any) -> bytes:
         program = command[0]
         if program in ["sacct", "sbatch", "scancel"]:
             return getattr(self, program)(command[1:]).encode()
@@ -42,10 +42,10 @@ class MockedSubprocess:
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def sacct(self, _: Sequence[str]) -> str:
+    def sacct(self, _: tp.Sequence[str]) -> str:
         return "\n".join(self.job_sacct.values())
 
-    def sbatch(self, args: Sequence[str]) -> str:
+    def sbatch(self, args: tp.Sequence[str]) -> str:
         """Create a "RUNNING" job."""
         job_id = str(self.job_count)
         self.job_count += 1
@@ -60,7 +60,7 @@ class MockedSubprocess:
         self.set_job_state(job_id, "RUNNING", array)
         return f"Running job {job_id}\n"
 
-    def scancel(self, _: Sequence[str]) -> str:
+    def scancel(self, _: tp.Sequence[str]) -> str:
         # TODO:should we call set_job_state ?
         return ""
 
@@ -75,7 +75,7 @@ class MockedSubprocess:
             lines = "\n".join(self.SACCT_JOB.format(j=f"{job_id}_{i}", state=state) for i in range(array))
         return "\n".join((self.SACCT_HEADER, lines))
 
-    def which(self, name: str) -> Optional[str]:
+    def which(self, name: str) -> tp.Optional[str]:
         return "here" if name in self.known_cmds else None
 
     def mock_cmd_fn(self, *args, **_):
@@ -83,7 +83,7 @@ class MockedSubprocess:
         return lambda: self(*args)
 
     @contextlib.contextmanager
-    def context(self) -> Iterator[None]:
+    def context(self) -> tp.Iterator[None]:
         with patch("submitit.core.utils.CommandFunction", new=self.mock_cmd_fn):
             with patch("subprocess.check_output", new=self):
                 with patch("shutil.which", new=self.which):
@@ -91,7 +91,7 @@ class MockedSubprocess:
                         yield None
 
     @contextlib.contextmanager
-    def job_context(self, job_id: str) -> Iterator[None]:
+    def job_context(self, job_id: str) -> tp.Iterator[None]:
         with utils.environment_variables(
             _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="slurm", SLURM_JOB_ID=str(job_id)
         ):
@@ -128,14 +128,14 @@ class FakeExecutor(core.PicklingExecutor):
         """
         return command + "2"  # this makes "echo 12"
 
-    def _make_submission_command(self, submission_file_path: Path) -> List[str]:
+    def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
         """Create the submission command."""
         with submission_file_path.open("r") as f:
             text: str = f.read()
         return text.split()  # this makes ["echo", "12"]
 
     @staticmethod
-    def _get_job_id_from_submission_command(string: Union[bytes, str]) -> str:
+    def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
         return string if isinstance(string, str) else string.decode()  # this returns "12"
 
 
@@ -143,7 +143,7 @@ def _three_time(x: int) -> int:
     return 3 * x
 
 
-def do_nothing(*args: Any, **kwargs: Any) -> int:
+def do_nothing(*args: tp.Any, **kwargs: tp.Any) -> int:
     print("my args", args, flush=True)
     print("my kwargs", kwargs, flush=True)
     if "sleep" in kwargs:
@@ -178,7 +178,7 @@ def test_fake_job(tmp_path: Path) -> None:
 
 
 def test_fake_job_cancel_at_deletion(tmp_path: Path) -> None:
-    job: FakeJob[Any] = FakeJob(job_id="12", folder=tmp_path).cancel_at_deletion()  # type: ignore
+    job: FakeJob[tp.Any] = FakeJob(job_id="12", folder=tmp_path).cancel_at_deletion()  # type: ignore
     with patch("subprocess.call", return_value=None) as mock:
         assert mock.call_count == 0
         del job

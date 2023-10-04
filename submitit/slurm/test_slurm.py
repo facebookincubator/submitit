@@ -130,7 +130,7 @@ def test_slurm_error_mocked(tmp_path: Path) -> None:
 
 
 @contextlib.contextmanager
-def mock_requeue(called_with: int = None, not_called: bool = False):
+def mock_requeue(called_with: tp.Optional[int] = None, not_called: bool = False):
     assert not_called or called_with is not None
     requeue = patch("submitit.slurm.slurm.SlurmJobEnvironment._requeue", return_value=None)
     with requeue as _patch:
@@ -476,7 +476,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
             continue
         if "=" not in l:
             continue
-        key, val = l[len("#SBATCH") :].strip().split("=", 1)
+        key, val = l[len("#SBATCH"):].strip().split("=", 1)
         sbatch_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
 
     # We do not quote --output and --error values here,
