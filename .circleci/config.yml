@@ -57,7 +57,7 @@ jobs:
 
   test_coverage:
       docker:
-        - image: circleci/python:3.6
+        - image: circleci/python:3.8
       steps:
         - checkout
         - attach_workspace:
