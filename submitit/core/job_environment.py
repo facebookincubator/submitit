@@ -10,8 +10,8 @@ import socket
 import sys
 import time
 import types
-from pathlib import Path
 import typing as tp
+from pathlib import Path
 
 from . import logger, utils
 from .utils import DelayedSubmission, JobPaths

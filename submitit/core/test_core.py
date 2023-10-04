@@ -10,8 +10,8 @@ import pickle
 import subprocess
 import sys
 import time
-from pathlib import Path
 import typing as tp
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest

@@ -6,8 +6,8 @@
 
 import logging
 import re
-from pathlib import Path
 import typing as tp
+from pathlib import Path
 
 import pkg_resources
 import pytest
