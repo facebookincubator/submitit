@@ -123,10 +123,8 @@ def test_slurm_error_mocked(tmp_path: Path) -> None:
             with pytest.raises(ValueError):
                 submission.process_job(job.paths.folder)
         _mock_log_files(job, errors="This is the error log\n")
-        with pytest.raises(utils.FailedJobError):
+        with pytest.raises(ValueError, match="Too bad"):
             job.result()
-        exception = job.exception()
-        assert isinstance(exception, utils.FailedJobError)
 
 
 @contextlib.contextmanager

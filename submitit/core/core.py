@@ -18,6 +18,8 @@ from typing_extensions import TypedDict
 
 from . import logger, utils
 
+log = logger.get_logger()
+
 # R as in "Result", so yes it's covariant.
 # pylint: disable=typevar-name-incorrect-variance
 R = tp.TypeVar("R", covariant=True)
@@ -128,12 +130,10 @@ class InfoWatcher:
             return
         self._num_calls += 1
         try:
-            logger.get_logger().debug(f"Call #{self.num_calls} - Command {' '.join(command)}")
+            log.debug(f"Call #{self.num_calls} - Command {' '.join(command)}")
             self._output = subprocess.check_output(command, shell=False)
         except Exception as e:
-            logger.get_logger().warning(
-                f"Call #{self.num_calls} - Bypassing sacct error {e}, status may be inaccurate."
-            )
+            log.warning(f"Call #{self.num_calls} - Bypassing sacct error {e}, status may be inaccurate.")
         else:
             self._info_dict.update(self.read_info(self._output))
         self._last_status_check = _time.time()
@@ -323,10 +323,14 @@ class Job(tp.Generic[R]):
             return exceptions[0]
 
         try:
-            outcome, trace = self._get_outcome_and_result()
+            outcome, original_err = self._get_outcome_and_result()
+            if outcome == "success":
+                return None
         except utils.UncompletedJobError as e:
             return e
-        if outcome == "error":
+        if isinstance(original_err, str):
+            # Normally original_err is an exception, unless we failed to pickle it.
+            trace = original_err
             return utils.FailedJobError(
                 f"Job (task={self.task_id}) failed during processing with trace:\n"
                 f"----------------------\n{trace}\n"
@@ -334,7 +338,12 @@ class Job(tp.Generic[R]):
                 f"You can check full logs with 'job.stderr({self.task_id})' and 'job.stdout({self.task_id})'"
                 f"or at paths:\n  - {self.paths.stderr}\n  - {self.paths.stdout}"
             )
-        return None
+        log.error(
+            f"Job (task={self.task_id}) failed \n."
+            f"You can check full logs with 'job.stderr({self.task_id})' and 'job.stdout({self.task_id})'"
+            f"or at paths:\n  - {self.paths.stderr}\n  - {self.paths.stdout}"
+        )
+        return original_err
 
     def _get_outcome_and_result(self) -> tp.Tuple[str, tp.Any]:
         """Getter for the output of the submitted function.
@@ -371,17 +380,17 @@ class Job(tp.Generic[R]):
                 f"Job {self.job_id} (task: {self.task_id}) with path {self.paths.result_pickle}",
                 f"has not produced any output (state: {self.state})",
             ]
-            log = self.stderr()
-            if log:
-                message.extend(["Error stream produced:", "-" * 40, log])
+            stderr = self.stderr()
+            if stderr:
+                message.extend(["Error stream produced:", "-" * 40, stderr])
             elif self.paths.stdout.exists():
-                log = subprocess.check_output(["tail", "-40", str(self.paths.stdout)], encoding="utf-8")
+                stderr = subprocess.check_output(["tail", "-40", str(self.paths.stdout)], encoding="utf-8")
                 message.extend(
-                    [f"No error stream produced. Look at stdout: {self.paths.stdout}", "-" * 40, log]
+                    [f"No error stream produced. Look at stdout: {self.paths.stdout}", "-" * 40, stderr]
                 )
             else:
                 message.append(f"No output/error stream produced ! Check: {self.paths.stdout}")
-            raise utils.UncompletedJobError("\n".join(message))
+            raise utils.JobResultsNotFoundError("\n".join(message))
         try:
             output: tp.Tuple[str, tp.Any] = utils.pickle_load(self.paths.result_pickle)
         except EOFError:
@@ -504,7 +513,7 @@ class Job(tp.Generic[R]):
         try:
             state = self.state
         except Exception as e:
-            logger.get_logger().warning(f"Bypassing state error:\n{e}")
+            log.warning(f"Bypassing state error:\n{e}")
         return f'{self.__class__.__name__}<job_id={self.job_id}, task_id={self.task_id}, state="{state}">'
 
     def __del__(self) -> None:
@@ -702,9 +711,7 @@ class Executor(abc.ABC):
         try:
             yield None
         except Exception as e:
-            logger.get_logger().error(
-                'Caught error within "with executor.batch()" context, submissions are dropped.\n '
-            )
+            log.error('Caught error within "with executor.batch()" context, submissions are dropped.\n ')
             raise e
         else:
             self._submit_delayed_batch()
