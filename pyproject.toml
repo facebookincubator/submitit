@@ -29,7 +29,7 @@ classifiers=[
         # Test
         "pytest>=7.4.2",
         "pytest-asyncio>=0.15.0",
-        "pytest-cov>=4.7.1",
+        "pytest-cov>=4.1.0",
         "coverage[toml]>=5.1",
         # Format
         "black==22.3.0",
