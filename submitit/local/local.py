@@ -268,9 +268,8 @@ class Controller:
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
 
-    def _forward_signal(
-        self, signum: signal.Signals, *args: tp.Any
-    ) -> None:  # pylint:disable=unused-argument
+    # pylint:disable=unused-argument
+    def _forward_signal(self, signum: signal.Signals, *args: tp.Any) -> None:
         for task in self.tasks:
             try:
                 task.send_signal(signum)  # sending kill signal to make sure everything finishes
