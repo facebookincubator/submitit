@@ -38,7 +38,7 @@ class LocalJob(core.Job[R]):
         self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
         # set process (to self and subjobs)
         if process is not None:
-            for sjob in [self] + self._sub_jobs:
+            for sjob in [self] + list(self._sub_jobs):
                 PROCESSES[sjob.job_id] = process
 
     def done(self, force_check: bool = False) -> bool:  # pylint: disable=unused-argument
