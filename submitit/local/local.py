@@ -10,8 +10,8 @@ import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
 import typing as tp
+from pathlib import Path
 
 from ..core import core, job_environment, logger, utils
 from ..core.core import R
@@ -34,12 +34,12 @@ class LocalJob(core.Job[R]):
     ) -> None:
         super().__init__(folder, job_id, tasks)
         self._cancel_at_deletion = False
-        if process is not None:
-            PROCESSES[job_id] = process
         # downcast sub-jobs to get proper typing
         self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
-        for sjob in self._sub_jobs:
-            PROCESSES[sjob.job_id] = process
+        # set process (to self and subjobs)
+        if process is not None:
+            for sjob in [self] + self._sub_jobs:
+                PROCESSES[sjob.job_id] = process
 
     def done(self, force_check: bool = False) -> bool:  # pylint: disable=unused-argument
         """Override to avoid using the watcher"""
@@ -268,7 +268,9 @@ class Controller:
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
 
-    def _forward_signal(self, signum: signal.Signals, *args: tp.Any) -> None:  # pylint:disable=unused-argument
+    def _forward_signal(
+        self, signum: signal.Signals, *args: tp.Any
+    ) -> None:  # pylint:disable=unused-argument
         for task in self.tasks:
             try:
                 task.send_signal(signum)  # sending kill signal to make sure everything finishes
