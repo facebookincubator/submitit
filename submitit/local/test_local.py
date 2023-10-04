@@ -50,7 +50,7 @@ def test_local_job(tmp_path: Path) -> None:
     # single task job is a regular job
     assert job2.task(0) is job2
     assert job2.done()
-    # pickelability
+    # picklability
     b = pickle.dumps(job2)
     job3 = pickle.loads(b)
     assert job3.results() == [0]
