@@ -88,7 +88,7 @@ skip_gitignore = true
 
 [tool.coverage]
   [tool.coverage.run]
-    omit = ["*/test_*.py", "/tmp/*"]
+    omit = ["*/test_*.py", "/tmp/pytest*"]
     data_file = "test_results/coverage/coverage.bin"
 
   [tool.coverage.html]
