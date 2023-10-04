@@ -176,7 +176,7 @@ class RsyncSnapshot:
     def __init__(
         self,
         snapshot_dir: Path,
-        root_dir: Path = None,
+        root_dir: tp.Optional[Path] = None,
         with_submodules: bool = False,
         exclude: tp.Sequence[str] = (),
         include: tp.Sequence[str] = (),

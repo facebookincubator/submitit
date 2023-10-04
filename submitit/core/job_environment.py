@@ -10,8 +10,8 @@ import socket
 import sys
 import time
 import types
+import typing as tp
 from pathlib import Path
-from typing import Any, ClassVar, Dict, Optional, Sequence
 
 from . import logger, utils
 from .utils import DelayedSubmission, JobPaths
@@ -33,9 +33,9 @@ class JobEnvironment:
     # can be overiden (eg: export SUBMITIT_PREEMPT_SIGNAL=USR2)
     # CAUTION: NCCL may catch USR1 so it should be avoided
     USR_SIG = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
-    _env: ClassVar[Dict[str, str]] = {}
+    _env: tp.ClassVar[tp.Dict[str, str]] = {}
 
-    def __new__(cls, *args: Any) -> "JobEnvironment":
+    def __new__(cls, *args: tp.Any) -> "JobEnvironment":
         if cls is not JobEnvironment:
             return super().__new__(cls, *args)  # type: ignore
 
@@ -74,7 +74,7 @@ class JobEnvironment:
         return socket.gethostname()
 
     @property
-    def hostnames(self) -> Sequence[str]:
+    def hostnames(self) -> tp.Sequence[str]:
         return [self.hostname]
 
     @property
@@ -89,12 +89,12 @@ class JobEnvironment:
         return os.environ[self._env["job_id"]]
 
     @property
-    def array_job_id(self) -> Optional[str]:
+    def array_job_id(self) -> tp.Optional[str]:
         n = "array_job_id"
         return None if n not in self._env else os.environ.get(self._env[n], None)
 
     @property
-    def array_task_id(self) -> Optional[str]:
+    def array_task_id(self) -> tp.Optional[str]:
         n = "array_task_id"
         return None if n not in self._env else os.environ.get(self._env[n], None)
 
@@ -134,7 +134,7 @@ class JobEnvironment:
         return f"JobEnvironment({info_str})"
 
     @classmethod
-    def _usr_sig(cls) -> Any:
+    def _usr_sig(cls) -> tp.Any:
         name = "SIG" + cls.USR_SIG
         out = getattr(signal, name, None)
         if out is None:
@@ -191,12 +191,12 @@ class SignalHandler:
             )
         return timed_out
 
-    def bypass(self, signum: int, frame: types.FrameType = None) -> None:  # pylint:disable=unused-argument
+    # pylint:disable=unused-argument
+    def bypass(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         self._logger.warning(f"Bypassing signal {signal.Signals(signum).name}")
 
-    def checkpoint_and_try_requeue(
-        self, signum: int, frame: types.FrameType = None  # pylint:disable=unused-argument
-    ) -> None:
+    # pylint:disable=unused-argument
+    def checkpoint_and_try_requeue(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         timed_out = self.has_timed_out()
         case = "timed-out" if timed_out else "preempted"
         self._logger.warning(
@@ -228,9 +228,8 @@ class SignalHandler:
         self.env._requeue(countdown)
         self._exit()
 
-    def checkpoint_and_exit(
-        self, signum: int, frame: types.FrameType = None  # pylint:disable=unused-argument
-    ) -> None:
+    # pylint:disable=unused-argument
+    def checkpoint_and_exit(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         # Note: no signal is actually bound to `checkpoint_and_exit` but this is used by plugins.
         self._logger.info(f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}")
 

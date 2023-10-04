@@ -64,12 +64,12 @@ def test_debug_submit_array(tmp_path: Path) -> None:
 
 def test_debug_error(tmp_path: Path) -> None:
     def failing_job() -> None:
-        raise Exception("Failed on purpose")
+        raise RuntimeError("Failed on purpose")
 
     executor = debug.DebugExecutor(tmp_path)
     job = executor.submit(failing_job)
     exception = job.exception()
-    assert isinstance(exception, Exception)
+    assert isinstance(exception, RuntimeError)
     message = exception.args[0]
     assert "Failed on purpose" in message
 
