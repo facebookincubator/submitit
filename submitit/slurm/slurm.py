@@ -16,12 +16,11 @@ import typing as tp
 import uuid
 import warnings
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from ..core import core, job_environment, logger, utils
 
 
-def read_job_id(job_id: str) -> tp.List[Tuple[str, ...]]:
+def read_job_id(job_id: str) -> tp.List[tp.Tuple[str, ...]]:
     """Reads formated job id and returns a tuple with format:
     (main_id, [array_index, [final_array_index])
     """
@@ -41,7 +40,7 @@ def read_job_id(job_id: str) -> tp.List[Tuple[str, ...]]:
 
 
 class SlurmInfoWatcher(core.InfoWatcher):
-    def _make_command(self) -> Optional[List[str]]:
+    def _make_command(self) -> tp.Optional[tp.List[str]]:
         # asking for array id will return all status
         # on the other end, asking for each and every one of them individually takes a huge amount of time
         to_check = {x.split("_")[0] for x in self._registered - self._finished}
@@ -66,7 +65,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
         info = self.get_info(job_id, mode=mode)
         return info.get("State") or "UNKNOWN"
 
-    def read_info(self, string: Union[bytes, str]) -> Dict[str, Dict[str, str]]:
+    def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
         """Reads the output of sacct and returns a dictionary containing main information"""
         if not isinstance(string, str):
             string = string.decode()
@@ -75,7 +74,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
             return {}  # one job id does not exist (yet)
         names = lines[0].split("|")
         # read all lines
-        all_stats: Dict[str, Dict[str, str]] = {}
+        all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
         for line in lines[1:]:
             stats = {x: y.strip() for x, y in zip(names, line.split("|"))}
             job_id = stats["JobID"]
@@ -124,7 +123,7 @@ class SlurmParseException(Exception):
     pass
 
 
-def _expand_id_suffix(suffix_parts: str) -> List[str]:
+def _expand_id_suffix(suffix_parts: str) -> tp.List[str]:
     """Parse the a suffix formatted like "1-3,5,8" into
     the list of numeric values 1,2,3,5,8.
     """
@@ -140,7 +139,7 @@ def _expand_id_suffix(suffix_parts: str) -> List[str]:
     return suffixes
 
 
-def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
+def _parse_node_group(node_list: str, pos: int, parsed: tp.List[str]) -> int:
     """Parse a node group of the form PREFIX[1-3,5,8] and return
     the position in the string at which the parsing stopped
     """
@@ -166,7 +165,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: List[str]) -> int:
 def _parse_node_list(node_list: str):
     try:
         pos = 0
-        parsed: List[str] = []
+        parsed: tp.List[str] = []
         while pos < len(node_list):
             pos = _parse_node_group(node_list, pos, parsed)
         return parsed
@@ -194,7 +193,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
         logger.get_logger().info(f"Requeued job {jid} ({countdown} remaining timeouts)")
 
     @property
-    def hostnames(self) -> List[str]:
+    def hostnames(self) -> tp.List[str]:
         """Parse the content of the "SLURM_JOB_NODELIST" environment variable,
         which gives access to the list of hostnames that are part of the current job.
 
@@ -225,6 +224,10 @@ class SlurmExecutor(core.PicklingExecutor):
     max_num_timeout: int
         Maximum number of time the job can be requeued after timeout (if
         the instance is derived from helpers.Checkpointable)
+    python: Optional[str]
+        Command to launch python. This allow to use singularity for example.
+        Caller is responsible to provide a valid shell command here.
+        By default reuse the current python executable
 
     Note
     ----
@@ -239,8 +242,11 @@ class SlurmExecutor(core.PicklingExecutor):
 
     job_class = SlurmJob
 
-    def __init__(self, folder: Union[Path, str], max_num_timeout: int = 3) -> None:
+    def __init__(
+        self, folder: tp.Union[Path, str], max_num_timeout: int = 3, python: tp.Optional[str] = None
+    ) -> None:
         super().__init__(folder, max_num_timeout)
+        self.python = python
         if not self.affinity() > 0:
             raise RuntimeError('Could not detect "srun", are you indeed on a slurm cluster?')
 
@@ -257,18 +263,18 @@ class SlurmExecutor(core.PicklingExecutor):
         }
 
     @classmethod
-    def _valid_parameters(cls) -> Set[str]:
+    def _valid_parameters(cls) -> tp.Set[str]:
         """Parameters that can be set through update_parameters"""
         return set(_get_default_parameters())
 
-    def _convert_parameters(self, params: Dict[str, Any]) -> Dict[str, Any]:
+    def _convert_parameters(self, params: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
         params = super()._convert_parameters(params)
         # replace type in some cases
         if "mem" in params:
             params["mem"] = _convert_mem(params["mem"])
         return params
 
-    def _internal_update_parameters(self, **kwargs: Any) -> None:
+    def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
         """Updates sbatch submission file parameters
 
         Parameters
@@ -331,7 +337,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
         first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
         tasks_ids = list(range(first_job.num_tasks))
-        jobs: List[core.Job[tp.Any]] = [
+        jobs: tp.List[core.Job[tp.Any]] = [
             SlurmJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(n)
         ]
         for job, pickle_path in zip(jobs, pickle_paths):
@@ -340,9 +346,8 @@ class SlurmExecutor(core.PicklingExecutor):
 
     @property
     def _submitit_command_str(self) -> str:
-        return " ".join(
-            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder))]
-        )
+        python = self.python or shlex.quote(sys.executable)
+        return " ".join([python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_sbatch_string(command=command, folder=self.folder, **self.parameters)
@@ -352,11 +357,11 @@ class SlurmExecutor(core.PicklingExecutor):
         tasks_per_node: int = max(1, self.parameters.get("ntasks_per_node", 1))
         return nodes * tasks_per_node
 
-    def _make_submission_command(self, submission_file_path: Path) -> List[str]:
+    def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
         return ["sbatch", str(submission_file_path)]
 
     @staticmethod
-    def _get_job_id_from_submission_command(string: Union[bytes, str]) -> str:
+    def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
         """Returns the job ID from the output of sbatch string"""
         if not isinstance(string, str):
             string = string.decode()
@@ -375,7 +380,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
 
 @functools.lru_cache()
-def _get_default_parameters() -> Dict[str, Any]:
+def _get_default_parameters() -> tp.Dict[str, tp.Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
     zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
@@ -407,6 +412,10 @@ def _make_sbatch_string(
     exclude: tp.Optional[str] = None,
     account: tp.Optional[str] = None,
     gres: tp.Optional[str] = None,
+    mail_type: tp.Optional[str] = None,
+    mail_user: tp.Optional[str] = None,
+    nodelist: tp.Optional[str] = None,
+    dependency: tp.Optional[str] = None,
     exclusive: tp.Optional[tp.Union[bool, str]] = None,
     array_parallelism: int = 256,
     wckey: str = "submitit",

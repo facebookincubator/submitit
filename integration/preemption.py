@@ -5,6 +5,7 @@
 #
 
 """Preemption tests, need to be run on a an actual cluster"""
+import getpass
 import logging
 import shutil
 import subprocess
@@ -51,13 +52,15 @@ def pascal_job(partition: str, timeout_min: int, node: str = "") -> Job:
         slurm_constraint="pascal",
         slurm_comment="submitit integration test",
         slurm_partition=partition,
+        slurm_mail_type="REQUEUE,BEGIN",
+        slurm_mail_user=f"{getpass.getuser()}+slurm@meta.com",
         # pascal nodes have 80 cpus.
         # By requesting 50 we now that their can be only one such job with this property.
         cpus_per_task=50,
         slurm_additional_parameters={},
     )
     if node:
-        ex.update_parameters(slurm_additional_parameters={"nodelist": node})
+        ex.update_parameters(nodelist=node)
 
     return ex.submit(clock, partition, timeout_min)
 
@@ -69,7 +72,7 @@ def wait_job_is_running(job: Job) -> None:
 
 
 def preemption():
-    job = pascal_job("learnfair", timeout_min=2 * 60)
+    job = pascal_job("learnlab", timeout_min=2 * 60)
     log.info(f"Scheduled {job}, {job.paths.stdout}")
     # log.info(job.paths.submission_file.read_text())
 
@@ -77,7 +80,7 @@ def preemption():
     node = job.get_info()["NodeList"]
     log.info(f"{job} ({job.state}) is runnning on {node} !")
     # Schedule another pascal job on the same node, whith high priority
-    priority_job = pascal_job("dev", timeout_min=15, node=node)
+    priority_job = pascal_job("devlab", timeout_min=15, node=node)
     log.info(f"Schedule {priority_job} ({job.state}) on {node} with high priority.")
     wait_job_is_running(priority_job)
 

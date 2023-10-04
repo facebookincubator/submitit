@@ -6,8 +6,8 @@
 
 import logging
 import re
+import typing as tp
 from pathlib import Path
-from typing import Any, Iterator
 
 import pkg_resources
 import pytest
@@ -25,7 +25,7 @@ def test_env(env: JobEnvironment) -> None:
 
 
 @pytest.mark.parametrize("ex", plugins.get_executors().values())
-def test_executors(ex: core.Executor) -> None:
+def test_executors(ex: tp.Type[core.Executor]) -> None:
     assert isinstance(ex, type)
     assert issubclass(ex, core.Executor)
     assert ex.affinity() >= -1
@@ -85,7 +85,7 @@ class PluginCreator:
         _clear_plugin_cache()
         self.monkeypatch.syspath_prepend(self.tmp_path)
 
-    def __exit__(self, *exception: Any) -> None:
+    def __exit__(self, *exception: tp.Any) -> None:
         _clear_plugin_cache()
 
 
@@ -95,7 +95,7 @@ def _clear_plugin_cache() -> None:
 
 
 @pytest.fixture(name="plugin_creator")
-def _plugin_creator(tmp_path: Path, monkeypatch) -> Iterator[PluginCreator]:
+def _plugin_creator(tmp_path: Path, monkeypatch) -> tp.Iterator[PluginCreator]:
     creator = PluginCreator(tmp_path, monkeypatch)
     with creator:
         yield creator

@@ -176,7 +176,7 @@ def test_stdout(tmp_path: Path) -> None:
 def test_killed(tmp_path: Path) -> None:
     def failing_job() -> None:
         time.sleep(120)
-        raise Exception("Failed on purpose")
+        raise RuntimeError("Failed on purpose")
 
     executor = local.LocalExecutor(tmp_path)
     job = executor.submit(failing_job)
@@ -220,7 +220,7 @@ def test_custom_checkpoint(tmp_path: Path) -> None:
             if slack:
                 print("Slacking", flush=True)
                 time.sleep(10)
-                raise Exception("I really don't want to work")
+                raise RuntimeError("I really don't want to work")
             print("Working hard", flush=True)
             return "worked hard"
 
