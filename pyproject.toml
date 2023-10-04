@@ -27,7 +27,7 @@ classifiers=[
 [project.optional-dependencies]
     dev = [
         # Test
-        "pytest>=7.4.2"
+        "pytest>=7.4.2",
         "pytest-asyncio>=0.15.0",
         "pytest-cov>=4.7.1",
         "coverage[toml]>=5.1",
