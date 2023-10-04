@@ -6,6 +6,7 @@
 
 import functools
 import os
+import pickle
 import re
 import signal
 import sys
@@ -49,6 +50,10 @@ def test_local_job(tmp_path: Path) -> None:
     # single task job is a regular job
     assert job2.task(0) is job2
     assert job2.done()
+    # pickelability
+    b = pickle.dumps(job2)
+    job3 = pickle.loads(b)
+    assert job3.results() == [0]
 
 
 def test_local_map_array(tmp_path: Path) -> None:
@@ -134,7 +139,7 @@ def test_killed(tmp_path: Path) -> None:
     executor = local.LocalExecutor(tmp_path)
     job = executor.submit(failing_job)
     assert job.state == "RUNNING"
-    job._process.send_signal(signal.SIGKILL)  # type: ignore
+    job._process().send_signal(signal.SIGKILL)  # type: ignore
     time.sleep(1)
     assert job.state == "INTERRUPTED"
 
@@ -213,7 +218,7 @@ def test_cancel(tmp_path: Path) -> None:
     assert job.state == "INTERRUPTED"
 
     job = executor.submit(time.sleep, 10)
-    process = job._process  # type: ignore
+    process = job._process()  # type: ignore
     job.cancel_at_deletion()
     assert job.state == "RUNNING"
     assert process.poll() is None
