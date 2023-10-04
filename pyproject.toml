@@ -27,16 +27,16 @@ classifiers=[
 [project.optional-dependencies]
     dev = [
         # Test
-        "pytest>=4.3.0",
+        "pytest>=7.4.2",
         "pytest-asyncio>=0.15.0",
-        "pytest-cov>=2.6.1",
+        "pytest-cov>=4.1.0",
         "coverage[toml]>=5.1",
         # Format
         "black==22.3.0",
         "isort==5.5.3",
         "pre-commit>=1.15.2",
         # Linters
-        "mypy>=0.971",
+        "mypy>=1.4.1",
         "types-pkg_resources>=0.1.2",
         "pylint>=2.13.9",
         # Release
@@ -88,7 +88,7 @@ skip_gitignore = true
 
 [tool.coverage]
   [tool.coverage.run]
-    omit = ["*/test_*.py"]
+    omit = ["*/test_*.py", "/tmp/pytest*/*"]
     data_file = "test_results/coverage/coverage.bin"
 
   [tool.coverage.html]

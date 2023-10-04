@@ -130,7 +130,7 @@ def test_slurm_error_mocked(tmp_path: Path) -> None:
 
 
 @contextlib.contextmanager
-def mock_requeue(called_with: int = None, not_called: bool = False):
+def mock_requeue(called_with: tp.Optional[int] = None, not_called: bool = False):
     assert not_called or called_with is not None
     requeue = patch("submitit.slurm.slurm.SlurmJobEnvironment._requeue", return_value=None)
     with requeue as _patch:
@@ -244,7 +244,7 @@ def test_make_sbatch_string() -> None:
         folder="/tmp",
         partition="learnfair",
         exclusive=True,
-        additional_parameters=dict(blublu=12),
+        additional_parameters={"blublu": 12},
         srun_args=["-vv", "--cpu-bind", "none"],
     )
     assert "partition" in string
