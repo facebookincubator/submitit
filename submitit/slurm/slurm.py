@@ -100,7 +100,6 @@ class SlurmInfoWatcher(core.InfoWatcher):
 
 
 class SlurmJob(core.Job[core.R]):
-
     _cancel_command = "scancel"
     watcher = SlurmInfoWatcher(delay_s=600)
 
@@ -174,7 +173,6 @@ def _parse_node_list(node_list: str):
 
 
 class SlurmJobEnvironment(job_environment.JobEnvironment):
-
     _env = {
         "job_id": "SLURM_JOB_ID",
         "num_tasks": "SLURM_NTASKS",
@@ -246,7 +244,7 @@ class SlurmExecutor(core.PicklingExecutor):
         self, folder: tp.Union[Path, str], max_num_timeout: int = 3, python: tp.Optional[str] = None
     ) -> None:
         super().__init__(folder, max_num_timeout)
-        self.python = python
+        self.python = shlex.quote(sys.executable) if python is None else python
         if not self.affinity() > 0:
             raise RuntimeError('Could not detect "srun", are you indeed on a slurm cluster?')
 
@@ -346,8 +344,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
     @property
     def _submitit_command_str(self) -> str:
-        python = self.python or shlex.quote(sys.executable)
-        return " ".join([python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
+        return " ".join([self.python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_sbatch_string(command=command, folder=self.folder, **self.parameters)
