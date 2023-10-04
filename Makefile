@@ -18,10 +18,10 @@ which:
 	$(BIN)python --version
 
 test:
-	$(BIN)pytest $(CODE)
+	$(BIN)python -m pytest $(CODE)
 
 test_coverage:
-	$(BIN)pytest \
+	$(BIN)python -m pytest \
 		-v \
 		--cov=submitit --cov-report=html --cov-report=term \
 		--durations=10 \
