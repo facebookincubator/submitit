@@ -151,7 +151,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: tp.List[str]) -> int:
             return pos + 1
         if c == "[":
             last_pos = node_list.index("]", pos)
-            suffixes = _expand_id_suffix(node_list[pos + 1: last_pos])
+            suffixes = _expand_id_suffix(node_list[pos + 1 : last_pos])
             prefixes = [prefix + suffix for prefix in prefixes for suffix in suffixes]
             pos = last_pos + 1
         else:
@@ -242,7 +242,9 @@ class SlurmExecutor(core.PicklingExecutor):
 
     job_class = SlurmJob
 
-    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3, python: tp.Optional[str] = None) -> None:
+    def __init__(
+        self, folder: tp.Union[Path, str], max_num_timeout: int = 3, python: tp.Optional[str] = None
+    ) -> None:
         super().__init__(folder, max_num_timeout)
         self.python = python
         if not self.affinity() > 0:
@@ -381,7 +383,7 @@ class SlurmExecutor(core.PicklingExecutor):
 def _get_default_parameters() -> tp.Dict[str, tp.Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
-    zipped = zip(specs.args[-len(specs.defaults):], specs.defaults)  # type: ignore
+    zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 

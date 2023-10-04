@@ -196,9 +196,7 @@ class SignalHandler:
         self._logger.warning(f"Bypassing signal {signal.Signals(signum).name}")
 
     # pylint:disable=unused-argument
-    def checkpoint_and_try_requeue(
-        self, signum: int, frame: tp.Optional[types.FrameType] = None
-    ) -> None:
+    def checkpoint_and_try_requeue(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         timed_out = self.has_timed_out()
         case = "timed-out" if timed_out else "preempted"
         self._logger.warning(
@@ -231,9 +229,7 @@ class SignalHandler:
         self._exit()
 
     # pylint:disable=unused-argument
-    def checkpoint_and_exit(
-        self, signum: int, frame: tp.Optional[types.FrameType] = None
-    ) -> None:
+    def checkpoint_and_exit(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         # Note: no signal is actually bound to `checkpoint_and_exit` but this is used by plugins.
         self._logger.info(f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}")
 
