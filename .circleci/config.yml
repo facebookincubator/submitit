@@ -7,7 +7,7 @@ version: 2.1
 jobs:
   create_venv:
     docker:
-      - image: circleci/python:3.6
+      - image: circleci/python:3.8
     steps:
       - checkout
       - restore_cache:
@@ -28,7 +28,7 @@ jobs:
 
   check_format:
     docker:
-      - image: circleci/python:3.6
+      - image: circleci/python:3.8
     steps:
       - checkout
       - attach_workspace:
@@ -37,7 +37,7 @@ jobs:
 
   lint:
     docker:
-      - image: circleci/python:3.6
+      - image: circleci/python:3.8
     steps:
       - checkout
       - attach_workspace:
@@ -48,7 +48,7 @@ jobs:
 
   installable:
       docker:
-        - image: circleci/python:3.6
+        - image: circleci/python:3.8
       steps:
         - checkout
         - attach_workspace:
@@ -57,7 +57,7 @@ jobs:
 
   test_coverage:
       docker:
-        - image: circleci/python:3.6
+        - image: circleci/python:3.8
       steps:
         - checkout
         - attach_workspace:
