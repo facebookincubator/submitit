@@ -463,7 +463,7 @@ def _make_sbatch_string(
         "signal_delay_s",
         "stderr_to_stdout",
         "srun_args",
-        "use_srun",
+        "use_srun",  # if False, un python directly in sbatch instead of through srun
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
@@ -502,6 +502,9 @@ def _make_sbatch_string(
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
 
     if use_srun:
+        # using srun has been the only option historically,
+        # but it's not clear anymore if it is necessary, and using it prevents
+        # jobs from scheduling other jobs
         stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
         if srun_args is None:
             srun_args = []
