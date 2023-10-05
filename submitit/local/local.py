@@ -87,7 +87,6 @@ class LocalJob(core.Job[R]):
         if self._cancel_at_deletion:
             if not self.get_info().get("jobState") == "FINISHED":
                 self.cancel(check=False)
-            _PROCESSES.pop(self.job_id, None)
         # let's clear the process dict if we know it's finished
         if self.paths.result_pickle.exists():
             _PROCESSES.pop(self.job_id, None)
