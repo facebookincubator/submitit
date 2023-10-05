@@ -6,6 +6,7 @@
 
 import functools
 import os
+import pickle
 import re
 import signal
 import sys
@@ -49,6 +50,14 @@ def test_local_job(tmp_path: Path) -> None:
     # single task job is a regular job
     assert job2.task(0) is job2
     assert job2.done()
+    # picklability
+    b = pickle.dumps(job2)
+    job3 = pickle.loads(b)
+    assert job3.results() == [0]
+    assert job3._process is not None
+    del job2
+    job3 = pickle.loads(b)
+    assert job3._process is None, "garbage collection should I removed finished job"
 
 
 def test_local_map_array(tmp_path: Path) -> None:
