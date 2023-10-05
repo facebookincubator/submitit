@@ -119,8 +119,11 @@ class LocalExecutor(core.PicklingExecutor):
 
     job_class = LocalJob
 
-    def __init__(self, folder: Union[str, Path], max_num_timeout: int = 3) -> None:
+    def __init__(
+        self, folder: Union[str, Path], max_num_timeout: int = 3, python: Optional[str] = None
+    ) -> None:
         super().__init__(folder, max_num_timeout=max_num_timeout)
+        self.python = shlex.quote(sys.executable) if python is None else python
         # preliminary check
         indep_folder = utils.JobPaths.get_first_id_independent_folder(self.folder)
         indep_folder.mkdir(parents=True, exist_ok=True)
@@ -175,9 +178,7 @@ class LocalExecutor(core.PicklingExecutor):
 
     @property
     def _submitit_command_str(self) -> str:
-        return " ".join(
-            [shlex.quote(sys.executable), "-u -m submitit.core._submit", shlex.quote(str(self.folder))]
-        )
+        return " ".join([self.python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
 
     def _num_tasks(self) -> int:
         nodes: int = 1
