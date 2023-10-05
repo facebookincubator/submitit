@@ -147,7 +147,7 @@ class LocalExecutor(core.PicklingExecutor):
     job_class = LocalJob
 
     def __init__(
-        self, folder: Union[str, Path], max_num_timeout: int = 3, python: Optional[str] = None
+        self, folder: tp.Union[str, Path], max_num_timeout: int = 3, python: tp.Optional[str] = None
     ) -> None:
         super().__init__(folder, max_num_timeout=max_num_timeout)
         self.python = shlex.quote(sys.executable) if python is None else python
