@@ -10,8 +10,8 @@ import signal
 import subprocess
 import sys
 import time
+import typing as tp
 from pathlib import Path
-from typing import IO, Any, Dict, List, Optional, Sequence, Union
 
 from ..core import core, job_environment, logger, utils
 from ..core.core import R
@@ -21,27 +21,32 @@ VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s"
 
 LOCAL_REQUEUE_RETURN_CODE = 144
 
+# global variable storing unfinished processes of pickled jobs
+# in case we need to reload them later
+_PROCESSES: tp.Dict[str, "subprocess.Popen['bytes']"] = {}
+
 
 class LocalJob(core.Job[R]):
     def __init__(
         self,
-        folder: Union[Path, str],
+        folder: tp.Union[Path, str],
         job_id: str,
-        tasks: Sequence[int] = (0,),
-        process: Optional["subprocess.Popen['bytes']"] = None,
+        tasks: tp.Sequence[int] = (0,),
+        process: tp.Optional["subprocess.Popen['bytes']"] = None,
     ) -> None:
         super().__init__(folder, job_id, tasks)
         self._cancel_at_deletion = False
-        self._process = process
         # downcast sub-jobs to get proper typing
-        self._sub_jobs: Sequence["LocalJob[R]"] = self._sub_jobs
+        self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
+        # set process (to self and subjobs)
+        self._process = process
         for sjob in self._sub_jobs:
             sjob._process = process
 
     def done(self, force_check: bool = False) -> bool:  # pylint: disable=unused-argument
         """Override to avoid using the watcher"""
-        assert self._process is not None
-        return self._process.poll() is not None
+        state = self.get_info()["jobState"]
+        return state != "RUNNING"
 
     @property
     def state(self) -> str:
@@ -49,12 +54,16 @@ class LocalJob(core.Job[R]):
         try:
             return self.get_info().get("jobState", "unknown")
         # I don't what is the exception returned and it's hard to reproduce
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             return "UNKNOWN"
 
-    def get_info(self, mode: str = "force") -> Dict[str, str]:  # pylint: disable=unused-argument
+    def get_info(self, mode: str = "force") -> tp.Dict[str, str]:  # pylint: disable=unused-argument
         """Returns information about the job as a dict."""
-        assert self._process is not None
+        if self._process is None:
+            state = "NO PROCESS AND NO RESULT"
+            if self.paths.result_pickle.exists():
+                state = "FINISHED"
+            return {"jobState": state}
         poll = self._process.poll()
         if poll is None:
             state = "RUNNING"
@@ -65,18 +74,36 @@ class LocalJob(core.Job[R]):
         return {"jobState": state}
 
     def cancel(self, check: bool = True) -> None:  # pylint: disable=unused-argument
-        assert self._process is not None
-        self._process.send_signal(signal.SIGINT)
+        if self._process is not None:
+            self._process.send_signal(signal.SIGINT)
 
     def _interrupt(self) -> None:
         """Sends preemption / timeout signal to the job (for testing purpose)"""
-        assert self._process is not None
-        self._process.send_signal(LocalJobEnvironment._usr_sig())
+        if self._process is not None:
+            self._process.send_signal(LocalJobEnvironment._usr_sig())
 
     def __del__(self) -> None:
         if self._cancel_at_deletion:
             if not self.get_info().get("jobState") == "FINISHED":
                 self.cancel(check=False)
+        # let's clear the process dict if we know it's finished
+        if self.paths.result_pickle.exists():
+            _PROCESSES.pop(self.job_id, None)
+
+    # # # # # pickling below # # # # #
+
+    def __getstate__(self) -> tp.Any:
+        out = dict(self.__dict__)
+        out["_process"] = None
+        if self._process is not None:
+            _PROCESSES[self.job_id] = self._process
+        return out
+
+    def __setstate__(self, state: tp.Any) -> None:
+        # Restore instance attributes
+        self.__dict__.update(state)
+        # recover process if it still exists
+        self._process = _PROCESSES.get(self.job_id, None)
 
 
 class LocalJobEnvironment(job_environment.JobEnvironment):
@@ -120,7 +147,7 @@ class LocalExecutor(core.PicklingExecutor):
     job_class = LocalJob
 
     def __init__(
-        self, folder: Union[str, Path], max_num_timeout: int = 3, python: Optional[str] = None
+        self, folder: tp.Union[str, Path], max_num_timeout: int = 3, python: tp.Optional[str] = None
     ) -> None:
         super().__init__(folder, max_num_timeout=max_num_timeout)
         self.python = shlex.quote(sys.executable) if python is None else python
@@ -128,7 +155,7 @@ class LocalExecutor(core.PicklingExecutor):
         indep_folder = utils.JobPaths.get_first_id_independent_folder(self.folder)
         indep_folder.mkdir(parents=True, exist_ok=True)
 
-    def _internal_update_parameters(self, **kwargs: Any) -> None:
+    def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
         """Update the parameters of the Executor.
 
         Valid parameters are:
@@ -145,7 +172,7 @@ class LocalExecutor(core.PicklingExecutor):
             raise ValueError("LocalExecutor can use only one node. Use nodes=1")
         gpus_requested = kwargs.get("gpus_per_node", 0)
         visible_gpus = kwargs.get("visible_gpus", ())
-        if not isinstance(visible_gpus, Sequence):
+        if not isinstance(visible_gpus, tp.Sequence):
             raise ValueError(f"Provided visible_gpus={visible_gpus} is not an instance of Sequence.")
         if not all(isinstance(x, int) for x in visible_gpus):
             raise ValueError(f"Provided visible_gpus={visible_gpus} contains an element that is not an int.")
@@ -189,11 +216,11 @@ class LocalExecutor(core.PicklingExecutor):
         return ""
 
     @staticmethod
-    def _get_job_id_from_submission_command(string: Union[bytes, str]) -> str:
+    def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
         # Not used, but need an implementation
         return "0"
 
-    def _make_submission_command(self, submission_file_path: Path) -> List[str]:
+    def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
         # Not used, but need an implementation
         return []
 
@@ -244,14 +271,15 @@ class Controller:
         self.timeout_s = int(os.environ["SUBMITIT_LOCAL_TIMEOUT_S"])
         self.signal_delay_s = int(os.environ["SUBMITIT_LOCAL_SIGNAL_DELAY_S"])
         self.stderr_to_stdout = bool(os.environ["SUBMITIT_STDERR_TO_STDOUT"])
-        self.tasks: List[subprocess.Popen] = []  # type: ignore
-        self.stdouts: List[IO[Any]] = []
-        self.stderrs: List[IO[Any]] = []
+        self.tasks: tp.List[subprocess.Popen] = []  # type: ignore
+        self.stdouts: tp.List[tp.IO[tp.Any]] = []
+        self.stderrs: tp.List[tp.IO[tp.Any]] = []
         self.pid = str(os.getpid())
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
 
-    def _forward_signal(self, signum: signal.Signals, *args: Any) -> None:  # pylint:disable=unused-argument
+    # pylint:disable=unused-argument
+    def _forward_signal(self, signum: signal.Signals, *args: tp.Any) -> None:
         for task in self.tasks:
             try:
                 task.send_signal(signum)  # sending kill signal to make sure everything finishes
@@ -294,7 +322,7 @@ class Controller:
         for f in files:
             f.close()
 
-    def wait(self, freq: int = 24) -> Sequence[Optional[int]]:
+    def wait(self, freq: int = 24) -> tp.Sequence[tp.Optional[int]]:
         """Waits for all tasks to finish or to time-out.
 
         Returns
