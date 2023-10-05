@@ -420,6 +420,7 @@ def _make_sbatch_string(
     map_count: tp.Optional[int] = None,  # used internally
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
     srun_args: tp.Optional[tp.Iterable[str]] = None,
+    use_srun: bool = True,
 ) -> str:
     """Creates the content of an sbatch file with provided parameters
 
@@ -462,6 +463,7 @@ def _make_sbatch_string(
         "signal_delay_s",
         "stderr_to_stdout",
         "srun_args",
+        "use_srun",  # if False, un python directly in sbatch instead of through srun
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
@@ -498,17 +500,23 @@ def _make_sbatch_string(
         lines += ["", "# setup"] + setup
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass --output and --error here, because the SBATCH command doesn't work as expected with a filename pattern
-    stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
-    if srun_args is None:
-        srun_args = []
 
-    srun_cmd = _shlex_join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args])
+    if use_srun:
+        # using srun has been the only option historically,
+        # but it's not clear anymore if it is necessary, and using it prevents
+        # jobs from scheduling other jobs
+        stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
+        if srun_args is None:
+            srun_args = []
+        srun_cmd = _shlex_join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args])
+        command = " ".join((srun_cmd, command))
+
     lines += [
         "",
         "# command",
         "export SUBMITIT_EXECUTOR=slurm",
         # The input "command" is supposed to be a valid shell command
-        " ".join((srun_cmd, command)),
+        command,
         "",
     ]
     return "\n".join(lines)
