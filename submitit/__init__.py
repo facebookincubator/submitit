@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-""""Python 3.6+ toolbox for submitting jobs to Slurm"""
+""""Python 3.8+ toolbox for submitting jobs to Slurm"""
 
 # allow explicit reimports (mypy) by renaming all imports
 from . import helpers as helpers
@@ -18,4 +18,4 @@ from .local.local import LocalJob as LocalJob
 from .slurm.slurm import SlurmExecutor as SlurmExecutor
 from .slurm.slurm import SlurmJob as SlurmJob
 
-__version__ = "1.4.6"
+__version__ = "1.5.0"
