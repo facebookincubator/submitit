@@ -23,7 +23,7 @@ LOCAL_REQUEUE_RETURN_CODE = 144
 
 # global variable storing unfinished processes of pickled jobs
 # in case we need to reload them later
-_PROCESSES = {}
+_PROCESSES: tp.Dict[str, "subprocess.Popen['bytes']"] = {}
 
 
 class LocalJob(core.Job[R]):
@@ -79,9 +79,8 @@ class LocalJob(core.Job[R]):
 
     def _interrupt(self) -> None:
         """Sends preemption / timeout signal to the job (for testing purpose)"""
-        process = self._process()
-        if process is not None:
-            process.send_signal(LocalJobEnvironment._usr_sig())
+        if self._process is not None:
+            self._process.send_signal(LocalJobEnvironment._usr_sig())
 
     def __del__(self) -> None:
         if self._cancel_at_deletion:
@@ -96,7 +95,8 @@ class LocalJob(core.Job[R]):
     def __getstate__(self) -> tp.Any:
         out = dict(self.__dict__)
         out["_process"] = None
-        _PROCESSES[self.job_id] = self._process
+        if self._process is not None:
+            _PROCESSES[self.job_id] = self._process
         return out
 
     def __setstate__(self, state: tp.Any) -> None:
