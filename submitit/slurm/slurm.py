@@ -100,7 +100,6 @@ class SlurmInfoWatcher(core.InfoWatcher):
 
 
 class SlurmJob(core.Job[core.R]):
-
     _cancel_command = "scancel"
     watcher = SlurmInfoWatcher(delay_s=600)
 
@@ -174,7 +173,6 @@ def _parse_node_list(node_list: str):
 
 
 class SlurmJobEnvironment(job_environment.JobEnvironment):
-
     _env = {
         "job_id": "SLURM_JOB_ID",
         "num_tasks": "SLURM_NTASKS",

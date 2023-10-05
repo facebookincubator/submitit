@@ -205,7 +205,7 @@ class AutoExecutor(Executor):
         )
         parameters = self._executor._convert_parameters({k: kwargs[k] for k in kwargs if k in generics})
         # update parameters in the core executor
-        for (ex, arg) in specific:
+        for ex, arg in specific:
             # update cluster specific non-generic arguments
             if arg not in generics and ex == self.cluster:
                 parameters[arg] = kwargs[f"{ex}_{arg}"]
