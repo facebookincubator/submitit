@@ -21,7 +21,7 @@ VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s"
 
 LOCAL_REQUEUE_RETURN_CODE = 144
 
-PROCESSES = {}
+_PROCESSES = {}
 
 
 class LocalJob(core.Job[R]):
@@ -37,17 +37,14 @@ class LocalJob(core.Job[R]):
         # downcast sub-jobs to get proper typing
         self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
         # set process (to self and subjobs)
-        if process is not None:
-            for sjob in [self] + list(self._sub_jobs):
-                PROCESSES[sjob.job_id] = process
+        self._process = process
+        for sjob in self._sub_jobs:
+            sjob._process = process
 
     def done(self, force_check: bool = False) -> bool:  # pylint: disable=unused-argument
         """Override to avoid using the watcher"""
         state = self.get_info()["jobState"]
         return state != "RUNNING"
-
-    def _process(self) -> tp.Optional["subprocess.Popen['bytes']"]:
-        return PROCESSES.get(self.job_id, None)
 
     @property
     def state(self) -> str:
@@ -55,18 +52,17 @@ class LocalJob(core.Job[R]):
         try:
             return self.get_info().get("jobState", "unknown")
         # I don't what is the exception returned and it's hard to reproduce
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             return "UNKNOWN"
 
     def get_info(self, mode: str = "force") -> tp.Dict[str, str]:  # pylint: disable=unused-argument
         """Returns information about the job as a dict."""
-        process = self._process()
-        if process is None:
+        if self._process is None:
             state = "NO PROCESS AND NO RESULT"
             if self.paths.result_pickle.exists():
                 state = "FINISHED"
             return {"jobState": state}
-        poll = process.poll()
+        poll = self._process.poll()
         if poll is None:
             state = "RUNNING"
         elif poll < 0:
@@ -76,9 +72,8 @@ class LocalJob(core.Job[R]):
         return {"jobState": state}
 
     def cancel(self, check: bool = True) -> None:  # pylint: disable=unused-argument
-        process = self._process()
-        if process is not None:
-            process.send_signal(signal.SIGINT)
+        if self._process is not None:
+            self._process.send_signal(signal.SIGINT)
 
     def _interrupt(self) -> None:
         """Sends preemption / timeout signal to the job (for testing purpose)"""
@@ -90,10 +85,24 @@ class LocalJob(core.Job[R]):
         if self._cancel_at_deletion:
             if not self.get_info().get("jobState") == "FINISHED":
                 self.cancel(check=False)
-            PROCESSES.pop(self.job_id, None)
+            _PROCESSES.pop(self.job_id, None)
         # let's clear the process dict if we know it's finished
         if self.paths.result_pickle.exists():
-            PROCESSES.pop(self.job_id, None)
+            _PROCESSES.pop(self.job_id, None)
+
+    # # # # # pickling below # # # # #
+
+    def __getstate__(self) -> tp.Any:
+        out = dict(self.__dict__)
+        out["_process"] = None
+        _PROCESSES[self.job_id] = self._process
+        return out
+
+    def __setstate__(self, state: tp.Any) -> None:
+        # Restore instance attributes
+        self.__dict__.update(state)
+        # recover process if it still exists
+        self._process = _PROCESSES.get(self.job_id, None)
 
 
 class LocalJobEnvironment(job_environment.JobEnvironment):
