@@ -144,7 +144,6 @@ class DebugJob(Job[R]):
 
 
 class DebugExecutor(Executor):
-
     job_class = DebugJob
 
     def __init__(self, folder: Union[str, Path]):

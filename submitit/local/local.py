@@ -97,7 +97,6 @@ class LocalJob(core.Job[R]):
 
 
 class LocalJobEnvironment(job_environment.JobEnvironment):
-
     _env = {
         "job_id": "SUBMITIT_LOCAL_JOB_ID",
         "num_tasks": "SUBMITIT_LOCAL_NTASKS",
