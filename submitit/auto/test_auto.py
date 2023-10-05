@@ -43,7 +43,12 @@ def test_local_executor(tmp_path: Path) -> None:
     with test_slurm.mocked_slurm():
         executor = auto.AutoExecutor(folder=tmp_path, cluster="local")
     assert executor.cluster == "local"
-    executor.update_parameters(local_cpus_per_task=2)
+
+
+def test_python_executor(tmp_path: Path) -> None:
+    executor = auto.AutoExecutor(folder=tmp_path, cluster="local", local_python=sys.executable)
+    job = executor.submit(lambda: 12)
+    assert job.result() == 12
 
 
 def test_executor_argument(tmp_path: Path) -> None:
