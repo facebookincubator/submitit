@@ -136,6 +136,15 @@ def _get_env() -> tp.Dict[str, str]:
     return {x: y for x, y in os.environ.items() if x.startswith(("SLURM_", "SUBMITIT_"))}
 
 
+def test_torch_distrib_env() -> None:
+    with pytest.raises(RuntimeError):
+        env = helpers.TorchDistributedEnvironment()
+    with utils.environment_variables(SLURM_JOB_ID=12):
+        env = helpers.TorchDistributedEnvironment()
+    # port is deduced from job id
+    assert env.master_port == 58811
+
+
 def test_clean_env() -> None:
     base = _get_env()
     with utils.environment_variables(SLURM_BLUBLU=12, SUBMITIT_BLUBLU=12):

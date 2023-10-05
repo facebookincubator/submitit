@@ -24,6 +24,7 @@ from .core.job_environment import JobEnvironment
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
 from .core.utils import environment_variables as environment_variables  # noqa
+from .slurm.slurm import SlurmJobEnvironment
 
 
 class Checkpointable:
@@ -331,13 +332,25 @@ class TorchDistributedEnvironment:
         >>> torch.distributed.init_process_group(backend="nccl")
         >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
         """
-        self._job_env = JobEnvironment()
+        try:
+            self._job_env = JobEnvironment()
+        except RuntimeError as e:
+            if SlurmJobEnvironment._env["job_id"] in os.environ:
+                # identified a slurm env without submitit, so let's use it
+                self._job_env = SlurmJobEnvironment()
+            else:
+                raise e
         self.master_addr = self._job_env.hostnames[0]
         self.master_port = self._get_master_port()
         self.rank = self._job_env.global_rank
         self.world_size = self._job_env.num_tasks
         self.local_rank = self._job_env.local_rank
         self.local_world_size = self._job_env.num_tasks // self._job_env.num_nodes
+
+    def __repr__(self) -> str:
+        cls = self.__class__.__name__
+        env = sorted(f"{name}={val}" for name, val in self.__dict__.items() if not name.startswith("_"))
+        return f"{cls}<{','.join(env)}>"
 
     def _get_master_port(self) -> int:
         # MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)
