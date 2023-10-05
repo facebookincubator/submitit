@@ -39,7 +39,6 @@ class DebugJobEnvironment(JobEnvironment):
         pass
 
 
-# pylint in python 3.6 is confused by generics.
 class DebugJob(Job[R]):
     watcher = DebugInfoWatcher()
 

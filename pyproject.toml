@@ -6,7 +6,7 @@ build-backend = "flit_core.buildapi"
 name = "submitit"
 readme = "README.md"
 authors = [{name = "Facebook AI Research"}]
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 dynamic = ["version", "description"]
 
 dependencies = [
