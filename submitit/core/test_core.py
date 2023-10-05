@@ -98,20 +98,17 @@ class MockedSubprocess:
 
 
 class FakeInfoWatcher(core.InfoWatcher):
-
     # pylint: disable=abstract-method
     def get_state(self, job_id: str, mode: str = "standard") -> str:
         return "running"
 
 
 class FakeJob(core.Job[core.R]):
-
     watcher = FakeInfoWatcher()
     _cancel_at_deletion = False
 
 
 class FakeExecutor(core.PicklingExecutor):
-
     job_class = FakeJob
 
     @property
