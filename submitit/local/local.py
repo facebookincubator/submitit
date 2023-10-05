@@ -21,6 +21,8 @@ VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s"
 
 LOCAL_REQUEUE_RETURN_CODE = 144
 
+# global variable storing unfinished processes of pickled jobs
+# in case we need to reload them later
 _PROCESSES = {}
 
 
