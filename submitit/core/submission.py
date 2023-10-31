@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import sys
 import argparse
 import os
 import time
@@ -33,13 +34,14 @@ def process_job(folder: Union[Path, str]) -> None:
     -----------
     Creates a picked output file next to the job file.
     """
+    sys.stderr.write("PROCESSING\n")
     os.environ["SUBMITIT_FOLDER"] = str(folder)
     env = job_environment.JobEnvironment()
     paths = env.paths
     logger = get_logger()
     logger.info(f"Starting with {env}")
     logger.info(f"Loading pickle: {paths.submitted_pickle}")
-    wait_time = 60
+    wait_time = 10
     for _ in range(wait_time):
         if paths.submitted_pickle.exists():
             break
@@ -72,5 +74,6 @@ def process_job(folder: Union[Path, str]) -> None:
 def submitit_main() -> None:
     parser = argparse.ArgumentParser(description="Run a job")
     parser.add_argument("folder", type=str, help="Folder where the jobs are stored (in subfolder)")
+    sys.stderr.write("parsed\n")
     args = parser.parse_args()
     process_job(args.folder)

@@ -17,7 +17,7 @@ from ..core import core, job_environment, logger, utils
 from ..core.core import R
 
 # pylint: disable-msg=too-many-arguments
-VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s", "visible_gpus"}
+VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s", "visible_gpus", "setup"}
 
 LOCAL_REQUEUE_RETURN_CODE = 144
 
@@ -35,6 +35,7 @@ class LocalJob(core.Job[R]):
         process: tp.Optional["subprocess.Popen['bytes']"] = None,
     ) -> None:
         super().__init__(folder, job_id, tasks)
+        sys.stderr.write(f'job_id {self.job_id}\n')
         self._cancel_at_deletion = False
         # downcast sub-jobs to get proper typing
         self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
@@ -197,6 +198,7 @@ class LocalExecutor(core.PicklingExecutor):
             timeout_min=self.parameters.get("timeout_min", 2.0),
             signal_delay_s=self.parameters.get("signal_delay_s", 30),
             stderr_to_stdout=self.parameters.get("stderr_to_stdout", False),
+            setup=self.parameters.get("setup", ()),
         )
         job: LocalJob[R] = LocalJob(
             folder=self.folder, job_id=str(process.pid), process=process, tasks=list(range(ntasks))
@@ -233,9 +235,11 @@ def start_controller(
     timeout_min: float = 5.0,
     signal_delay_s: int = 30,
     stderr_to_stdout: bool = False,
+    setup: tp.Sequence[str] = (),
 ) -> "subprocess.Popen['bytes']":
     """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
+    print("Command before", command)
     env.update(
         SUBMITIT_LOCAL_NTASKS=str(tasks_per_node),
         SUBMITIT_LOCAL_COMMAND=command,
@@ -246,12 +250,18 @@ def start_controller(
         SUBMITIT_STDERR_TO_STDOUT="1" if stderr_to_stdout else "",
         SUBMITIT_EXECUTOR="local",
         CUDA_VISIBLE_DEVICES=cuda_devices,
+        SUBMITIT_LOCAL_WITH_SHELL="1" if setup else "",
+
     )
     # The LocalJob will be responsible to polling and ending this process.
     # pylint: disable=consider-using-with
-    process = subprocess.Popen(
-        [sys.executable, "-m", "submitit.local._local", str(folder)], shell=False, env=env
-    )
+    proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
+    if setup:
+        proc_cmd  = " && ".join(list(setup) + [" ".join(proc_cmd)])
+    print("###")
+    print(proc_cmd)
+    print("###")
+    process = subprocess.Popen(proc_cmd, shell=isinstance(proc_cmd, str), env=env)
     return process
 
 
@@ -274,9 +284,14 @@ class Controller:
         self.tasks: tp.List[subprocess.Popen] = []  # type: ignore
         self.stdouts: tp.List[tp.IO[tp.Any]] = []
         self.stderrs: tp.List[tp.IO[tp.Any]] = []
-        self.pid = str(os.getpid())
+        with_shell = bool(os.environ["SUBMITIT_LOCAL_WITH_SHELL"])
+        self.pid = str(os.getppid() if with_shell else os.getpid())
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
+        sys.stderr.write('Hello world\n')
+        sys.stderr.write(f"{self.command}\n")
+        sys.stderr.write(f'In controller pid {os.getpid()} and ppid {os.getppid()}\n')
+
 
     # pylint:disable=unused-argument
     def _forward_signal(self, signum: signal.Signals, *args: tp.Any) -> None:
@@ -291,7 +306,9 @@ class Controller:
         paths = [utils.JobPaths(self.folder, self.pid, k) for k in range(self.ntasks)]
         self.stdouts = [p.stdout.open("a") for p in paths]
         self.stderrs = self.stdouts if self.stderr_to_stdout else [p.stderr.open("a") for p in paths]
+        sys.stderr.write(f'Command {self.command}')
         for k in range(self.ntasks):
+            sys.stderr.write(f'Starting {k}\n')
             env = dict(os.environ)
             env.update(
                 SUBMITIT_LOCAL_LOCALID=str(k), SUBMITIT_LOCAL_GLOBALID=str(k), SUBMITIT_LOCAL_JOB_ID=self.pid
@@ -306,6 +323,7 @@ class Controller:
                     encoding="utf-8",
                 )
             )
+        sys.stderr.write(f'Done {self.tasks}\n')
 
     def kill_tasks(self) -> None:
         # try and be progressive in deletion...
