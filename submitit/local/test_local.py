@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import functools
 import os
 import pickle
 import re
@@ -14,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from submitit import AutoExecutor
 from .. import helpers
 from ..core import job_environment, test_core, utils
 from . import local, test_debug
@@ -66,10 +68,9 @@ def test_local_map_array(tmp_path: Path) -> None:
     assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
 
-
-
 def test_local_submit_array(tmp_path: Path) -> None:
     g = test_debug.CheckFunction(5)
+    fns = [functools.partial(g, x, y) for x, y in zip(g.data1, g.data2)]
     executor = local.LocalExecutor(tmp_path)
     jobs = executor.submit_array(fns)
     assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
@@ -240,9 +241,9 @@ def test_setup(tmp_path: Path) -> None:
     tmp_path = Path("tmp_folder")
     if tmp_path.exists():
         shutil.rmtree(tmp_path)
-    executor = local.LocalExecutor(tmp_path)
+    executor = AutoExecutor(tmp_path, cluster="local")
     setup_file = tmp_path / 'setup_done'
-    executor.update_parameters(setup=[f"touch {setup_file}"])
+    executor.update_parameters(local_setup=[f"touch {setup_file}"])
     job = executor.submit(f66, 12)
     time.sleep(1)
     assert job.result() == 66

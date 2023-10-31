@@ -17,7 +17,7 @@ from ..core import core, job_environment, logger, utils
 from ..core.core import R
 
 # pylint: disable-msg=too-many-arguments
-VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s", "visible_gpus", "setup"}
+# VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s", "visible_gpus", "setup"}
 
 LOCAL_REQUEUE_RETURN_CODE = 144
 
@@ -155,6 +155,11 @@ class LocalExecutor(core.PicklingExecutor):
         # preliminary check
         indep_folder = utils.JobPaths.get_first_id_independent_folder(self.folder)
         indep_folder.mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def _valid_parameters(cls) -> tp.Set[str]:
+        """Parameters that can be set through update_parameters"""
+        return {"setup"}
 
     def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
         """Update the parameters of the Executor.
