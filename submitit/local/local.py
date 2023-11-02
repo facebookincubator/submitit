@@ -35,7 +35,6 @@ class LocalJob(core.Job[R]):
         process: tp.Optional["subprocess.Popen['bytes']"] = None,
     ) -> None:
         super().__init__(folder, job_id, tasks)
-        sys.stderr.write(f'job_id {self.job_id}\n')
         self._cancel_at_deletion = False
         # downcast sub-jobs to get proper typing
         self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
@@ -293,9 +292,6 @@ class Controller:
         self.pid = str(os.getppid() if with_shell else os.getpid())
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
-        sys.stderr.write('Hello world\n')
-        sys.stderr.write(f"{self.command}\n")
-        sys.stderr.write(f'In controller pid {os.getpid()} and ppid {os.getppid()}\n')
 
 
     # pylint:disable=unused-argument
@@ -311,9 +307,7 @@ class Controller:
         paths = [utils.JobPaths(self.folder, self.pid, k) for k in range(self.ntasks)]
         self.stdouts = [p.stdout.open("a") for p in paths]
         self.stderrs = self.stdouts if self.stderr_to_stdout else [p.stderr.open("a") for p in paths]
-        sys.stderr.write(f'Command {self.command}')
         for k in range(self.ntasks):
-            sys.stderr.write(f'Starting {k}\n')
             env = dict(os.environ)
             env.update(
                 SUBMITIT_LOCAL_LOCALID=str(k), SUBMITIT_LOCAL_GLOBALID=str(k), SUBMITIT_LOCAL_JOB_ID=self.pid
@@ -328,7 +322,6 @@ class Controller:
                     encoding="utf-8",
                 )
             )
-        sys.stderr.write(f'Done {self.tasks}\n')
 
     def kill_tasks(self) -> None:
         # try and be progressive in deletion...
