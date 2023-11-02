@@ -243,7 +243,6 @@ def start_controller(
 ) -> "subprocess.Popen['bytes']":
     """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
-    print("Command before", command)
     env.update(
         SUBMITIT_LOCAL_NTASKS=str(tasks_per_node),
         SUBMITIT_LOCAL_COMMAND=command,
@@ -261,9 +260,6 @@ def start_controller(
     proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
     if setup:
         proc_cmd = " && ".join(list(setup) + [" ".join(proc_cmd)])
-    print("###")
-    print(proc_cmd)
-    print("###")
     process = subprocess.Popen(proc_cmd, shell=isinstance(proc_cmd, str), env=env)
     return process
 
