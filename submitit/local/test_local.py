@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 
 from submitit import AutoExecutor
+
 from .. import helpers
 from ..core import job_environment, test_core, utils
 from . import local, test_debug
