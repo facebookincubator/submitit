@@ -255,13 +255,12 @@ def start_controller(
         SUBMITIT_EXECUTOR="local",
         CUDA_VISIBLE_DEVICES=cuda_devices,
         SUBMITIT_LOCAL_WITH_SHELL="1" if setup else "",
-
     )
     # The LocalJob will be responsible to polling and ending this process.
     # pylint: disable=consider-using-with
     proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
     if setup:
-        proc_cmd  = " && ".join(list(setup) + [" ".join(proc_cmd)])
+        proc_cmd = " && ".join(list(setup) + [" ".join(proc_cmd)])
     print("###")
     print(proc_cmd)
     print("###")
@@ -292,7 +291,6 @@ class Controller:
         self.pid = str(os.getppid() if with_shell else os.getpid())
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
-
 
     # pylint:disable=unused-argument
     def _forward_signal(self, signum: signal.Signals, *args: tp.Any) -> None:

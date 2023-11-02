@@ -236,13 +236,16 @@ def f66(x: int, y: int = 0) -> int:  # pylint: disable=unused-argument
     sys.stderr.write("Computing\n")
     return 66
 
+
 import shutil
+
+
 def test_setup(tmp_path: Path) -> None:
     tmp_path = Path("tmp_folder")
     if tmp_path.exists():
         shutil.rmtree(tmp_path)
     executor = AutoExecutor(tmp_path, cluster="local")
-    setup_file = tmp_path / 'setup_done'
+    setup_file = tmp_path / "setup_done"
     executor.update_parameters(local_setup=[f"touch {setup_file}"])
     job = executor.submit(f66, 12)
     time.sleep(1)
