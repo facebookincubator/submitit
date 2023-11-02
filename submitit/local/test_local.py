@@ -234,7 +234,6 @@ def test_cancel(tmp_path: Path) -> None:
 
 
 def f66(x: int, y: int = 0) -> int:  # pylint: disable=unused-argument
-    sys.stderr.write("Computing\n")
     return 66
 
 
