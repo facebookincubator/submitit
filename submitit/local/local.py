@@ -260,7 +260,7 @@ def start_controller(
     proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
     need_shell = bool(setup)
     if need_shell:
-        proc_cmd = shlex.join(" && ".join(list(setup) + [" ".join(proc_cmd)]))
+        proc_cmd = " && ".join(list(setup) + [shlex.join(proc_cmd)])
     process = subprocess.Popen(proc_cmd, shell=need_shell, env=env)
     return process
 
