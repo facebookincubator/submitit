@@ -258,9 +258,10 @@ def start_controller(
     # The LocalJob will be responsible to polling and ending this process.
     # pylint: disable=consider-using-with
     proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
-    if setup:
-        proc_cmd = " && ".join(list(setup) + [" ".join(proc_cmd)])
-    process = subprocess.Popen(proc_cmd, shell=isinstance(proc_cmd, str), env=env)
+    need_shell = bool(setup)
+    if need_shell:
+        proc_cmd = shlex.join(" && ".join(list(setup) + [" ".join(proc_cmd)]))
+    process = subprocess.Popen(proc_cmd, shell=need_shell, env=env)
     return process
 
 
