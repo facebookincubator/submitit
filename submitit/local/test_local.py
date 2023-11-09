@@ -15,6 +15,8 @@ from pathlib import Path
 
 import pytest
 
+from submitit import AutoExecutor
+
 from .. import helpers
 from ..core import job_environment, test_core, utils
 from . import local, test_debug
@@ -69,8 +71,8 @@ def test_local_map_array(tmp_path: Path) -> None:
 
 def test_local_submit_array(tmp_path: Path) -> None:
     g = test_debug.CheckFunction(5)
-    executor = local.LocalExecutor(tmp_path)
     fns = [functools.partial(g, x, y) for x, y in zip(g.data1, g.data2)]
+    executor = local.LocalExecutor(tmp_path)
     jobs = executor.submit_array(fns)
     assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
@@ -233,6 +235,16 @@ def test_cancel(tmp_path: Path) -> None:
 
 def f66(x: int, y: int = 0) -> int:  # pylint: disable=unused-argument
     return 66
+
+
+def test_setup(tmp_path: Path) -> None:
+    executor = AutoExecutor(tmp_path, cluster="local")
+    setup_file = tmp_path / "setup_done"
+    executor.update_parameters(local_setup=[f"touch {setup_file}"])
+    job = executor.submit(f66, 12)
+    time.sleep(1)
+    assert job.result() == 66
+    assert setup_file.exists()
 
 
 def test_load_submission(tmp_path: Path) -> None:

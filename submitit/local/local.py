@@ -17,7 +17,7 @@ from ..core import core, job_environment, logger, utils
 from ..core.core import R
 
 # pylint: disable-msg=too-many-arguments
-VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s", "visible_gpus"}
+# VALID_KEYS = {"timeout_min", "gpus_per_node", "tasks_per_node", "signal_delay_s", "visible_gpus", "setup"}
 
 LOCAL_REQUEUE_RETURN_CODE = 144
 
@@ -155,6 +155,11 @@ class LocalExecutor(core.PicklingExecutor):
         indep_folder = utils.JobPaths.get_first_id_independent_folder(self.folder)
         indep_folder.mkdir(parents=True, exist_ok=True)
 
+    @classmethod
+    def _valid_parameters(cls) -> tp.Set[str]:
+        """Parameters that can be set through update_parameters"""
+        return {"setup"}
+
     def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
         """Update the parameters of the Executor.
 
@@ -197,6 +202,7 @@ class LocalExecutor(core.PicklingExecutor):
             timeout_min=self.parameters.get("timeout_min", 2.0),
             signal_delay_s=self.parameters.get("signal_delay_s", 30),
             stderr_to_stdout=self.parameters.get("stderr_to_stdout", False),
+            setup=self.parameters.get("setup", ()),
         )
         job: LocalJob[R] = LocalJob(
             folder=self.folder, job_id=str(process.pid), process=process, tasks=list(range(ntasks))
@@ -233,6 +239,7 @@ def start_controller(
     timeout_min: float = 5.0,
     signal_delay_s: int = 30,
     stderr_to_stdout: bool = False,
+    setup: tp.Sequence[str] = (),
 ) -> "subprocess.Popen['bytes']":
     """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
@@ -246,12 +253,15 @@ def start_controller(
         SUBMITIT_STDERR_TO_STDOUT="1" if stderr_to_stdout else "",
         SUBMITIT_EXECUTOR="local",
         CUDA_VISIBLE_DEVICES=cuda_devices,
+        SUBMITIT_LOCAL_WITH_SHELL="1" if setup else "",
     )
     # The LocalJob will be responsible to polling and ending this process.
     # pylint: disable=consider-using-with
-    process = subprocess.Popen(
-        [sys.executable, "-m", "submitit.local._local", str(folder)], shell=False, env=env
-    )
+    proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
+    need_shell = bool(setup)
+    if need_shell:
+        proc_cmd = " && ".join(list(setup) + [shlex.join(proc_cmd)])
+    process = subprocess.Popen(proc_cmd, shell=need_shell, env=env)
     return process
 
 
@@ -274,7 +284,8 @@ class Controller:
         self.tasks: tp.List[subprocess.Popen] = []  # type: ignore
         self.stdouts: tp.List[tp.IO[tp.Any]] = []
         self.stderrs: tp.List[tp.IO[tp.Any]] = []
-        self.pid = str(os.getpid())
+        with_shell = bool(os.environ["SUBMITIT_LOCAL_WITH_SHELL"])
+        self.pid = str(os.getppid() if with_shell else os.getpid())
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
 
