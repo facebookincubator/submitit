@@ -756,10 +756,12 @@ class Executor(abc.ABC):
 
                 jobs_in_queue.extend(jobs)
             _time.sleep(submission_interval)
+        self._delayed_batch = None
 
 
     def submit_at_once(self) -> None:
         self._submit_delayed_batch()
+        self._delayed_batch = None
 
     def submit(self, fn: tp.Callable[..., R], *args: tp.Any, **kwargs: tp.Any) -> Job[R]:
         ds = utils.DelayedSubmission(fn, *args, **kwargs)
