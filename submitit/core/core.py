@@ -725,6 +725,42 @@ class Executor(abc.ABC):
             j._promote(new_j)
         self._delayed_batch = []
 
+    @contextlib.contextmanager
+    def collect_jobs(self) -> tp.Iterator[None]:
+        self._allow_implicit_submissions = False
+        if self._delayed_batch is not None:
+            raise RuntimeError('Nesting "with executor.batch()" contexts is not allowed.')
+        self._delayed_batch = []
+        try:
+            yield None
+        except Exception as e:
+            logger.get_logger().error(
+                'Caught error within "with executor.collect_jobs()" context, submissions are dropped.\n '
+            )
+            raise e
+    
+    def submit_progressively(self, max_queue_jobs, min_array_size, submission_interval) -> None:
+        assert self._delayed_batch is not None
+        jobs_in_queue = []
+        while len(self._delayed_batch) >= 0:
+            jobs_in_queue = [j for j in jobs_in_queue if j.state == 'PENDING' or j.state == 'UNKNOWN']
+            current_batch_size = min(len(self._delayed_batch), max_queue_jobs - len(jobs_in_queue))
+            if current_batch_size >= min_array_size:
+                current_batch = self._delayed_batch[:current_batch_size]
+                self._delayed_batch = self._delayed_batch[current_batch_size:]
+
+                jobs, submissions = zip(*current_batch)
+                new_jobs = self._internal_process_submissions(submissions)
+                for j, new_j in zip(jobs, new_jobs):
+                    j._promote(new_j)
+
+                jobs_in_queue.extend(jobs)
+            _time.sleep(submission_interval)
+
+
+    def submit_at_once(self) -> None:
+        self._submit_delayed_batch()
+
     def submit(self, fn: tp.Callable[..., R], *args: tp.Any, **kwargs: tp.Any) -> Job[R]:
         ds = utils.DelayedSubmission(fn, *args, **kwargs)
         if self._delayed_batch is not None:
