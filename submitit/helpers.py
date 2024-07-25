@@ -293,9 +293,15 @@ def monitor_jobs(
 
 
 @contextlib.contextmanager
-def clean_env() -> tp.Iterator[None]:
+def clean_env(extra_names: tp.Optional[tp.Sequence[str]] = None) -> tp.Iterator[None]:
     """Removes slurm and submitit related environment variables so as to avoid interferences
     when submiting a new job from a job.
+
+    Parameters
+    ----------
+    extra_names: Sequence[str]
+        An optional list of environment variables to hide inside the context,
+        e.g. TRITON_CACHE_DIR and TORCHINDUCTOR_CACHE_DIR when using torch.compile.
 
     Note
     ----
@@ -308,11 +314,17 @@ def clean_env() -> tp.Iterator[None]:
     with submitit.helpers.clean_env():
         executor.submit(...)
     """
+    if extra_names is None:
+        extra_names = ()
     distrib_names = ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
     cluster_env = {
         x: os.environ.pop(x)
         for x in os.environ
-        if x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITIT_")) or x in distrib_names
+        if (
+            x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITIT_"))
+            or x in distrib_names
+            or x in extra_names
+        )
     }
     try:
         yield
