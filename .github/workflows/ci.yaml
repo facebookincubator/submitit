@@ -1,0 +1,75 @@
+name: Build, and run tests lint and format
+env:
+    IN_GITHUB_ACTION: 1
+
+on: [push]
+
+jobs:
+  build-linux:
+    # require 8-core machines (Github Actions Larger Runners) to have more than 14GB disk space
+    runs-on: 8-core-ubuntu  # ubuntu-latest
+    strategy:
+      max-parallel: 5
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python 3.8
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.8'
+
+    # Building/caching the environment
+
+    - name: Add conda to system path
+      run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
+        echo $CONDA
+        echo $CONDA/bin >> $GITHUB_PATH
+        echo $CONDA_PREFIX
+
+    - name: Cache conda env
+      id: cache-conda
+      uses: actions/cache@v4
+      env:
+        # change name here (only) to invalidate cache
+        cache-name: cache-conda-env-v0
+      with:
+          key: ${{ env.cache-name }}-${{ hashFiles('pyproject.toml') }}
+          path: ./ci_env
+
+    - name: Create conda env & Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install rsync
+        if [ ! -d "./ci_env" ]; then \
+          # creates the env if it does not exist (not loaded from cache)
+          conda create -p ./ci_env python=3.10 ipython -y
+        fi
+        source activate ./ci_env
+        pip install --progress-bar off --upgrade pip
+        pip install --progress-bar off -U -e .[dev]
+
+    - name: Print installed packages
+      run: |
+        source activate ./ci_env
+        pip freeze
+
+    # start checks
+
+    - name: Test lint
+      run: |
+        source activate ./ci_env
+        pip show mypy
+        make use_venv=0 lint
+
+    - name: Test coverage
+      run: |
+        source activate ./ci_env
+        make use_venv=0 test_coverage
+
+    - name: Test format
+      run: |
+        source activate ./ci_env
+        make use_venv=0 format
+
+
