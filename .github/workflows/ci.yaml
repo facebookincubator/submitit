@@ -1,4 +1,4 @@
-name: Build, run pytest and flake8
+name: Build, and run tests lint and format
 env:
     IN_GITHUB_ACTION: 1
 
