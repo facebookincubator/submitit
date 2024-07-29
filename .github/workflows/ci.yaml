@@ -60,16 +60,16 @@ jobs:
       run: |
         source activate ./ci_env
         pip show mypy
-        make lint
+        make use_venv=0 lint
 
     - name: Test coverage
       run: |
         source activate ./ci_env
-        make test_coverage
+        make use_venv=0 test_coverage
 
     - name: Test format
       run: |
         source activate ./ci_env
-        make format
+        make use_venv=0 format
 
 
