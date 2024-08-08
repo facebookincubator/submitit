@@ -742,10 +742,13 @@ class Executor(abc.ABC):
     def submit_progressively(self, max_queue_jobs, min_array_size, submission_interval) -> None:
         assert self._delayed_batch is not None
         jobs_in_queue = []
-        while len(self._delayed_batch) >= 0:
+        while len(self._delayed_batch) > 0:
+            logger.get_logger().info(f"Jobs in queue: {len(self._delayed_batch)}")
+            states = set([j.state for j in jobs_in_queue])
+            logger.get_logger().info(f"States: {states}")
             jobs_in_queue = [j for j in jobs_in_queue if j.state == 'PENDING' or j.state == 'UNKNOWN']
             current_batch_size = min(len(self._delayed_batch), max_queue_jobs - len(jobs_in_queue))
-            if current_batch_size >= min_array_size:
+            if current_batch_size >= min_array_size or len(self._delayed_batch) <= min_array_size:
                 current_batch = self._delayed_batch[:current_batch_size]
                 self._delayed_batch = self._delayed_batch[current_batch_size:]
 
