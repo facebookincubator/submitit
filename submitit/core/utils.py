@@ -8,7 +8,7 @@ import contextlib
 import io
 import itertools
 import os
-import pickle
+import dill as pickle
 import select
 import shutil
 import subprocess

@@ -6,7 +6,7 @@
 
 # pylint: disable=redefined-outer-name
 import contextlib
-import pickle
+import dill as pickle
 import subprocess
 import sys
 import time

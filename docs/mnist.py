@@ -6,7 +6,7 @@
 #
 
 import functools
-import pickle
+import dill as pickle
 import time
 from pathlib import Path
 

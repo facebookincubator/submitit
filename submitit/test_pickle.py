@@ -4,7 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import pickle
+import dill as pickle
 from weakref import ref
 
 import pytest
