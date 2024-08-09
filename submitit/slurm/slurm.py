@@ -421,6 +421,8 @@ def _make_sbatch_string(
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
     srun_args: tp.Optional[tp.Iterable[str]] = None,
     use_srun: bool = True,
+    use_mpi: bool = False,
+    mpi_procs: int = 0
 ) -> str:
     """Creates the content of an sbatch file with provided parameters
 
@@ -464,6 +466,8 @@ def _make_sbatch_string(
         "stderr_to_stdout",
         "srun_args",
         "use_srun",  # if False, un python directly in sbatch instead of through srun
+        "use_mpi",  # if True, use mpirun instead of srun
+        "mpi_procs",  # number of mpi processes
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
     # rename and reformat parameters
@@ -510,7 +514,8 @@ def _make_sbatch_string(
             srun_args = []
         srun_cmd = _shlex_join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args])
         command = " ".join((srun_cmd, command))
-
+    elif use_mpi:
+        command = f"mpirun -np {mpi_procs} {command}"
     lines += [
         "",
         "# command",
