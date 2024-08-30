@@ -925,7 +925,7 @@ class PicklingExecutor(Executor):
         """
         tmp_uuid = uuid.uuid4().hex
         submission_file_path = (
-            utils.JobPaths.get_first_id_independent_folder(self.folder) / f"submission_file_{tmp_uuid}.sh"
+            utils.JobPaths.get_first_id_independent_folder(self.folder) / f".submission_file_{tmp_uuid}.sh"
         )
         with submission_file_path.open("w") as f:
             f.write(self._make_submission_file_text(command, tmp_uuid))
@@ -935,7 +935,7 @@ class PicklingExecutor(Executor):
         job_id = self._get_job_id_from_submission_command(output)
         tasks_ids = list(range(self._num_tasks()))
         job: Job[tp.Any] = self.job_class(folder=self.folder, job_id=job_id, tasks=tasks_ids)
-        job.paths.move_temporary_file(submission_file_path, "submission_file")
+        job.paths.copy_temporary_file(submission_file_path, "submission_file")
         self._write_job_id(job.job_id, tmp_uuid)
         self._set_job_permissions(job.paths.folder)
         return job

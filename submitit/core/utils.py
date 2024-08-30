@@ -97,6 +97,10 @@ class JobPaths:
         self.folder.mkdir(parents=True, exist_ok=True)
         Path(tmp_path).rename(getattr(self, name))
 
+    def copy_temporary_file(self, tmp_path: tp.Union[Path, str], name: str) -> None:
+        self.folder.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(tmp_path, getattr(self, name))
+
     @staticmethod
     def get_first_id_independent_folder(folder: tp.Union[Path, str]) -> Path:
         """Returns the closest folder which is id independent"""
