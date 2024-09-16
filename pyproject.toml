@@ -37,7 +37,6 @@ classifiers=[
         "pre-commit>=1.15.2",
         # Linters
         "mypy>=1.4.1",
-        "types-pkg_resources>=0.1.2",
         "pylint>=3.0.0",
         # Release
         "flit>=3.5.1"
