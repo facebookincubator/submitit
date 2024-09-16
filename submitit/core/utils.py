@@ -93,13 +93,11 @@ class JobPaths:
             replaced_path = replaced_path.replace("%a", array_index[0])
         return Path(replaced_path.replace("%A", array_id))
 
-    def move_temporary_file(self, tmp_path: tp.Union[Path, str], name: str) -> None:
+    def move_temporary_file(self, tmp_path: tp.Union[Path, str], name: str, keep_as_symlink: bool = False) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         Path(tmp_path).rename(getattr(self, name))
-
-    def copy_temporary_file(self, tmp_path: tp.Union[Path, str], name: str) -> None:
-        self.folder.mkdir(parents=True, exist_ok=True)
-        shutil.copyfile(tmp_path, getattr(self, name))
+        if keep_as_symlink:
+            Path(tmp_path).symlink_to(getattr(self, name))
 
     @staticmethod
     def get_first_id_independent_folder(folder: tp.Union[Path, str]) -> Path:
