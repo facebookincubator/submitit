@@ -925,7 +925,7 @@ class PicklingExecutor(Executor):
         """
         tmp_uuid = uuid.uuid4().hex
         submission_file_path = (
-            utils.JobPaths.get_first_id_independent_folder(self.folder) / f"submission_file_{tmp_uuid}.sh"
+            utils.JobPaths.get_first_id_independent_folder(self.folder) / f".submission_file_{tmp_uuid}.sh"
         )
         with submission_file_path.open("w") as f:
             f.write(self._make_submission_file_text(command, tmp_uuid))
