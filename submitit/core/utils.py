@@ -93,7 +93,9 @@ class JobPaths:
             replaced_path = replaced_path.replace("%a", array_index[0])
         return Path(replaced_path.replace("%A", array_id))
 
-    def move_temporary_file(self, tmp_path: tp.Union[Path, str], name: str, keep_as_symlink: bool = False) -> None:
+    def move_temporary_file(
+        self, tmp_path: tp.Union[Path, str], name: str, keep_as_symlink: bool = False
+    ) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         Path(tmp_path).rename(getattr(self, name))
         if keep_as_symlink:
