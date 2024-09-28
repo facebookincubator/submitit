@@ -37,6 +37,7 @@ def test_finds_default_environments() -> None:
     assert "slurm" in envs
     assert "local" in envs
     assert "debug" in envs
+    assert "oar" in envs
 
 
 def test_finds_default_executors() -> None:
@@ -45,9 +46,10 @@ def test_finds_default_executors() -> None:
     assert "slurm" in ex
     assert "local" in ex
     assert "debug" in ex
+    assert "oar" in ex
 
 
-def test_job_environment_works(monkeypatch):
+def test_slurm_job_environment_works(monkeypatch):
     monkeypatch.setenv("_TEST_CLUSTER_", "slurm")
     env = plugins.get_job_environment()
     assert env.cluster == "slurm"
@@ -58,8 +60,19 @@ def test_job_environment_works(monkeypatch):
     assert type(env2).__name__ == "SlurmJobEnvironment"
 
 
+def test_oar_job_environment_works(monkeypatch):
+    monkeypatch.setenv("_TEST_CLUSTER_", "oar")
+    env = plugins.get_job_environment()
+    assert env.cluster == "oar"
+    assert type(env).__name__ == "OarJobEnvironment"
+
+    env2 = JobEnvironment()
+    assert env2.cluster == "oar"
+    assert type(env2).__name__ == "OarJobEnvironment"
+
+
 def test_job_environment_raises_outside_of_job() -> None:
-    with pytest.raises(RuntimeError, match=r"which environment.*slurm.*local.*debug"):
+    with pytest.raises(RuntimeError, match=r"which environment.*slurm.*local.*debug.*oar"):
         plugins.get_job_environment()
 
 
@@ -122,7 +135,7 @@ class GoodJobEnvironment:
 
     executors = plugins.get_executors().keys()
     # Only the plugins declared with plugin_creator are visible.
-    assert set(executors) == {"good", "slurm", "local", "debug"}
+    assert set(executors) == {"good", "slurm", "local", "debug", "oar"}
 
 
 def test_skip_bad_plugin(caplog, plugin_creator: PluginCreator) -> None:
@@ -146,7 +159,7 @@ class BadEnvironment:
     )
 
     executors = plugins.get_executors().keys()
-    assert {"slurm", "local", "debug"} == set(executors)
+    assert {"slurm", "local", "debug", "oar"} == set(executors)
     assert "bad" not in executors
     expected = [
         (logging.ERROR, r"'submitit_bad'.*no attribute 'NonExisitingExecutor'"),
