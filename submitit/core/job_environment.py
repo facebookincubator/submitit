@@ -153,8 +153,8 @@ class JobEnvironment:
         signal.signal(self._usr_sig(), handler.checkpoint_and_try_requeue)
         # A priori we don't need other signals anymore,
         # but still log them to make it easier to debug.
-        signal.signal(signal.SIGTERM, handler.bypass)
-        signal.signal(signal.SIGCONT, handler.bypass)
+        #signal.signal(signal.SIGTERM, handler.bypass)
+        #signal.signal(signal.SIGCONT, handler.bypass)
 
     # pylint: disable=unused-argument
     def _requeue(self, countdown: int) -> None:
