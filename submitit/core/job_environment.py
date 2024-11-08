@@ -201,7 +201,9 @@ class SignalHandler:
             bypass_reason = "not ready for exit" if self.env.global_rank != 0 else "I am global rank 0"
             self._logger.warning(f"Bypassing signal {signal.Signals(signum).name} - {bypass_reason}")
         else:
-            self._logger.info(f"Received {signal.Signals(signum).name} and ready for exit - exit after 10 seconds!")
+            self._logger.info(
+                f"Received {signal.Signals(signum).name} and ready for exit - exit after 10 seconds!"
+            )
             time.sleep(10)
             self._exit()
 
