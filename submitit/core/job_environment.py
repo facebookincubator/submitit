@@ -151,10 +151,10 @@ class JobEnvironment:
         """
         handler = SignalHandler(self, paths, submission)
         signal.signal(self._usr_sig(), handler.checkpoint_and_try_requeue)
+        signal.signal(signal.SIGTERM, handler.exit_if_ready)
         # A priori we don't need other signals anymore,
         # but still log them to make it easier to debug.
-        #signal.signal(signal.SIGTERM, handler.bypass)
-        #signal.signal(signal.SIGCONT, handler.bypass)
+        signal.signal(signal.SIGCONT, handler.bypass)
 
     # pylint: disable=unused-argument
     def _requeue(self, countdown: int) -> None:
@@ -172,6 +172,7 @@ class SignalHandler:
         self._delayed = delayed
         self._logger = logger.get_logger()
         self._start_time = time.time()
+        self._ready_for_exit = False
 
     def has_timed_out(self) -> bool:
         # SignalHandler is created by submitit as soon as the process start,
@@ -195,6 +196,15 @@ class SignalHandler:
     def bypass(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         self._logger.warning(f"Bypassing signal {signal.Signals(signum).name}")
 
+    def exit_if_ready(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
+        if not self._ready_for_exit or self.env.global_rank == 0:
+            bypass_reason = "not ready for exit" if self.env.global_rank != 0 else "I am global rank 0"
+            self._logger.warning(f"Bypassing signal {signal.Signals(signum).name} - {bypass_reason}")
+        else:
+            self._logger.info(f"Received {signal.Signals(signum).name} and ready for exit - exit after 10 seconds!")
+            time.sleep(10)
+            self._exit()
+
     # pylint:disable=unused-argument
     def checkpoint_and_try_requeue(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         timed_out = self.has_timed_out()
@@ -206,7 +216,8 @@ class SignalHandler:
         procid = self.env.global_rank
         if procid != 0:
             self._logger.info(f"Not checkpointing nor requeuing since I am a slave (procid={procid}).")
-            # do not sys.exit, because it might kill the master task
+            self._ready_for_exit = True
+            # do not sys.exit (yet), because it might kill the master task
             return
 
         delayed = self._delayed
@@ -224,7 +235,8 @@ class SignalHandler:
             message = f"Job not requeued because: {no_requeue_reason}."
             self._logger.info(message)
             raise utils.UncompletedJobError(message)
-        # if everything went well, requeue!
+        # if everything went well, prepare for exit and requeue!
+        self._ready_for_exit = True
         self.env._requeue(countdown)
         self._exit()
 
