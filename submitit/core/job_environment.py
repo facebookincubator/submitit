@@ -151,7 +151,7 @@ class JobEnvironment:
         """
         handler = SignalHandler(self, paths, submission)
         signal.signal(self._usr_sig(), handler.checkpoint_and_try_requeue)
-        signal.signal(signal.SIGTERM, handler.exit_if_ready)
+        signal.signal(signal.SIGTERM, handler.terminate)
         # A priori we don't need other signals anymore,
         # but still log them to make it easier to debug.
         signal.signal(signal.SIGCONT, handler.bypass)
@@ -172,7 +172,7 @@ class SignalHandler:
         self._delayed = delayed
         self._logger = logger.get_logger()
         self._start_time = time.time()
-        self._ready_for_exit = False
+        self._usr_signal = False
 
     def has_timed_out(self) -> bool:
         # SignalHandler is created by submitit as soon as the process start,
@@ -196,19 +196,19 @@ class SignalHandler:
     def bypass(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
         self._logger.warning(f"Bypassing signal {signal.Signals(signum).name}")
 
-    def exit_if_ready(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
-        if not self._ready_for_exit or self.env.global_rank == 0:
-            bypass_reason = "not ready for exit" if self.env.global_rank != 0 else "I am global rank 0"
-            self._logger.warning(f"Bypassing signal {signal.Signals(signum).name} - {bypass_reason}")
+    # pylint:disable=unused-argument
+    def terminate(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
+        # If job is cancelled this will trigger sys.exit. In other cases
+        # (preemption or timeout) checkpointing (which is called first) will trigger sys.exit().
+        time.sleep(1) # Sometimes the SIGTERM is quicker than SIGUSR2 when preempted
+        if self._usr_signal:
+            self.bypass(signum, frame)
         else:
-            self._logger.info(
-                f"Received {signal.Signals(signum).name} and ready for exit - exit after 10 seconds!"
-            )
-            time.sleep(10)
             self._exit()
 
     # pylint:disable=unused-argument
     def checkpoint_and_try_requeue(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
+        self._usr_signal = True
         timed_out = self.has_timed_out()
         case = "timed-out" if timed_out else "preempted"
         self._logger.warning(
@@ -218,8 +218,6 @@ class SignalHandler:
         procid = self.env.global_rank
         if procid != 0:
             self._logger.info(f"Not checkpointing nor requeuing since I am a slave (procid={procid}).")
-            self._ready_for_exit = True
-            # do not sys.exit (yet), because it might kill the master task
             return
 
         delayed = self._delayed
@@ -229,17 +227,23 @@ class SignalHandler:
             no_requeue_reason = _checkpoint(delayed, self._job_paths.submitted_pickle, countdown)
         elif timed_out:
             no_requeue_reason = "timed-out and not checkpointable"
+
         if countdown < 0:  # this is the end
             no_requeue_reason = "timed-out too many times"
+
         if no_requeue_reason:
             # raise an error so as to create "result_pickle" file which notifies the job is over
             # this is caught by the try/except in "process_job"
             message = f"Job not requeued because: {no_requeue_reason}."
             self._logger.info(message)
             raise utils.UncompletedJobError(message)
-        # if everything went well, prepare for exit and requeue!
-        self._ready_for_exit = True
-        self.env._requeue(countdown)
+        
+        # Note(erjel) With our slurm config, preempted jobs are auto-requeued
+        if timed_out:
+            self.env._requeue(countdown)
+        else:
+            self._logger.info(f'Requeued job {self.env.job_id} ({countdown} remaining timeouts)')
+
         self._exit()
 
     # pylint:disable=unused-argument
@@ -260,7 +264,7 @@ class SignalHandler:
 
     def _exit(self) -> None:
         # extracted for mocking
-        self._logger.info("Exiting gracefully after preemption/timeout.")
+        self._logger.info("Exiting gracefully.")
         sys.exit(-1)
 
 
@@ -274,6 +278,7 @@ def _checkpoint(delayed: DelayedSubmission, filepath: Path, countdown: int) -> s
     """
     logger.get_logger().info("Calling checkpoint method.")
     ckpt_delayed = delayed._checkpoint_function()
+    logger.get_logger().info("Checkpointing done.")
     if ckpt_delayed is None:
         return "checkpoint function returned None"
     ckpt_delayed.set_timeout(delayed._timeout_min, countdown)
