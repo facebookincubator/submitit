@@ -245,6 +245,11 @@ def test_unpickling_watcher_registration(tmp_path: Path) -> None:
     assert newjob.watcher._registered == {original_job_id, "007"}
 
 
+def test_max_pickle_size_gb(tmp_path: Path) -> None:
+    executor = FakeExecutor(folder=tmp_path, max_pickle_size_gb=0)
+    with pytest.raises(RuntimeError):
+        _ = executor.submit(_three_time, 4)
+
 if __name__ == "__main__":
     args, kwargs = [], {}  # oversimplisitic parser
     for argv in sys.argv[1:]:
