@@ -248,10 +248,11 @@ def copy_process_streams(
     """
 
     def raw(stream: tp.Optional[tp.IO[bytes]]) -> tp.IO[bytes]:
-        assert stream is not None
+        if stream is None:
+            raise RuntimeError("Stream should not be None")
         if isinstance(stream, io.BufferedIOBase):
             stream = stream.raw  # type: ignore
-        return stream
+        return stream  # type: ignore
 
     p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
     stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.IO[str]]] = {
