@@ -250,7 +250,7 @@ def copy_process_streams(
     def raw(stream: tp.Optional[tp.IO[bytes]]) -> tp.IO[bytes]:
         assert stream is not None
         if isinstance(stream, io.BufferedIOBase):
-            stream = stream.raw
+            stream = stream.raw  # type: ignore
         return stream
 
     p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
