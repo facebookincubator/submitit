@@ -854,9 +854,10 @@ class PicklingExecutor(Executor):
         folder for storing job submission/output and logs.
     """
 
-    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3) -> None:
+    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3, max_size_gb_warning: float = 1.0) -> None:
         super().__init__(folder)
         self.max_num_timeout = max_num_timeout
+        self.max_size_gb_warning = max_size_gb_warning
         self._throttling = 0.2
         self._last_job_submitted = 0.0
 
@@ -881,18 +882,26 @@ class PicklingExecutor(Executor):
         eq_dict = self._equivalence_dict()
         timeout_min = self.parameters.get(eq_dict["timeout_min"] if eq_dict else "timeout_min", 5)
         jobs = []
+        check_size = True
         for delayed in delayed_submissions:
             tmp_uuid = uuid.uuid4().hex
             pickle_path = utils.JobPaths.get_first_id_independent_folder(self.folder) / f"{tmp_uuid}.pkl"
             pickle_path.parent.mkdir(parents=True, exist_ok=True)
             delayed.set_timeout(timeout_min, self.max_num_timeout)
             delayed.dump(pickle_path)
-
             self._throttle()
             self._last_job_submitted = _time.time()
             job = self._submit_command(self._submitit_command_str)
             job.paths.move_temporary_file(pickle_path, "submitted_pickle")
             jobs.append(job)
+            # warn if the dumped objects are too big
+            if check_size:
+                check_size = False
+                size = len(delayed_submissions) * pickle_path.stat().st_size / 1024**3
+                if size > self.max_size_gb_warning:
+                    msg = f"Submitting an estimated {size}GB of objects (function and arguments) through pickle. "
+                    msg = "(this can be slow / overload the file system)"
+                    logger.get_logger().warning(msg)
         return jobs
 
     def _throttle(self) -> None:
