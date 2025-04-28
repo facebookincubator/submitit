@@ -45,6 +45,10 @@ def test_local_executor(tmp_path: Path) -> None:
     assert executor.cluster == "local"
 
 
+def test_max_pickle_size_gb_in_auto(tmp_path: Path) -> None:
+    executor = auto.AutoExecutor(folder=tmp_path, cluster="local", local_max_pickle_size_gb=0)
+
+
 def test_python_executor(tmp_path: Path) -> None:
     executor = auto.AutoExecutor(folder=tmp_path, cluster="local", local_python=sys.executable)
     job = executor.submit(lambda: 12)

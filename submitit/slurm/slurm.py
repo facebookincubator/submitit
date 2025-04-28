@@ -241,9 +241,17 @@ class SlurmExecutor(core.PicklingExecutor):
     job_class = SlurmJob
 
     def __init__(
-        self, folder: tp.Union[Path, str], max_num_timeout: int = 3, python: tp.Optional[str] = None
+        self,
+        folder: tp.Union[str, Path],
+        max_num_timeout: int = 3,
+        max_pickle_size_gb: float = 1.0,
+        python: tp.Optional[str] = None
     ) -> None:
-        super().__init__(folder, max_num_timeout)
+        super().__init__(
+            folder,
+            max_num_timeout=max_num_timeout,
+            max_pickle_size_gb=max_pickle_size_gb,
+        )
         self.python = shlex.quote(sys.executable) if python is None else python
         if not self.affinity() > 0:
             raise RuntimeError('Could not detect "srun", are you indeed on a slurm cluster?')
