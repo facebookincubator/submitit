@@ -852,11 +852,19 @@ class PicklingExecutor(Executor):
     ----------
     folder: Path/str
         folder for storing job submission/output and logs.
+    max_num_timeout: int
+        maximum number of timeouts after which submitit will not reschedule the job.
+        Note: only callable implementing a checkpoint method are rescheduled in case
+        of timeout.
+    max_pickle_size_gb: float
+        maximum size of pickles in GB allowed for a submission.
+        Note: during a batch submission, this is the estimated sum of all pickles.
     """
 
-    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3) -> None:
+    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3, max_pickle_size_gb: float = 1.0) -> None:
         super().__init__(folder)
         self.max_num_timeout = max_num_timeout
+        self.max_pickle_size_gb = max_pickle_size_gb
         self._throttling = 0.2
         self._last_job_submitted = 0.0
 
@@ -881,13 +889,23 @@ class PicklingExecutor(Executor):
         eq_dict = self._equivalence_dict()
         timeout_min = self.parameters.get(eq_dict["timeout_min"] if eq_dict else "timeout_min", 5)
         jobs = []
+        check_size = True
         for delayed in delayed_submissions:
             tmp_uuid = uuid.uuid4().hex
             pickle_path = utils.JobPaths.get_first_id_independent_folder(self.folder) / f"{tmp_uuid}.pkl"
             pickle_path.parent.mkdir(parents=True, exist_ok=True)
             delayed.set_timeout(timeout_min, self.max_num_timeout)
             delayed.dump(pickle_path)
-
+            if check_size:  # warn if the dumped objects are too big
+                check_size = False
+                num = len(delayed_submissions)
+                size =  pickle_path.stat().st_size / 1024**3
+                if num * size > self.max_pickle_size_gb:
+                    pickle_path.unlink()
+                    msg = f"Submitting an estimated {num} x {size:.2f} > {self.max_pickle_size_gb}GB of objects "
+                    msg += "(function and arguments) through pickle (this can be slow / overload the file system)."
+                    msg += "If this is the intended behavior, you should update executor.max_pickle_size_gb to a larger value "
+                    raise RuntimeError(msg)
             self._throttle()
             self._last_job_submitted = _time.time()
             job = self._submit_command(self._submitit_command_str)
