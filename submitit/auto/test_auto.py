@@ -46,7 +46,8 @@ def test_local_executor(tmp_path: Path) -> None:
 
 
 def test_max_pickle_size_gb_in_auto(tmp_path: Path) -> None:
-    executor = auto.AutoExecutor(folder=tmp_path, cluster="local", local_max_pickle_size_gb=0)
+    ex = auto.AutoExecutor(folder=tmp_path, cluster="local", local_max_pickle_size_gb=0.12)
+    assert ex._executor.mas_pickle_size_gb == 0.12  # type: ignore
 
 
 def test_python_executor(tmp_path: Path) -> None:
