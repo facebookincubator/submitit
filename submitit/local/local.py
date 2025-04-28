@@ -154,8 +154,8 @@ class LocalExecutor(core.PicklingExecutor):
     ) -> None:
         super().__init__(
             folder,
-            max_num_timeout=max_num_timeout,
             max_pickle_size_gb=max_pickle_size_gb,
+            max_num_timeout=max_num_timeout,
         )
         self.python = shlex.quote(sys.executable) if python is None else python
         # preliminary check
