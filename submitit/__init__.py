@@ -18,4 +18,4 @@ from .local.local import LocalJob as LocalJob
 from .slurm.slurm import SlurmExecutor as SlurmExecutor
 from .slurm.slurm import SlurmJob as SlurmJob
 
-__version__ = "1.5.2"
+__version__ = "1.5.3"
