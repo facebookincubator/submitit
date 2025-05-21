@@ -100,7 +100,8 @@ class InfoWatcher:
             one of "force" (forces a call), "standard" (calls regularly) or "cache" (does not call)
         """
         state = self.get_state(job_id, mode=mode)
-        return state.upper() not in ["READY", "PENDING", "RUNNING", "UNKNOWN", "REQUEUED", "COMPLETING"]
+        incomplete = ["READY", "PENDING", "RUNNING", "UNKNOWN", "REQUEUED", "COMPLETING", "PREEMPTED"]
+        return state.upper() not in incomplete
 
     def update_if_long_enough(self, mode: str) -> None:
         """Updates if forced to, or if the delay is reached
