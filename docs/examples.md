@@ -1,6 +1,6 @@
 # Examples
 
-## Explained example - Initial "add" exemple with a few more comments:
+## Explained example - Initial "add" example with a few more comments:
 ```python
 import submitit
 
