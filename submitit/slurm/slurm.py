@@ -446,6 +446,8 @@ def _make_sbatch_string(
         delay between the kill signal and the actual kill of the slurm job.
     setup: list
         a list of command to run in sbatch before running srun
+    teardown: list
+        a list of command to run in sbatch after running srun
     map_size: int
         number of simultaneous map/array jobs allowed
     additional_parameters: dict
@@ -469,6 +471,7 @@ def _make_sbatch_string(
         "array_parallelism",
         "additional_parameters",
         "setup",
+        "teardown",
         "signal_delay_s",
         "stderr_to_stdout",
         "srun_args",
@@ -529,6 +532,7 @@ def _make_sbatch_string(
         "",
     ]
 
+    # environment teardown:
     if teardown is not None:
         lines += ["", "# teardown"] + teardown
     return "\n".join(lines)
