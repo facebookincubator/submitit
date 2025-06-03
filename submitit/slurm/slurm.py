@@ -408,6 +408,7 @@ def _make_sbatch_string(
     gpus_per_task: tp.Optional[int] = None,
     qos: tp.Optional[str] = None,  # quality of service
     setup: tp.Optional[tp.List[str]] = None,
+    teardown: tp.Optional[tp.List[str]] = None,
     mem: tp.Optional[str] = None,
     mem_per_gpu: tp.Optional[str] = None,
     mem_per_cpu: tp.Optional[str] = None,
@@ -445,6 +446,8 @@ def _make_sbatch_string(
         delay between the kill signal and the actual kill of the slurm job.
     setup: list
         a list of command to run in sbatch before running srun
+    teardown: list
+        a list of command to run in sbatch after running srun
     map_size: int
         number of simultaneous map/array jobs allowed
     additional_parameters: dict
@@ -468,6 +471,7 @@ def _make_sbatch_string(
         "array_parallelism",
         "additional_parameters",
         "setup",
+        "teardown",
         "signal_delay_s",
         "stderr_to_stdout",
         "srun_args",
@@ -527,6 +531,10 @@ def _make_sbatch_string(
         command,
         "",
     ]
+
+    # environment teardown:
+    if teardown is not None:
+        lines += ["", "# teardown"] + teardown
     return "\n".join(lines)
 
 
