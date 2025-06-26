@@ -154,7 +154,10 @@ class JobEnvironment:
         # A priori we don't need other signals anymore,
         # but still log them to make it easier to debug.
         signal.signal(signal.SIGTERM, handler.bypass)
-        signal.signal(signal.SIGCONT, handler.bypass)
+        try:
+            signal.signal(signal.SIGCONT, handler.bypass)
+        except AttributeError:  # no SIGCONT on Windows
+            pass
 
     # pylint: disable=unused-argument
     def _requeue(self, countdown: int) -> None:
