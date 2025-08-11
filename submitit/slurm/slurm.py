@@ -245,7 +245,7 @@ class SlurmExecutor(core.PicklingExecutor):
         folder: tp.Union[str, Path],
         max_num_timeout: int = 3,
         max_pickle_size_gb: float = 1.0,
-        python: tp.Optional[str] = None
+        python: tp.Optional[str] = None,
     ) -> None:
         super().__init__(
             folder,
