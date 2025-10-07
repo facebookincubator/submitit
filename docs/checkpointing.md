@@ -88,7 +88,8 @@ resources = clusterscope.job_gen_task_slurm(partition=slurm_partition, gpus_per_
 executor.update_parameters(timeout_min=30,
                            slurm_partition=slurm_partition,
                            gpus_per_node=resources["gpus_per_task"] * resources["tasks_per_node"],
-                           cpus_per_task=resources["cpus_per_task"])
+                           cpus_per_task=resources["cpus_per_task"],
+                           mem_gb=resources["mem_gb"])
 training_callable = NetworkTraining()
 job = executor.submit(training_callable, "some/path/for/checkpointing/your/network")
 ```

@@ -80,6 +80,7 @@ def main():
         gpus_per_node=gpus_per_node,
         tasks_per_node=tasks_per_node,
         cpus_per_task=resources["cpus_per_task"],
+        mem_gb=resources["mem_gb"],
         slurm_partition=PARTITION,
     )
     task = Task()
