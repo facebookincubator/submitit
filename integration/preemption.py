@@ -13,6 +13,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+import clusterscope
 import submitit
 from submitit import AutoExecutor, Job
 from submitit.core import test_core
@@ -45,10 +46,12 @@ def clock(partition: str, duration: int):
 def pascal_job(partition: str, timeout_min: int, node: str = "") -> Job:
     """Submit a job with specific constraint that we can preempt deterministically."""
     ex = submitit.AutoExecutor(folder=LOGS, slurm_max_num_timeout=1)
+    # clusterscope assigns the proportionate amount of resources based on gpus/cpus being requested.
+    resources = clusterscope.job_gen_task_slurm(partition=partition, cpus_per_task=50)
     ex.update_parameters(
         name=f"submitit_preemption_{partition}",
         timeout_min=timeout_min,
-        mem_gb=7,
+        mem_gb=resources["mem_gb"],
         slurm_constraint="pascal",
         slurm_comment="submitit integration test",
         slurm_partition=partition,
@@ -56,7 +59,7 @@ def pascal_job(partition: str, timeout_min: int, node: str = "") -> Job:
         slurm_mail_user=f"{getpass.getuser()}+slurm@meta.com",
         # pascal nodes have 80 cpus.
         # By requesting 50 we now that their can be only one such job with this property.
-        cpus_per_task=50,
+        cpus_per_task=resources["cpus_per_task"],
         slurm_additional_parameters={},
     )
     if node:

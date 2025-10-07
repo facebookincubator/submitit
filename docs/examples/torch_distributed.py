@@ -10,6 +10,7 @@ import os
 import sys
 import time
 
+import clusterscope
 import torch
 
 import submitit
@@ -69,11 +70,16 @@ class Task:
 
 def main():
     executor = submitit.AutoExecutor(folder=LOGS_DIR)
+    gpus_per_node = NUM_TASKS_PER_NODE
+    tasks_per_node = NUM_TASKS_PER_NODE
+    gpus_per_task = gpus_per_node // tasks_per_node
+    # clusterscope assigns the proportionate amount of resources based on gpus/cpus being requested.
+    resources = clusterscope.job_gen_task_slurm(partition=PARTITION, gpus_per_task=gpus_per_task)
     executor.update_parameters(
         nodes=NUM_NODES,
-        gpus_per_node=NUM_TASKS_PER_NODE,
-        tasks_per_node=NUM_TASKS_PER_NODE,
-        cpus_per_task=NUM_CPUS_PER_TASK,
+        gpus_per_node=gpus_per_node,
+        tasks_per_node=tasks_per_node,
+        cpus_per_task=resources["cpus_per_task"],
         slurm_partition=PARTITION,
     )
     task = Task()
