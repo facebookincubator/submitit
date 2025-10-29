@@ -11,6 +11,7 @@ dynamic = ["version", "description"]
 
 dependencies = [
   "cloudpickle>=1.2.1",
+  "setuptools",
   "typing_extensions>=3.7.4.2"
 ]
 # zip_safe = false
