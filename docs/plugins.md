@@ -1,7 +1,7 @@
 # Plugins
 
 In order to switch between executing on Slurm and another cluster,
-`submitit` provides a plugin API.
+`submitthem` provides a plugin API.
 Each plugin must implement an `Executor`, a `Job`, an `InfoWatcher` and a `JobEnvironment` class.
 Look at [structure.md](./structure.md) for more details on those classes.
 
@@ -16,7 +16,7 @@ Look for `@plugin-dev` mention in comments for more details.
 Plugins must have an `entry_points.txt` file with the following keys:
 
 ```
-[submitit]
+[submitthem]
 executor=my_plugin:MyExecutor
 job_environment=my_plugin:MyJobEnvironment
 ```

@@ -10,7 +10,7 @@ from pathlib import Path
 from .local import Controller
 
 if __name__ == "__main__":
-    assert len(sys.argv) == 2, "Usage: _local.py <submitit_folder>"
+    assert len(sys.argv) == 2, "Usage: _local.py <submitthem_folder>"
     # most arguments are read from environment variables.
     controller = Controller(Path(sys.argv[1]))
     controller.run()

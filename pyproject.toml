@@ -3,7 +3,7 @@ requires = ["flit_core >=3.2,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "submitit"
+name = "submitthem"
 readme = "README.md"
 authors = [{name = "Facebook AI Research"}]
 requires-python = ">=3.8"
@@ -21,8 +21,8 @@ classifiers=[
 ]
 
 [project.urls]
-  Source = "https://github.com/facebookincubator/submitit"
-  Tracker = "https://github.com/facebookincubator/submitit/issues"
+  Source = "https://github.com/facebookincubator/submitthem"
+  Tracker = "https://github.com/facebookincubator/submitthem/issues"
 
 [project.optional-dependencies]
     dev = [

@@ -65,16 +65,16 @@ def test_snapshot(tmp_path: Path) -> None:
     cwd = Path.cwd()
     with helpers.RsyncSnapshot(tmp_path):
         assert Path.cwd() == tmp_path
-        assert (tmp_path / "submitit/test_helpers.py").exists()
+        assert (tmp_path / "submitthem/test_helpers.py").exists()
     assert Path.cwd() == cwd
 
 
 @requires_rsync
 def test_snapshot_excludes(tmp_path: Path) -> None:
-    exclude = ["submitit/test_*"]
+    exclude = ["submitthem/test_*"]
     with helpers.RsyncSnapshot(snapshot_dir=tmp_path, exclude=exclude):
-        assert (tmp_path / "submitit/helpers.py").exists()
-        assert not (tmp_path / "submitit/test_helpers.py").exists()
+        assert (tmp_path / "submitthem/helpers.py").exists()
+        assert not (tmp_path / "submitthem/test_helpers.py").exists()
 
 
 @requires_rsync
@@ -88,17 +88,17 @@ def test_job_use_snapshot_cwd(executor, tmp_path: Path) -> None:
 def test_job_use_snapshot_modules(executor, tmp_path: Path) -> None:
     with helpers.RsyncSnapshot(snapshot_dir=tmp_path):
 
-        def submitit_file() -> Path:
+        def submitthem_file() -> Path:
             # pylint: disable=import-outside-toplevel
-            import submitit
+            import submitthem
 
-            return Path(submitit.__file__)
+            return Path(submitthem.__file__)
 
-        job = executor.submit(submitit_file)
-    # Here we load the normal submitit
-    assert submitit_file() == Path(__file__).parent / "__init__.py"
-    # In the job we should import submitit from the snapshot dir
-    assert job.result() == tmp_path / "submitit/__init__.py"
+        job = executor.submit(submitthem_file)
+    # Here we load the normal submitthem
+    assert submitthem_file() == Path(__file__).parent / "__init__.py"
+    # In the job we should import submitthem from the snapshot dir
+    assert job.result() == tmp_path / "submitthem/__init__.py"
 
 
 class FakeInfoWatcherWithTimer(core.InfoWatcher):
@@ -133,12 +133,12 @@ def test_monitor_jobs(tmp_path: Path) -> None:
 
 
 def _get_env() -> tp.Dict[str, str]:
-    return {x: y for x, y in os.environ.items() if x.startswith(("SLURM_", "SUBMITIT_"))}
+    return {x: y for x, y in os.environ.items() if x.startswith(("SLURM_", "SUBMITTHEM_"))}
 
 
 def test_clean_env() -> None:
     base = _get_env()
-    with utils.environment_variables(SLURM_BLUBLU=12, SUBMITIT_BLUBLU=12):
+    with utils.environment_variables(SLURM_BLUBLU=12, SUBMITTHEM_BLUBLU=12):
         assert len(_get_env()) == len(base) + 2
         with helpers.clean_env():
             assert not _get_env()

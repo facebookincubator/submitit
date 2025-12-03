@@ -8,7 +8,7 @@ import re
 import typing as tp
 from pathlib import Path
 
-import submitit
+import submitthem
 
 
 class MarkdownLink:
@@ -45,7 +45,7 @@ def _get_root() -> Path:
 
 
 def _get_markdown_files(root: Path) -> tp.List[Path]:
-    return [md for pattern in ("*.md", "submitit/**/*.md", "docs/**/*.md") for md in root.glob(pattern)]
+    return [md for pattern in ("*.md", "submitthem/**/*.md", "docs/**/*.md") for md in root.glob(pattern)]
 
 
 def _get_all_markdown_links(root: Path, files: tp.List[Path]) -> tp.List[MarkdownLink]:
@@ -76,9 +76,9 @@ def _replace_relative_links(regex: tp.Match[str]) -> str:
     string: str = regex.group()
     link = regex.group("link")
     name = regex.group("name")
-    version = submitit.__version__
+    version = submitthem.__version__
     if not link.startswith("http") and Path(link).exists():
-        github_url = f"github.com/facebookincubator/submitit/blob/{version}"
+        github_url = f"github.com/facebookincubator/submitthem/blob/{version}"
         string = f"[{name}](https://{github_url}/{link})"
     return string
 

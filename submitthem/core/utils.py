@@ -152,12 +152,12 @@ class DelayedSubmission:
     def load(cls: tp.Type["DelayedSubmission"], filepath: tp.Union[str, Path]) -> "DelayedSubmission":
         obj = pickle_load(filepath)
         # following assertion is relaxed compared to isinstance, to allow flexibility
-        # (Eg: copying this class in a project to be able to have checkpointable jobs without adding submitit as dependency)
+        # (Eg: copying this class in a project to be able to have checkpointable jobs without adding submitthem as dependency)
         assert obj.__class__.__name__ == cls.__name__, f"Loaded object is {type(obj)} but should be {cls}."
         return obj  # type: ignore
 
     def _checkpoint_function(self) -> tp.Optional["DelayedSubmission"]:
-        checkpoint = getattr(self.function, "__submitit_checkpoint__", None)
+        checkpoint = getattr(self.function, "__submitthem_checkpoint__", None)
         if checkpoint is None:
             checkpoint = getattr(self.function, "checkpoint", None)
         if checkpoint is None:

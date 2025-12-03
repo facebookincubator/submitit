@@ -536,14 +536,14 @@ class DelayedJob(Job[R]):
 
     def __init__(self, ex: "Executor"):
         # pylint: disable = super-init-not-called
-        self._submitit_executor = ex
+        self._submitthem_executor = ex
 
     def __getattr__(self, name: str) -> tp.Any:
         # _cancel_at_deletion is used in __del__, we don't want it to trigger submission
         if name == "_cancel_at_deletion":
             return False
 
-        ex = self.__dict__["_submitit_executor"]
+        ex = self.__dict__["_submitthem_executor"]
         # this submits the batch so as to fill the instance attributes
         # this may return false if we try to submit within executor.batch()
         # without passing `executor.batch(allow_implicit_submission=True)`
@@ -558,7 +558,7 @@ class DelayedJob(Job[R]):
 
     def _promote(self, new_job: Job[tp.Any]) -> None:
         # fill in the empty shell, the pickle way
-        self.__dict__.pop("_submitit_executor", None)
+        self.__dict__.pop("_submitthem_executor", None)
         self.__dict__.update(new_job.__dict__)
         # pylint: disable=attribute-defined-outside-init
         self.__class__ = new_job.__class__  # type: ignore
@@ -854,7 +854,7 @@ class PicklingExecutor(Executor):
     folder: Path/str
         folder for storing job submission/output and logs.
     max_num_timeout: int
-        maximum number of timeouts after which submitit will not reschedule the job.
+        maximum number of timeouts after which submitthem will not reschedule the job.
         Note: only callable implementing a checkpoint method are rescheduled in case
         of timeout.
     max_pickle_size_gb: float
@@ -909,7 +909,7 @@ class PicklingExecutor(Executor):
                     raise RuntimeError(msg)
             self._throttle()
             self._last_job_submitted = _time.time()
-            job = self._submit_command(self._submitit_command_str)
+            job = self._submit_command(self._submitthem_command_str)
             job.paths.move_temporary_file(pickle_path, "submitted_pickle")
             jobs.append(job)
         return jobs
@@ -919,7 +919,7 @@ class PicklingExecutor(Executor):
             _time.sleep(self._throttling)
 
     @property
-    def _submitit_command_str(self) -> str:
+    def _submitthem_command_str(self) -> str:
         # this is the command submitted from "submit" to "_submit_command"
         return "dummy"
 

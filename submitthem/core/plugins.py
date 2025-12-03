@@ -30,7 +30,7 @@ def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
     # We load both kind of entry points at the same time because we have to go through all module files anyway.
     executors: List[Type["Executor"]] = [slurm.SlurmExecutor, local.LocalExecutor, debug.DebugExecutor]
     job_envs = [slurm.SlurmJobEnvironment(), local.LocalJobEnvironment(), debug.DebugJobEnvironment()]
-    for entry_point in pkg_resources.iter_entry_points("submitit"):
+    for entry_point in pkg_resources.iter_entry_points("submitthem"):
         if entry_point.name not in ("executor", "job_environment"):
             logger.warning(f"Found unknown entry point in package {entry_point.module_name}: {entry_point}")
             continue
@@ -41,7 +41,7 @@ def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
             cls = entry_point.load()
         except Exception as e:
             # This may happen if the plugin haven't been correctly installed
-            logger.exception(f"Failed to load submitit plugin '{entry_point.module_name}': {e}")
+            logger.exception(f"Failed to load submitthem plugin '{entry_point.module_name}': {e}")
             continue
 
         if entry_point.name == "executor":
@@ -51,7 +51,7 @@ def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
                 job_env = cls()
             except Exception as e:
                 logger.exception(
-                    f"Failed to init JobEnvironment '{cls.name}' ({cls}) from submitit plugin '{entry_point.module_name}': {e}"
+                    f"Failed to init JobEnvironment '{cls.name}' ({cls}) from submitthem plugin '{entry_point.module_name}': {e}"
                 )
                 continue
             job_envs.append(job_env)

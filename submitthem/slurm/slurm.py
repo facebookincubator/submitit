@@ -341,7 +341,7 @@ class SlurmExecutor(core.PicklingExecutor):
         array_ex.parameters["map_count"] = n
         self._throttle()
 
-        first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
+        first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitthem_command_str)
         tasks_ids = list(range(first_job.num_tasks))
         jobs: tp.List[core.Job[tp.Any]] = [
             SlurmJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(n)
@@ -351,8 +351,8 @@ class SlurmExecutor(core.PicklingExecutor):
         return jobs
 
     @property
-    def _submitit_command_str(self) -> str:
-        return " ".join([self.python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
+    def _submitthem_command_str(self) -> str:
+        return " ".join([self.python, "-u -m submitthem.core._submit", shlex.quote(str(self.folder))])
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_sbatch_string(command=command, folder=self.folder, **self.parameters)
@@ -396,7 +396,7 @@ def _get_default_parameters() -> tp.Dict[str, tp.Any]:
 def _make_sbatch_string(
     command: str,
     folder: tp.Union[str, Path],
-    job_name: str = "submitit",
+    job_name: str = "submitthem",
     partition: tp.Optional[str] = None,
     time: int = 5,
     nodes: int = 1,
@@ -423,7 +423,7 @@ def _make_sbatch_string(
     dependency: tp.Optional[str] = None,
     exclusive: tp.Optional[tp.Union[bool, str]] = None,
     array_parallelism: int = 256,
-    wckey: str = "submitit",
+    wckey: str = "submitthem",
     stderr_to_stdout: bool = False,
     map_count: tp.Optional[int] = None,  # used internally
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
@@ -449,7 +449,7 @@ def _make_sbatch_string(
         number of simultaneous map/array jobs allowed
     additional_parameters: dict
         Forces any parameter to a given value in sbatch. This can be useful
-        to add parameters which are not currently available in submitit.
+        to add parameters which are not currently available in submitthem.
         Eg: {"mail-user": "blublu@fb.com", "mail-type": "BEGIN"}
     srun_args: List[str]
         Add each argument in the list to the srun call
@@ -522,7 +522,7 @@ def _make_sbatch_string(
     lines += [
         "",
         "# command",
-        "export SUBMITIT_EXECUTOR=slurm",
+        "export SUBMITTHEM_EXECUTOR=slurm",
         # The input "command" is supposed to be a valid shell command
         command,
         "",

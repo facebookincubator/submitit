@@ -108,12 +108,12 @@ class LocalJob(core.Job[R]):
 
 class LocalJobEnvironment(job_environment.JobEnvironment):
     _env = {
-        "job_id": "SUBMITIT_LOCAL_JOB_ID",
-        "num_tasks": "SUBMITIT_LOCAL_NTASKS",
-        "num_nodes": "SUBMITIT_LOCAL_JOB_NUM_NODES",
-        "node": "SUBMITIT_LOCAL_NODEID",
-        "global_rank": "SUBMITIT_LOCAL_GLOBALID",
-        "local_rank": "SUBMITIT_LOCAL_LOCALID",
+        "job_id": "SUBMITTHEM_LOCAL_JOB_ID",
+        "num_tasks": "SUBMITTHEM_LOCAL_NTASKS",
+        "num_nodes": "SUBMITTHEM_LOCAL_JOB_NUM_NODES",
+        "node": "SUBMITTHEM_LOCAL_NODEID",
+        "global_rank": "SUBMITTHEM_LOCAL_GLOBALID",
+        "local_rank": "SUBMITTHEM_LOCAL_LOCALID",
     }
 
     def _requeue(self, countdown: int) -> None:
@@ -217,8 +217,8 @@ class LocalExecutor(core.PicklingExecutor):
         return job
 
     @property
-    def _submitit_command_str(self) -> str:
-        return " ".join([self.python, "-u -m submitit.core._submit", shlex.quote(str(self.folder))])
+    def _submitthem_command_str(self) -> str:
+        return " ".join([self.python, "-u -m submitthem.core._submit", shlex.quote(str(self.folder))])
 
     def _num_tasks(self) -> int:
         nodes: int = 1
@@ -251,20 +251,20 @@ def start_controller(
     """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
     env.update(
-        SUBMITIT_LOCAL_NTASKS=str(tasks_per_node),
-        SUBMITIT_LOCAL_COMMAND=command,
-        SUBMITIT_LOCAL_TIMEOUT_S=str(int(60 * timeout_min)),
-        SUBMITIT_LOCAL_SIGNAL_DELAY_S=str(int(signal_delay_s)),
-        SUBMITIT_LOCAL_NODEID="0",
-        SUBMITIT_LOCAL_JOB_NUM_NODES="1",
-        SUBMITIT_STDERR_TO_STDOUT="1" if stderr_to_stdout else "",
-        SUBMITIT_EXECUTOR="local",
+        SUBMITTHEM_LOCAL_NTASKS=str(tasks_per_node),
+        SUBMITTHEM_LOCAL_COMMAND=command,
+        SUBMITTHEM_LOCAL_TIMEOUT_S=str(int(60 * timeout_min)),
+        SUBMITTHEM_LOCAL_SIGNAL_DELAY_S=str(int(signal_delay_s)),
+        SUBMITTHEM_LOCAL_NODEID="0",
+        SUBMITTHEM_LOCAL_JOB_NUM_NODES="1",
+        SUBMITTHEM_STDERR_TO_STDOUT="1" if stderr_to_stdout else "",
+        SUBMITTHEM_EXECUTOR="local",
         CUDA_VISIBLE_DEVICES=cuda_devices,
-        SUBMITIT_LOCAL_WITH_SHELL="1" if setup else "",
+        SUBMITTHEM_LOCAL_WITH_SHELL="1" if setup else "",
     )
     # The LocalJob will be responsible to polling and ending this process.
     # pylint: disable=consider-using-with
-    proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
+    proc_cmd: tp.Any = [sys.executable, "-m", "submitthem.local._local", str(folder)]
     need_shell = bool(setup)
     if need_shell:
         proc_cmd = " && ".join(list(setup) + [shlex.join(proc_cmd)])
@@ -283,15 +283,15 @@ class Controller:
     # pylint: disable=too-many-instance-attributes
 
     def __init__(self, folder: Path):
-        self.ntasks = int(os.environ["SUBMITIT_LOCAL_NTASKS"])
-        self.command = shlex.split(os.environ["SUBMITIT_LOCAL_COMMAND"])
-        self.timeout_s = int(os.environ["SUBMITIT_LOCAL_TIMEOUT_S"])
-        self.signal_delay_s = int(os.environ["SUBMITIT_LOCAL_SIGNAL_DELAY_S"])
-        self.stderr_to_stdout = bool(os.environ["SUBMITIT_STDERR_TO_STDOUT"])
+        self.ntasks = int(os.environ["SUBMITTHEM_LOCAL_NTASKS"])
+        self.command = shlex.split(os.environ["SUBMITTHEM_LOCAL_COMMAND"])
+        self.timeout_s = int(os.environ["SUBMITTHEM_LOCAL_TIMEOUT_S"])
+        self.signal_delay_s = int(os.environ["SUBMITTHEM_LOCAL_SIGNAL_DELAY_S"])
+        self.stderr_to_stdout = bool(os.environ["SUBMITTHEM_STDERR_TO_STDOUT"])
         self.tasks: tp.List[subprocess.Popen] = []  # type: ignore
         self.stdouts: tp.List[tp.IO[tp.Any]] = []
         self.stderrs: tp.List[tp.IO[tp.Any]] = []
-        with_shell = bool(os.environ["SUBMITIT_LOCAL_WITH_SHELL"])
+        with_shell = bool(os.environ["SUBMITTHEM_LOCAL_WITH_SHELL"])
         self.pid = str(os.getppid() if with_shell else os.getpid())
         self.folder = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
@@ -312,7 +312,7 @@ class Controller:
         for k in range(self.ntasks):
             env = dict(os.environ)
             env.update(
-                SUBMITIT_LOCAL_LOCALID=str(k), SUBMITIT_LOCAL_GLOBALID=str(k), SUBMITIT_LOCAL_JOB_ID=self.pid
+                SUBMITTHEM_LOCAL_LOCALID=str(k), SUBMITTHEM_LOCAL_GLOBALID=str(k), SUBMITTHEM_LOCAL_JOB_ID=self.pid
             )
             self.tasks.append(
                 subprocess.Popen(  # pylint: disable=consider-using-with

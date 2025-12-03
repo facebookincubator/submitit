@@ -8,7 +8,7 @@ else
 BIN=venv/bin/
 endif
 
-CODE=submitit
+CODE=submitthem
 CODE_AND_DOCS=$(CODE) docs/ integration/
 
 all: integration
@@ -23,7 +23,7 @@ test:
 test_coverage:
 	$(BIN)pytest \
 		-v \
-		--cov=submitit --cov-report=html --cov-report=term \
+		--cov=submitthem --cov-report=html --cov-report=term \
 		--durations=10 \
 		--junitxml=test_results/pytest/results.xml \
 		$(CODE)
@@ -60,26 +60,26 @@ venv/pyproject.toml: pyproject.toml
 installable: installable_local installable_wheel
 
 installable_local: venv
-	(. ./venv/bin/activate ; cd /tmp ; python -c "import submitit")
+	(. ./venv/bin/activate ; cd /tmp ; python -c "import submitthem")
 
 BUILD=dev0$(CIRCLE_BUILD_NUM)
-USER_VENV=/tmp/submitit_user_venv/
-CURRENT_VERSION=`grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
+USER_VENV=/tmp/submitthem_user_venv/
+CURRENT_VERSION=`grep -e '__version__' ./submitthem/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
 TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps --progress-bar off
 
 installable_wheel:
 	[ ! -d dist ] || rm -r dist
 	# Append .$(BUILD) to the current version
-	sed -i -e 's/__version__ = "[0-9].[0-9].[0-9]/&.$(BUILD)/' ./submitit/__init__.py
-	grep -e '__version__' ./submitit/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
+	sed -i -e 's/__version__ = "[0-9].[0-9].[0-9]/&.$(BUILD)/' ./submitthem/__init__.py
+	grep -e '__version__' ./submitthem/__init__.py | sed 's/__version__ = //' | sed 's/"//g'
 	$(BIN)python -m flit build --setup-py
-	git checkout HEAD -- ./submitit/__init__.py
+	git checkout HEAD -- ./submitthem/__init__.py
 
 	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
 	python3 -m venv $(USER_VENV)
-	$(USER_VENV)/bin/pip install --progress-bar off dist/submitit-*any.whl
+	$(USER_VENV)/bin/pip install --progress-bar off dist/submitthem-*any.whl
 	# Check that importing works
-	$(USER_VENV)/bin/python -c "import submitit"
+	$(USER_VENV)/bin/python -c "import submitthem"
 
 clean:
 	rm -r venv
@@ -100,11 +100,11 @@ integration: clean_cache venv check_format lint installable test_coverage
 	# Use `make -k integration` to run all checks even if previous fails.
 
 release: integration
-	echo "Releasing submitit $(CURRENT_VERSION)"
+	echo "Releasing submitthem $(CURRENT_VERSION)"
 	[ ! -d dist ] || rm -r dist
 	# Make sure the repo is in a clean state
 	git diff --exit-code
-	$(BIN)python submitit/test_documentation.py
+	$(BIN)python submitthem/test_documentation.py
 	# --setup-py generates a setup.py file to allow user with old
 	# versions of pip to install it without flit.
 	git tag $(CURRENT_VERSION)

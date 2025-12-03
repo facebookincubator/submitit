@@ -118,4 +118,4 @@ def test_job_environment(tmp_path: Path) -> None:
     job = executor.submit(use_env)
     job.result()
     # Check that we clean up the env after us.
-    assert "SUBMITIT_DEBUG_JOB_ID" not in os.environ
+    assert "SUBMITTHEM_DEBUG_JOB_ID" not in os.environ

@@ -13,9 +13,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import submitit
-from submitit import AutoExecutor, Job
-from submitit.core import test_core
+import submitthem
+from submitthem import AutoExecutor, Job
+from submitthem.core import test_core
 
 FILE = Path(__file__)
 LOGS = FILE.parent / "logs" / f"{FILE.stem}_log"
@@ -44,13 +44,13 @@ def clock(partition: str, duration: int):
 
 def pascal_job(partition: str, timeout_min: int, node: str = "") -> Job:
     """Submit a job with specific constraint that we can preempt deterministically."""
-    ex = submitit.AutoExecutor(folder=LOGS, slurm_max_num_timeout=1)
+    ex = submitthem.AutoExecutor(folder=LOGS, slurm_max_num_timeout=1)
     ex.update_parameters(
-        name=f"submitit_preemption_{partition}",
+        name=f"submitthem_preemption_{partition}",
         timeout_min=timeout_min,
         mem_gb=7,
         slurm_constraint="pascal",
-        slurm_comment="submitit integration test",
+        slurm_comment="submitthem integration test",
         slurm_partition=partition,
         slurm_mail_type="REQUEUE,BEGIN",
         slurm_mail_user=f"{getpass.getuser()}+slurm@meta.com",

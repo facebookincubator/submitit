@@ -8,10 +8,10 @@ import logging.config
 import os
 from typing import Union
 
-# provide a way to change level through SUBMITIT_LOG_LEVEL environment variable:
-# level "CRITICAL" (50) or more (eg.: "100") will deactivate submitit logger
+# provide a way to change level through SUBMITTHEM_LOG_LEVEL environment variable:
+# level "CRITICAL" (50) or more (eg.: "100") will deactivate submitthem logger
 # "NOCONFIG" will avoid configuration
-LOG_VARNAME = "SUBMITIT_LOG_LEVEL"
+LOG_VARNAME = "SUBMITTHEM_LOG_LEVEL"
 level_str = os.environ.get(LOG_VARNAME, "INFO").upper()
 level: Union[int, str] = level_str if not level_str.isdigit() else int(level_str)
 
@@ -19,22 +19,22 @@ level: Union[int, str] = level_str if not level_str.isdigit() else int(level_str
 CONFIG = {
     "version": 1,
     "disable_existing_loggers": False,
-    "formatters": {"submitit_basic": {"format": "%(name)s %(levelname)s (%(asctime)s) - %(message)s"}},
+    "formatters": {"submitthem_basic": {"format": "%(name)s %(levelname)s (%(asctime)s) - %(message)s"}},
     "handlers": {
-        "submitit_out": {
+        "submitthem_out": {
             "class": "logging.StreamHandler",
             "level": "DEBUG",
-            "formatter": "submitit_basic",
+            "formatter": "submitthem_basic",
             "stream": "ext://sys.stdout",
         },
-        "submitit_err": {
+        "submitthem_err": {
             "class": "logging.StreamHandler",
             "level": "WARNING",
-            "formatter": "submitit_basic",
+            "formatter": "submitthem_basic",
             "stream": "ext://sys.stderr",
         },
     },
-    "loggers": {"submitit": {"handlers": ["submitit_err", "submitit_out"], "level": level}},
+    "loggers": {"submitthem": {"handlers": ["submitthem_err", "submitthem_out"], "level": level}},
 }
 
 
@@ -43,7 +43,7 @@ if level != "NOCONFIG":
 
 
 def get_logger() -> logging.Logger:
-    return logging.getLogger("submitit")
+    return logging.getLogger("submitthem")
 
 
 def exception(*args: str) -> None:

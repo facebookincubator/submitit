@@ -24,5 +24,5 @@
 
 ## Debugging
 
-If you want to add breakpoints to a function run by `submitit`, the easiest way is to `AutoExecutor(cluster="debug")`.
+If you want to add breakpoints to a function run by `submitthem`, the easiest way is to `AutoExecutor(cluster="debug")`.
 This will execute all the "submitted" jobs inside the main process, and your breakpoints will be hit normally.

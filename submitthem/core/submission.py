@@ -33,7 +33,7 @@ def process_job(folder: Union[Path, str]) -> None:
     -----------
     Creates a picked output file next to the job file.
     """
-    os.environ["SUBMITIT_FOLDER"] = str(folder)
+    os.environ["SUBMITTHEM_FOLDER"] = str(folder)
     env = job_environment.JobEnvironment()
     paths = env.paths
     logger = get_logger()
@@ -69,7 +69,7 @@ def process_job(folder: Union[Path, str]) -> None:
         raise error
 
 
-def submitit_main() -> None:
+def submitthem_main() -> None:
     parser = argparse.ArgumentParser(description="Run a job")
     parser.add_argument("folder", type=str, help="Folder where the jobs are stored (in subfolder)")
     args = parser.parse_args()

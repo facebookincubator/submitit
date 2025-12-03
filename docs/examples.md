@@ -2,7 +2,7 @@
 
 ## Explained example - Initial "add" exemple with a few more comments:
 ```python
-import submitit
+import submitthem
 
 def add(a, b):
     return a + b
@@ -11,7 +11,7 @@ def add(a, b):
 # The specified folder is used to dump job information, logs and result when finished
 # %j is replaced by the job id at runtime
 log_folder = "log_test/%j"
-executor = submitit.AutoExecutor(folder=log_folder)
+executor = submitthem.AutoExecutor(folder=log_folder)
 # The AutoExecutor provides a simple abstraction over SLURM to simplify switching between local and slurm jobs (or other clusters if plugins are available).
 # specify sbatch parameters (here it will timeout after 4min, and run on dev)
 # This is where you would specify `gpus_per_node=1` for instance
@@ -30,7 +30,7 @@ assert output == 12  # 5 + 7 = 12...  your addition was computed in the cluster
 
 ## Job arrays
 
-`submitit` supports the submission of [Slurm job arrays](https://slurm.schedmd.com/job_array.html) through the `executor.map_array` method.
+`submitthem` supports the submission of [Slurm job arrays](https://slurm.schedmd.com/job_array.html) through the `executor.map_array` method.
 
 If you want to submit many jobs at once, this is the **preferred way to go** because:
  - it can submit all jobs in only 1 call to slurm (avoids flooding it).
@@ -41,7 +41,7 @@ Here is an example on how to submit 4 additions at once, with at most 2 jobs run
 ```python
 a = [1, 2, 3, 4]
 b = [10, 20, 30, 40]
-executor = submitit.AutoExecutor(folder=log_folder)
+executor = submitthem.AutoExecutor(folder=log_folder)
 # the following line tells the scheduler to only run\
 # at most 2 jobs at once. By default, this is several hundreds
 executor.update_parameters(slurm_array_parallelism=2)
@@ -53,7 +53,7 @@ common to all the submitted jobs, and the task id goes from 0 to the `N - 1` whe
 
 **Note**:  `map_array` has no equivalent in `concurent.futures` (`map` is similar but has a different return type)
 
-**Warning**: when running `map_array`, `submitit` will create one pickle per job.
+**Warning**: when running `map_array`, `submitthem` will create one pickle per job.
 If you have big object in your functions (like a full pytorch model) you should serialize it once
 and only pass its path to the submitted function.
 
@@ -90,10 +90,10 @@ This allows to submit job arrays when the functions need many arguments and keyw
 
 You can submit several jobs in parallel, and check their completion with the `done` method:
 ```python
-import submitit
+import submitthem
 import time
 
-executor = submitit.AutoExecutor(folder="log_test")
+executor = submitthem.AutoExecutor(folder="log_test")
 executor.update_parameters(timeout_min=1, slurm_partition="dev")
 jobs = [executor.submit(time.sleep, k) for k in range(1, 11)]
 
@@ -125,14 +125,14 @@ You can also use the asyncio coroutines if you want
 ```python
 import asyncio
 import random
-import submitit
+import submitthem
 import time
 
 def slow_multiplication(x, y):
     time.sleep(x*y)
     return x*y
 
-executor = submitit.AutoExecutor(folder="log_test")
+executor = submitthem.AutoExecutor(folder="log_test")
 executor.update_parameters(timeout_min=1, slurm_partition="dev")
 
 # await a single result
@@ -146,16 +146,16 @@ for aws in asyncio.as_completed([j.awaitable().result() for j in jobs]):
     print(result)
 ```
 
-Note that you can also use `submitit.helpers.as_completed` if you don't want to use coroutines
+Note that you can also use `submitthem.helpers.as_completed` if you don't want to use coroutines
 
 ## Errors
 
 Errors are caught and their stacktrace is recorded. When calling `job.result()`, a `FailedJobError` is raised with the available information:
 ```python
-import submitit
+import submitthem
 from operator import truediv
 
-executor = submitit.AutoExecutor(folder="log_test")
+executor = submitthem.AutoExecutor(folder="log_test")
 executor.update_parameters(timeout_min=1, slurm_partition="dev")
 job = executor.submit(truediv, 1, 0)
 
@@ -168,7 +168,7 @@ full_stderr = job.stderr()  # recover the full stack trace if need be
 ## Working with commands
 
 You should preferably submit pure Python function whenever you can. This would probably save you a lot of hassle.
-Still, this is not always feasible. The class `submitit.helpers.CommandFunction` can help you in this case. It runs a
+Still, this is not always feasible. The class `submitthem.helpers.CommandFunction` can help you in this case. It runs a
 command in a subprocess and returns its stdout. It's main benefit is to be able to deal with errors and provide explicit errors.
 (Note: `CommandFunction` runs locally, so you still need to submit it with an `Executor`
 if you want to run it on slurm, see "Understanding the environment" below).
@@ -177,8 +177,8 @@ Note however that, because we use `subprocess` with `shell=False` under the hood
 
 By default, the function hides stdout and returns it at the end:
 ```python
-import submitit
-function = submitit.helpers.CommandFunction(["which", "python"])  # commands must be provided as a list!
+import submitthem
+function = submitthem.helpers.CommandFunction(["which", "python"])  # commands must be provided as a list!
 print(function())  # This returns your python path (which you be inside your virtualenv)
 # for me: /private/home/jrapin/.conda/envs/dfconda/bin/python
 ```
@@ -190,16 +190,16 @@ Some useful parameters of the `CommandFunction` class:
 
 As an experimental feature, you can also provide arguments when calling the instance:
 ```python
-print(submitit.helpers.CommandFunction(["which"])("pip"))  # will run  "which pip"
+print(submitthem.helpers.CommandFunction(["which"])("pip"))  # will run  "which pip"
 ```
 
 
 **Understanding the environment** - Make sure you have everything you need installed in your conda environment. Indeed, for its computation, Slurm uses
 the active conda environment to submit your job:
 ```python
-import submitit
-function = submitit.helpers.CommandFunction(["which", "python"])
-executor = submitit.AutoExecutor(folder="log_test")
+import submitthem
+function = submitthem.helpers.CommandFunction(["which", "python"])
+executor = submitthem.AutoExecutor(folder="log_test")
 executor.update_parameters(timeout_min=1, slurm_partition="dev")
 job = executor.submit(function)
 
@@ -213,13 +213,13 @@ print(job.result())
 
 ## Multi-tasks jobs
 
-`submitit` support multi-tasks jobs (on one or several nodes).
+`submitthem` support multi-tasks jobs (on one or several nodes).
 You just need to use the `tasks_per_node` and `nodes` parameters.
 
 ```python
-import submitit
+import submitthem
 from operator import add
-executor = submitit.AutoExecutor(folder="log_test")
+executor = submitthem.AutoExecutor(folder="log_test")
 # 3 * 2 = 6 tasks
 executor.update_parameters(tasks_per_node=3, nodes=2, timeout_min=1, slurm_partition="dev")
 job = executor.submit(add, 5, 7)  # will compute add(5, 7)
@@ -231,11 +231,11 @@ The typical usage is to use the task rank inside your submitted Callable to chun
 
 We provide a `JobEnvironment` class, that gives access to this information (in a cluster-agnostic way).
 ```python
-import submitit
+import submitthem
 from math import ceil
 
 def my_func(inputs):
-    job_env = submitit.JobEnvironment()
+    job_env = submitthem.JobEnvironment()
     print(f"There are {job_env.num_tasks} in this job")
     print(f"I'm the task #{job_env.local_rank} on the node {job_env.node}")
     print(f"I'm the task #{job_env.global_rank} in the job")
@@ -248,10 +248,10 @@ def my_func(inputs):
 You can use the `task` method of a `Job` instance to access task specific information. A task is also a Job, so the Job's methods are available.
 
 ```python
-import submitit
+import submitthem
 
 from operator import add
-executor = submitit.AutoExecutor(folder="log_test")
+executor = submitthem.AutoExecutor(folder="log_test")
 # 3 * 2 = 6 tasks
 executor.update_parameters(tasks_per_node=3, nodes=2, timeout_min=1, slurm_partition="dev")
 job = executor.submit(add, 5, 7)  # will compute add(5, 7)
@@ -263,7 +263,7 @@ print(job.stdout())  # Concatenated stdout of all tasks
 
 ## PyTorch distributed initialization
 
-Call the `export()` method of the `submitit.helpers.TorchDistributedEnvironment` class to setup all the required environment variables for PyTorch distributed with the `env://` initialization method. See [this code example](examples/torch_distributed.py).
+Call the `export()` method of the `submitthem.helpers.TorchDistributedEnvironment` class to setup all the required environment variables for PyTorch distributed with the `env://` initialization method. See [this code example](examples/torch_distributed.py).
 
 ## Even more examples
 

@@ -73,8 +73,8 @@ def test_archive_dev_folders(tmp_path: Path) -> None:
 
 
 def test_command_function() -> None:
-    # This will call `submitit.core.test_core.do_nothing`
-    command = [sys.executable, "-m", "submitit.core.test_core"]
+    # This will call `submitthem.core.test_core.do_nothing`
+    command = [sys.executable, "-m", "submitthem.core.test_core"]
     word = "testblublu12"
     output = utils.CommandFunction(command)(word)
     assert output is not None

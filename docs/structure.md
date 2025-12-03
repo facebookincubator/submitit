@@ -5,18 +5,18 @@
 When you submit a function and its arguments, it will return a Job instance to you. Under the hood, the function and arguments are
 pickled, and the submission functions run a batch file which will load the pickled object, compute the function
 with the provided arguments, and pickle the output of the function into a new file. Whenever this file becomes available, your Job instance
-will be able to recover it. The computation in the cluster will use the current conda environment, so make sure everything you need is installed (including `submitit`).
+will be able to recover it. The computation in the cluster will use the current conda environment, so make sure everything you need is installed (including `submitthem`).
 
 If the computation failed and we are able to catch the error, then the trace will be dumped and available to you through the Job instance as well.
 However, if it could not be catched, you will be notified as well, but will probably need to look into the logs to understand what happened.
 
 For each job, you will therefore usually end up with a task file `<job_id>_submitted.pkl`, an output file `<job_id>_result.pkl`,
 a batch file `batchfile_<uuid>.sh`, a stdout log file `<job_id>_<task_id>_log.out` and a stderr log file `<job_id>_<task_id>_log.err`, where the uuid
-is created by `submitit`, and the id is the job id from slurm. The Job instance helps you link all of this together (see `job.job_id`).
+is created by `submitthem`, and the id is the job id from slurm. The Job instance helps you link all of this together (see `job.job_id`).
 
 ## Main objects
 
-Here are some information about the main objects defined in `submitit`, but you can always refer to the docstrings if you need details.
+Here are some information about the main objects defined in `submitthem`, but you can always refer to the docstrings if you need details.
 
 ### Executor
 
@@ -35,8 +35,8 @@ Its main methods are:
    If you misspell a name, the function will raise an exception with all allowed parameters (this can be useful if you are looking for
    an argument ;) )
 
-`submitit` has a plugin system so that several executor implementations can be provided. There are currently several implementations:
-- `AutoExecutor` which **we advise to always use** for submititting to clusters. This executor chooses the best available plugin to use depending on your environment. The aim is to be able to use the same code an several clusters.
+`submitthem` has a plugin system so that several executor implementations can be provided. There are currently several implementations:
+- `AutoExecutor` which **we advise to always use** for submitthemting to clusters. This executor chooses the best available plugin to use depending on your environment. The aim is to be able to use the same code an several clusters.
 - `SlurmExecutor` which only works for slurm, and should be used through `AutoExecutor`.
 - `LocalExecutor` which provides a way to test job submission locally through multiprocessing.
 - `DebugExecutor` which mocks job submission and does all the computation in the same process.
@@ -57,14 +57,14 @@ Its main methods and attributes are:
 
 ### Job environment
 
-`submitit.JobEnvironment` is a handle to access information relevant to the current job such as its id. It therefore has the following attributes:
+`submitthem.JobEnvironment` is a handle to access information relevant to the current job such as its id. It therefore has the following attributes:
 `job_id`, `num_tasks`, `num_nodes`, `node`, `global_rank`, `local_rank`.
 
 ### helpers
 
-This module implements convenient functions/classes for use with `submitit`:
+This module implements convenient functions/classes for use with `submitthem`:
  - `CommandFunction`: a class transforming a shell command into a function, so as to be able to submit it as well (see examples below).
- - `Checkpointable`: base class implementing a very basic example of checkpointing (`checkpoint` method). More on this on the [Checkpointing section](https://github.com/facebookincubator/submitit/blob/main/docs/checkpointing.md).
+ - `Checkpointable`: base class implementing a very basic example of checkpointing (`checkpoint` method). More on this on the [Checkpointing section](https://github.com/facebookincubator/submitthem/blob/main/docs/checkpointing.md).
  - `FunctionSequence`: A function that computes sequentially the output of other functions. This can be used
  to compute several independent results sequentially on a unique job, and it implements checkpointing for free.
  - `RsyncSnapshot`: A context manager that creates a snapshot of the git repository that the script lives in

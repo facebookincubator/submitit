@@ -1,4 +1,4 @@
-# Using `nevergrad` with `submitit`
+# Using `nevergrad` with `submitthem`
 
 `nevergrad` is a derivative-free optimization toolbox developed at FAIR which can be used to tune network hyperparameters.
 These algorithms can be competitive over random search if you have around 10 parameters or more.
@@ -77,7 +77,7 @@ instru = ng.p.Instrumentation(
 ```
 
 
-## Working asynchronously with submitit
+## Working asynchronously with submitthem
 
 To speed up optimization, you probably want to run several function evaluations concurrently.
 To do this, you need to notify `nevergrad` at the optimizer initialization that you will have several workers (example: 32 here):
@@ -90,7 +90,7 @@ This, way, the optimizer will be prepared to provide several points to evaluate 
 
 ### Through the optimize method
 
-The `minimize` method takes an executor-like object which is compatible with `submitit` (and `concurrent.futures` and `dask`).
+The `minimize` method takes an executor-like object which is compatible with `submitthem` (and `concurrent.futures` and `dask`).
 With the following, nevergrad will take care of submitting a job per function evaluation, with at most 32 jobs in parallel:
 ```python
 executor = AutoExecutor(folder=my_folder)
@@ -118,4 +118,4 @@ recommendation = optimizer.provide_recommendation()
 
 ### Gotcha
 
-Since a job will be submitted for each function evaluation, using `submitit` executor in `nevergrad` is suitable for evaluations which take at least tens of minutes, not for small evaluations which will overload the cluster and spend more time pending than running.
+Since a job will be submitted for each function evaluation, using `submitthem` executor in `nevergrad` is suitable for evaluations which take at least tens of minutes, not for small evaluations which will overload the cluster and spend more time pending than running.

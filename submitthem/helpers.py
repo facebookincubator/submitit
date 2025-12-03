@@ -294,7 +294,7 @@ def monitor_jobs(
 
 @contextlib.contextmanager
 def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
-    """Removes slurm and submitit related environment variables so as to avoid interferences
+    """Removes slurm and submitthem related environment variables so as to avoid interferences
     when submiting a new job from a job.
 
     Parameters
@@ -311,7 +311,7 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
 
     Usage
     -----
-    with submitit.helpers.clean_env():
+    with submitthem.helpers.clean_env():
         executor.submit(...)
     """
     distrib_names = ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
@@ -319,7 +319,7 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
         x: os.environ.pop(x)
         for x in os.environ
         if (
-            x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITIT_"))
+            x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITTHEM_"))
             or x in distrib_names
             or x in extra_names
         )

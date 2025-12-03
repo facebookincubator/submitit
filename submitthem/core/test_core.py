@@ -83,7 +83,7 @@ class MockedSubprocess:
 
     @contextlib.contextmanager
     def context(self) -> tp.Iterator[None]:
-        with patch("submitit.core.utils.CommandFunction", new=self.mock_cmd_fn):
+        with patch("submitthem.core.utils.CommandFunction", new=self.mock_cmd_fn):
             with patch("subprocess.check_output", new=self):
                 with patch("shutil.which", new=self.which):
                     with patch("subprocess.check_call", new=self):
@@ -92,7 +92,7 @@ class MockedSubprocess:
     @contextlib.contextmanager
     def job_context(self, job_id: str) -> tp.Iterator[None]:
         with utils.environment_variables(
-            _USELESS_TEST_ENV_VAR_="1", SUBMITIT_EXECUTOR="slurm", SLURM_JOB_ID=str(job_id)
+            _USELESS_TEST_ENV_VAR_="1", SUBMITTHEM_EXECUTOR="slurm", SLURM_JOB_ID=str(job_id)
         ):
             yield None
 
@@ -112,7 +112,7 @@ class FakeExecutor(core.PicklingExecutor):
     job_class = FakeJob
 
     @property
-    def _submitit_command_str(self) -> str:
+    def _submitthem_command_str(self) -> str:
         return "echo 1"
 
     def _num_tasks(self) -> int:

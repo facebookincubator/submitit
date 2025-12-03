@@ -57,16 +57,16 @@ def test_nested_pickling(tmp_path):
     assert j.result() == pkl
 
 
-@pytest.mark.xfail(reason="Submitit changes __main__")
-def test_submitit_respects_main(tmp_path):
+@pytest.mark.xfail(reason="Submitthem changes __main__")
+def test_submitthem_respects_main(tmp_path):
     # TODO: I think this is the root cause of issue #11
-    # https://github.com/facebookincubator/submitit/issues/11
+    # https://github.com/facebookincubator/submitthem/issues/11
     # Some programs like pytorch-lightning are dependent on the value of __main__
     # See how `pdb` manage to restore the correct __main__:
     # https://sourcegraph.com/github.com/python/cpython/-/blob/Lib/pdb.py#L1549
     # But maybe we could fix #11 by just using
-    # `from submitit.core.submission import submitit_main`
-    # as in https://github.com/facebookincubator/submitit/issues/11#issuecomment-713148952
+    # `from submitthem.core.submission import submitthem_main`
+    # as in https://github.com/facebookincubator/submitthem/issues/11#issuecomment-713148952
 
     def get_main() -> str:
         # pylint: disable=import-outside-toplevel

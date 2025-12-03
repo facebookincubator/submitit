@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-import submitit
+import submitthem
 
 from .. import helpers
 from ..core import job_environment, submission, test_core, utils
@@ -132,7 +132,7 @@ def test_slurm_error_mocked(tmp_path: Path) -> None:
 @contextlib.contextmanager
 def mock_requeue(called_with: tp.Optional[int] = None, not_called: bool = False):
     assert not_called or called_with is not None
-    requeue = patch("submitit.slurm.slurm.SlurmJobEnvironment._requeue", return_value=None)
+    requeue = patch("submitthem.slurm.slurm.SlurmJobEnvironment._requeue", return_value=None)
     with requeue as _patch:
         try:
             yield
@@ -151,7 +151,7 @@ def get_signal_handler(job: Job) -> job_environment.SignalHandler:
 
 
 def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
-    usr_sig = submitit.JobEnvironment._usr_sig()
+    usr_sig = submitthem.JobEnvironment._usr_sig()
     fs0 = helpers.FunctionSequence()
     fs0.add(test_core._three_time, 10)
     assert isinstance(fs0, helpers.Checkpointable)
@@ -193,7 +193,7 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
 
 
 def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
-    usr_sig = submitit.JobEnvironment._usr_sig()
+    usr_sig = submitthem.JobEnvironment._usr_sig()
     # Start job with a 60 minutes timeout
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
@@ -223,7 +223,7 @@ def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> Non
 
 
 def test_checkpoint_and_exit(tmp_path: Path) -> None:
-    usr_sig = submitit.JobEnvironment._usr_sig()
+    usr_sig = submitthem.JobEnvironment._usr_sig()
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
         executor.update_parameters(time=60)
@@ -279,7 +279,7 @@ def test_make_sbatch_stderr() -> None:
 
 def test_update_parameters(tmp_path: Path) -> None:
     with mocked_slurm():
-        executor = submitit.AutoExecutor(folder=tmp_path)
+        executor = submitthem.AutoExecutor(folder=tmp_path)
     executor.update_parameters(mem_gb=3.5)
     assert executor._executor.parameters["mem"] == "3584MB"
 
@@ -488,7 +488,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
 @pytest.mark.parametrize("params", [{}, {"mem_gb": None}])  # type: ignore
 def test_slurm_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
     with mocked_slurm():
-        executor = submitit.AutoExecutor(folder=tmp_path)
+        executor = submitthem.AutoExecutor(folder=tmp_path)
         executor.update_parameters(**params, slurm_additional_parameters={"mem_per_gpu": 12})
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
     text = job.paths.submission_file.read_text()
@@ -513,7 +513,7 @@ def test_slurm_job_no_stderr(tmp_path: Path) -> None:
         mock.set_job_state("13", "RUNNING")
         job = executor.submit(fail_silently)
         job._results_timeout_s = 0
-        # Explicitly unlink stdout because submitit is writing there on startup
+        # Explicitly unlink stdout because submitthem is writing there on startup
         # job.paths.stdout.unlink()
         with pytest.raises(utils.UncompletedJobError, match="No output/error stream produced !"):
             job._get_outcome_and_result()

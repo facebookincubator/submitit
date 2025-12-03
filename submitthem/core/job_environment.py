@@ -16,21 +16,21 @@ from pathlib import Path
 from . import logger, utils
 from .utils import DelayedSubmission, JobPaths
 
-_PREEMPT_SIG_ENV = "SUBMITIT_PREEMPT_SIGNAL"
+_PREEMPT_SIG_ENV = "SUBMITTHEM_PREEMPT_SIGNAL"
 
 
 class JobEnvironment:
     """Describe the environment inside which the job is running.
     This includes job id, number of GPUs available, ...
 
-    This class can only be instantiated from a running submitit job.
+    This class can only be instantiated from a running submitthem job.
 
     @plugin-dev: default implementation look for information into environment variables.
     Override _env to map environment variable to each property.
     """
 
     # preemption signal uses USR2 as default, but this behavior
-    # can be overiden (eg: export SUBMITIT_PREEMPT_SIGNAL=USR2)
+    # can be overiden (eg: export SUBMITTHEM_PREEMPT_SIGNAL=USR2)
     # CAUTION: NCCL may catch USR1 so it should be avoided
     USR_SIG = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
     _env: tp.ClassVar[tp.Dict[str, str]] = {}
@@ -55,19 +55,19 @@ class JobEnvironment:
 
     @property
     def paths(self) -> JobPaths:
-        """Provides the paths used by submitit, including
+        """Provides the paths used by submitthem, including
         stdout, stderr, submitted_pickle and folder.
         """
-        folder = os.environ["SUBMITIT_FOLDER"]
+        folder = os.environ["SUBMITTHEM_FOLDER"]
         return JobPaths(folder, job_id=self.job_id, task_id=self.global_rank)
 
     def activated(self) -> bool:
         """Tests if we are running inside this environment.
 
-        @plugin-dev: assumes that the SUBMITIT_EXECUTOR variable has been
+        @plugin-dev: assumes that the SUBMITTHEM_EXECUTOR variable has been
         set to the executor name
         """
-        return os.environ.get("SUBMITIT_EXECUTOR", "") == self.name()
+        return os.environ.get("SUBMITTHEM_EXECUTOR", "") == self.name()
 
     @property
     def hostname(self) -> str:
@@ -174,7 +174,7 @@ class SignalHandler:
         self._start_time = time.time()
 
     def has_timed_out(self) -> bool:
-        # SignalHandler is created by submitit as soon as the process start,
+        # SignalHandler is created by submitthem as soon as the process start,
         # so _start_time is an accurate measure of the global runtime of the job.
         walltime = time.time() - self._start_time
         max_walltime = self._delayed._timeout_min * 60

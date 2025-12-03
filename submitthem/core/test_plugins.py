@@ -19,7 +19,7 @@ from .job_environment import JobEnvironment
 @pytest.mark.parametrize("env", plugins.get_job_environments().values())
 def test_env(env: JobEnvironment) -> None:
     assert isinstance(env, JobEnvironment)
-    # We are not inside a submitit job
+    # We are not inside a submitthem job
     assert not env.activated()
     assert type(env)._requeue is not JobEnvironment._requeue, "_requeue need to be overridden"
 
@@ -103,16 +103,16 @@ def _plugin_creator(tmp_path: Path, monkeypatch) -> tp.Iterator[PluginCreator]:
 
 def test_find_good_plugin(plugin_creator: PluginCreator) -> None:
     plugin_creator.add_plugin(
-        "submitit_good",
-        entry_points="""[submitit]
-executor = submitit_good:GoodExecutor
-job_environment = submitit_good:GoodJobEnvironment
-unsupported_key = submitit_good:SomethingElse
+        "submitthem_good",
+        entry_points="""[submitthem]
+executor = submitthem_good:GoodExecutor
+job_environment = submitthem_good:GoodJobEnvironment
+unsupported_key = submitthem_good:SomethingElse
 """,
         init="""
-import submitit
+import submitthem
 
-class GoodExecutor(submitit.Executor):
+class GoodExecutor(submitthem.Executor):
     pass
 
 class GoodJobEnvironment:
@@ -126,16 +126,16 @@ class GoodJobEnvironment:
 
 
 def test_skip_bad_plugin(caplog, plugin_creator: PluginCreator) -> None:
-    caplog.set_level(logging.WARNING, logger="submitit")
+    caplog.set_level(logging.WARNING, logger="submitthem")
     plugin_creator.add_plugin(
-        "submitit_bad",
-        entry_points="""[submitit]
-executor = submitit_bad:NonExisitingExecutor
-job_environment = submitit_bad:BadEnvironment
-unsupported_key = submitit_bad:SomethingElse
+        "submitthem_bad",
+        entry_points="""[submitthem]
+executor = submitthem_bad:NonExisitingExecutor
+job_environment = submitthem_bad:BadEnvironment
+unsupported_key = submitthem_bad:SomethingElse
 """,
         init="""
-import submitit
+import submitthem
 
 class BadEnvironment:
     name = "bad"
@@ -149,12 +149,12 @@ class BadEnvironment:
     assert {"slurm", "local", "debug"} == set(executors)
     assert "bad" not in executors
     expected = [
-        (logging.ERROR, r"'submitit_bad'.*no attribute 'NonExisitingExecutor'"),
-        (logging.ERROR, r"'submitit_bad'.*this is a bad environment"),
-        (logging.WARNING, "unsupported_key = submitit_bad:SomethingElse"),
+        (logging.ERROR, r"'submitthem_bad'.*no attribute 'NonExisitingExecutor'"),
+        (logging.ERROR, r"'submitthem_bad'.*this is a bad environment"),
+        (logging.WARNING, "unsupported_key = submitthem_bad:SomethingElse"),
     ]
     assert len(caplog.records) == len(expected)
     for record, ex_record in zip(caplog.records, expected):
-        assert record.name == "submitit"
+        assert record.name == "submitthem"
         assert record.levelno == ex_record[0]
         assert re.search(ex_record[1], record.getMessage())

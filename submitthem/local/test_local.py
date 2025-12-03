@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from submitit import AutoExecutor
+from submitthem import AutoExecutor
 
 from .. import helpers
 from ..core import job_environment, test_core, utils
@@ -150,7 +150,7 @@ def test_killed(tmp_path: Path) -> None:
     assert job.state == "INTERRUPTED"
 
 
-@pytest.mark.skipif(not os.environ.get("SUBMITIT_SLOW_TESTS", False), reason="slow")  # type: ignore
+@pytest.mark.skipif(not os.environ.get("SUBMITTHEM_SLOW_TESTS", False), reason="slow")  # type: ignore
 def test_long_running_job(tmp_path: Path) -> None:
     def f(x: int, y: int, sleep: int = 120) -> int:
         time.sleep(sleep)
@@ -188,7 +188,7 @@ def test_custom_checkpoint(tmp_path: Path) -> None:
             print("Working hard", flush=True)
             return "worked hard"
 
-        def __submitit_checkpoint__(self, slack: bool = True):
+        def __submitthem_checkpoint__(self, slack: bool = True):
             if slack:
                 print("Interrupted while slacking. I won't slack next time.", flush=True)
             return utils.DelayedSubmission(self, slack=False)
@@ -204,7 +204,7 @@ def test_custom_checkpoint(tmp_path: Path) -> None:
 
 def test_make_subprocess(tmp_path: Path) -> None:
     process = local.start_controller(
-        tmp_path, "python -c 'import os;print(os.environ[\"SUBMITIT_LOCAL_JOB_ID\"])'", timeout_min=1
+        tmp_path, "python -c 'import os;print(os.environ[\"SUBMITTHEM_LOCAL_JOB_ID\"])'", timeout_min=1
     )
     paths = utils.JobPaths(tmp_path, str(process.pid), 0)
     pg = process.pid

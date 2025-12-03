@@ -1,10 +1,10 @@
-# Contributing to _submitit_
+# Contributing to _submitthem_
 We want to make contributing to this project as easy and transparent as possible.
 
 ## Our Development Process
-_submitit_ is actively used by FAIR researcher and engineers.
+_submitthem_ is actively used by FAIR researcher and engineers.
 All bugs tracking and feature plannings are public.
-_submitit_ will be updated to keep up with Slurm versions and to fix bug,
+_submitthem_ will be updated to keep up with Slurm versions and to fix bug,
 but we don't have any major feature planned ahead.
 
 
@@ -38,5 +38,5 @@ outlined on that page and do not file a public issue.
 We use black coding style with a generous 110 line length.
 
 ## License
-By contributing to _submitit_, you agree that your contributions will be licensed
+By contributing to _submitthem_, you agree that your contributions will be licensed
 under the LICENSE file in the root directory of this source tree.

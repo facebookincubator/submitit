@@ -23,17 +23,17 @@ class DebugInfoWatcher(InfoWatcher):
 
 class DebugJobEnvironment(JobEnvironment):
     _env = {
-        "job_id": "SUBMITIT_DEBUG_JOB_ID",
+        "job_id": "SUBMITTHEM_DEBUG_JOB_ID",
         # We don't set those, and rely on the default values from JobEnvironment
-        "num_nodes": "SUBMITIT_DEBUG_NOT_SET",
-        "num_tasks": "SUBMITIT_DEBUG_NOT_SET",
-        "node": "SUBMITIT_DEBUG_NOT_SET",
-        "global_rank": "SUBMITIT_DEBUG_NOT_SET",
-        "local_rank": "SUBMITIT_DEBUG_NOT_SET",
+        "num_nodes": "SUBMITTHEM_DEBUG_NOT_SET",
+        "num_tasks": "SUBMITTHEM_DEBUG_NOT_SET",
+        "node": "SUBMITTHEM_DEBUG_NOT_SET",
+        "global_rank": "SUBMITTHEM_DEBUG_NOT_SET",
+        "local_rank": "SUBMITTHEM_DEBUG_NOT_SET",
     }
 
     def activated(self) -> bool:
-        return "SUBMITIT_DEBUG_JOB_ID" in os.environ
+        return "SUBMITTHEM_DEBUG_JOB_ID" in os.environ
 
     def _requeue(self, countdown: int) -> None:
         pass
@@ -48,7 +48,7 @@ class DebugJob(Job[R]):
         self._submission = submission
         self.cancelled = False
         self.environ = dict(os.environ)
-        self.environ["SUBMITIT_DEBUG_JOB_ID"] = self.job_id
+        self.environ["SUBMITTHEM_DEBUG_JOB_ID"] = self.job_id
 
     def submission(self) -> DelayedSubmission:
         return self._submission

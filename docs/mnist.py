@@ -17,10 +17,10 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils import check_random_state
 
-import submitit
+import submitthem
 
 
-class MnistTrainer(submitit.helpers.Checkpointable):
+class MnistTrainer(submitthem.helpers.Checkpointable):
     """
     This shows how to rewrite a monolith function so that it can handle preemption nicely,
     and not restart from scratch everytime it's preempted.
@@ -113,7 +113,7 @@ def main():
         for file in folder.iterdir():
             file.unlink()
 
-    ex = submitit.AutoExecutor(folder)
+    ex = submitthem.AutoExecutor(folder)
     if ex.cluster == "slurm":
         print("Executor will schedule jobs on Slurm.")
     else:
