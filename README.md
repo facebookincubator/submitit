@@ -2,9 +2,11 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Pypi](https://img.shields.io/pypi/v/submitit)](https://pypi.org/project/submitit/)
 [![conda-forge](https://img.shields.io/conda/vn/conda-forge/submitit)](https://anaconda.org/conda-forge/submitit)
-# Submit it!
+# Submit them!
 
-## What is submitit?
+## What is submitthem?
+
+Submitthem is a fork of Submitit.
 
 Submitit is a lightweight tool for submitting Python functions for computation within a Slurm cluster.
 It basically wraps submission and provide access to results, logs and more.
