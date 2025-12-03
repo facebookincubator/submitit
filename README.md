@@ -10,8 +10,12 @@ Submitthem is a fork of Submitit.
 
 Submitit is a lightweight tool for submitting Python functions for computation within a Slurm cluster.
 It basically wraps submission and provide access to results, logs and more.
+
 [Slurm](https://slurm.schedmd.com/quickstart.html) is an open source, fault-tolerant, and highly scalable cluster management and job scheduling system for large and small Linux clusters.
-Submitit allows to switch seamlessly between executing on Slurm or locally.
+
+PBS (Portable Batch System) is another popular job scheduler for high‑performance computing clusters, providing queuing, resource management and job control similar to Slurm. There are 2 implementations [PBS Pro](https://altair.com/pbs-professional/) and [OpenPBS](https://www.openpbs.org/).
+
+Submitthem allows to switch seamlessly between executing on Slurm, PBS or locally.
 
 ### An example is worth a thousand words: performing an addition
 
@@ -41,7 +45,7 @@ By default stdout is silenced in `CommandFunction`, but it can be unsilenced wit
 
 **Find more examples [here](docs/examples.md)!!!**
 
-Submitthem is a Python 3.8+ toolbox for submitting jobs to Slurm.
+Submitthem is a Python 3.8+ toolbox for submitting jobs to Slurm, PBS or locally.
 It aims at running python function from python code.
 
 
@@ -58,7 +62,7 @@ Quick install, in a virtualenv/conda environment where `pip` is installed (check
   ```
 - main branch:
   ```
-  pip install git+https://github.com/facebookincubator/submitthem@main#egg=submitthem
+  pip install git+https://github.com/xroynard/submitthem@main#egg=submitthem
   ```
 
 You can try running the [MNIST example](docs/mnist.py) to check that everything is working as expected (requires sklearn).
@@ -74,6 +78,10 @@ See the following pages for more detailled information:
 - [Tips and caveats](docs/tips.md): for a bunch of information that can be handy when working with `submitthem`.
 - [Hyperparameter search with nevergrad](docs/nevergrad.md): basic example of `nevergrad` usage and how it interfaces with `submitthem`.
 
+### Third party
+
+- [PBS User’s Guide](https://help.altair.com/2022.1.0/PBS%20Professional/PBSUserGuide2022.1.pdf)
+- [PBS Reference Guide](https://help.altair.com/2022.1.0/PBS%20Professional/PBSReferenceGuide2022.1.pdf)
 
 ### Goals
 
@@ -93,7 +101,7 @@ The defaults are chosen to make their life easier, and might not be ideal for ev
 
 ### Non-goals
 
-- a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitthem plugin](https://hydra.cc/docs/next/plugins/submitthem_launcher) (version >= 1.0.0).
+- a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitit plugin](https://hydra.cc/docs/next/plugins/submitit_launcher) (version >= 1.0.0).
 - a task queue, this only implements the ability to launch tasks, but does not schedule them in any way.
 - being used in Python2! This is a Python3.8+ only package :)
 

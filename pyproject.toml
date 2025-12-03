@@ -21,8 +21,8 @@ classifiers=[
 ]
 
 [project.urls]
-  Source = "https://github.com/facebookincubator/submitthem"
-  Tracker = "https://github.com/facebookincubator/submitthem/issues"
+  Source = "https://github.com/xroynard/submitthem"
+  Tracker = "https://github.com/xroynard/submitthem/issues"
 
 [project.optional-dependencies]
     dev = [
