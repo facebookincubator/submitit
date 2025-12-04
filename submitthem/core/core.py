@@ -24,7 +24,7 @@ R = tp.TypeVar("R", covariant=True)
 
 
 class InfoWatcher:
-    """An instance of this class is shared by all jobs, and is in charge of calling slurm to check status for
+    """An instance of this class is shared by all jobs, and is in charge of calling slurm/pbs to check status for
     all jobs at once (so as not to overload it). It is also in charge of dealing with errors.
     Cluster is called at 0s, 2s, 4s, 8s etc... in the begginning of jobs, then at least every delay_s (default: 60)
 
@@ -57,7 +57,7 @@ class InfoWatcher:
 
     @property
     def num_calls(self) -> int:
-        """Number of calls to sacct"""
+        """Number of calls to sacct/qstat"""
         return self._num_calls
 
     def clear(self) -> None:
@@ -82,10 +82,10 @@ class InfoWatcher:
             one of "force" (forces a call), "standard" (calls regularly) or "cache" (does not call)
         """
         if job_id is None:
-            raise RuntimeError("Cannot call sacct without a slurm id")
+            raise RuntimeError("Cannot call sacct/qstat without a job id")
         if job_id not in self._registered:
             self.register_job(job_id)
-        # check with a call to sacct/cinfo
+        # check with a call to sacct/qstat
         self.update_if_long_enough(mode)
         return self._info_dict.get(job_id, {})
 
@@ -123,7 +123,7 @@ class InfoWatcher:
             self.update()
 
     def update(self) -> None:
-        """Updates the info of all registered jobs with a call to sacct"""
+        """Updates the info of all registered jobs with a call to sacct/qstat"""
         command = self._make_command()
         if command is None:
             return
@@ -133,7 +133,7 @@ class InfoWatcher:
             self._output = subprocess.check_output(command, shell=False)
         except Exception as e:
             logger.get_logger().warning(
-                f"Call #{self.num_calls} - Bypassing sacct error {e}, status may be inaccurate."
+                f"Call #{self.num_calls} - Bypassing sacct/qstat error {e}, status may be inaccurate."
             )
         else:
             self._info_dict.update(self.read_info(self._output))
@@ -350,7 +350,7 @@ class Job(tp.Generic[R]):
         Raises
         ------
         UncompletedJobError
-            if the job is not finished or failed outside of the job (from slurm)
+            if the job is not finished or failed outside of the job (from slurm/pbs)
         """
         assert not self._sub_jobs, "This should not be called for a meta-job"
 
@@ -394,7 +394,7 @@ class Job(tp.Generic[R]):
     def wait(self) -> None:
         """Wait while no result find is found and the state is
         either PENDING or RUNNING.
-        The state is checked from slurm at least every min and the result path
+        The state is checked from slurm/pbs at least every min and the result path
         every second.
         """
         while not self.done():
@@ -409,7 +409,7 @@ class Job(tp.Generic[R]):
         Parameters
         ----------
         force_check: bool
-            Forces the slurm state update
+            Forces the slurm/pbs state update
 
         Returns
         -------
@@ -420,7 +420,7 @@ class Job(tp.Generic[R]):
         ----
         This function is not foolproof, and may say that the job is not terminated even
         if it is when the job failed (no result file, but job not running) because
-        we avoid calling sacct/cinfo everytime done is called
+        we avoid calling sacct/qstat everytime done is called
         """
         # TODO: keep state info once job is finished?
         if self._sub_jobs:
@@ -433,7 +433,7 @@ class Job(tp.Generic[R]):
             pass
         if self.paths.result_pickle.exists():
             return True
-        # check with a call to sacct/cinfo
+        # check with a call to sacct/qstat
         if self.watcher.is_done(self.job_id, mode="force" if force_check else "standard"):
             return True
         return False
@@ -448,7 +448,7 @@ class Job(tp.Generic[R]):
         return self.watcher.get_state(self.job_id, mode="standard")
 
     def get_info(self, mode: str = "force") -> tp.Dict[str, str]:
-        """Returns informations about the job as a dict (sacct call)"""
+        """Returns informations about the job as a dict (sacct/qstat call)"""
         return self.watcher.get_info(self.job_id, mode=mode)
 
     def _get_logs_string(self, name: str) -> tp.Optional[str]:
@@ -972,7 +972,7 @@ class PicklingExecutor(Executor):
     @abc.abstractmethod
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         """Creates the text of a file which will be created and run
-        for the submission (for slurm, this is sbatch file).
+        for the submission (for slurm/pbs, this is sbatch/qsub file).
         """
         raise NotImplementedError
 

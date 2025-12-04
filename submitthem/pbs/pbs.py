@@ -41,81 +41,146 @@ def read_job_id(job_id: str) -> tp.List[tp.Tuple[str, ...]]:
 
 class PBSInfoWatcher(core.InfoWatcher):
     def _make_command(self) -> tp.Optional[tp.List[str]]:
-        # asking for array id will return all status
-        # on the other end, asking for each and every one of them individually takes a huge amount of time
+        # ask qstat for full info on each main job id
         to_check = {x.split("_")[0] for x in self._registered - self._finished}
         if not to_check:
             return None
-        command = ["sacct", "-o", "JobID,State,NodeList", "--parsable2"]
-        for jid in to_check:
-            command.extend(["-j", str(jid)])
-        return command
+        # qstat -f <jobid> returns full job info for each requested id
+        return ["qstat", "-f", *map(str, to_check)]
 
     def get_state(self, job_id: str, mode: str = "standard") -> str:
-        """Returns the state of the job
-        State of finished jobs are cached (use watcher.clear() to remove all cache)
-
-        Parameters
-        ----------
-        job_id: int
-            id of the job on the cluster
-        mode: str
-            one of "force" (forces a call), "standard" (calls regularly) or "cache" (does not call)
-        """
+        """Returns the state of the job (mapped to readable names)."""
         info = self.get_info(job_id, mode=mode)
         return info.get("State") or "UNKNOWN"
 
     def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
-        """Reads the output of sacct and returns a dictionary containing main information"""
+        """Parse qstat -f output and return dict mapping job_id/_index -> stats dict.
+
+        We normalize to keys similar to the Slurm reader: each entry contains at least
+        "JobID", "State" and "NodeList".
+        """
         if not isinstance(string, str):
-            string = string.decode()
+            string = string.decode(errors="ignore")
         lines = string.splitlines()
-        if len(lines) < 2:
-            return {}  # one job id does not exist (yet)
-        names = lines[0].split("|")
-        # read all lines
+        if not lines:
+            return {}
+
+        blocks: tp.List[tp.List[str]] = []
+        current: tp.List[str] = []
+        for ln in lines:
+            # Start of a job block in qstat -f
+            if re.match(r"^Job Id:\s*\S+", ln):
+                if current:
+                    blocks.append(current)
+                current = [ln]
+            else:
+                if current is not None:
+                    current.append(ln)
+        if current:
+            blocks.append(current)
+
         all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
-        for line in lines[1:]:
-            stats = {x: y.strip() for x, y in zip(names, line.split("|"))}
-            job_id = stats["JobID"]
-            if not job_id or "." in job_id:
+        state_map = {
+            "R": "RUNNING",
+            "Q": "PENDING",
+            "H": "HELD",
+            "S": "SUSPENDED",
+            "E": "EXITING",
+            "C": "COMPLETED",
+            "F": "FAILED",
+            # fallback will return single-letter if unknown
+        }
+
+        for block in blocks:
+            # extract job id from the first line: "Job Id: 12345.server" or "Job Id: 12345[1].server"
+            first = block[0]
+            m = re.match(r"^Job Id:\s*(\S+)", first)
+            if not m:
                 continue
+            raw_jobid = m.group(1)
+            # strip server suffix after dot
+            raw_jobid = raw_jobid.split(".", 1)[0]
+            # normalize bracketed array form "12345[1-3]" -> "12345_[1-3]" so read_job_id can parse it
+            if "[" in raw_jobid and "]" in raw_jobid:
+                normalized_jobid = raw_jobid.replace("[", "_[")
+            else:
+                normalized_jobid = raw_jobid
+
+            # parse key = value lines
+            stats: tp.Dict[str, str] = {}
+            for ln in block[1:]:
+                kv = re.match(r"^\s*(\S+)\s*=\s*(.*)$", ln)
+                if not kv:
+                    continue
+                k = kv.group(1).strip()
+                v = kv.group(2).strip()
+                stats[k] = v
+
+            # Prepare normalized output fields
+            job_state_letter = stats.get("job_state") or stats.get("job_state")  # typical key
+            state_val = None
+            if job_state_letter:
+                state_val = state_map.get(job_state_letter, job_state_letter)
+            # NodeList: prefer exec_host, fall back to nodes or nodect
+            node_list_raw = stats.get("exec_host") or stats.get("exec_host") or stats.get("nodes")
+            node_list_str = ""
+            if node_list_raw:
+                # exec_host like "node01/0+node02/0" -> "node01,node02"
+                parts = re.split(r"\+|,", node_list_raw)
+                nodes = []
+                seen = set()
+                for p in parts:
+                    host = p.split("/")[0].strip()
+                    if host and host not in seen:
+                        seen.add(host)
+                        nodes.append(host)
+                node_list_str = ",".join(nodes)
+            # Build the minimal stats dict returned to consumers
+            out_stats: tp.Dict[str, str] = {}
+            out_stats["JobID"] = raw_jobid
+            if state_val:
+                out_stats["State"] = state_val
+            elif "job_state" in stats:
+                out_stats["State"] = stats["job_state"]
+            if node_list_str:
+                out_stats["NodeList"] = node_list_str
+            else:
+                # try other fallbacks (queue host, exec_host formatted differently)
+                out_stats["NodeList"] = stats.get("exec_host", "")
+
+            # Now expand possible array job id ranges using existing read_job_id helper
             try:
-                multi_split_job_id = read_job_id(job_id)
+                multi = read_job_id(normalized_jobid)
             except Exception as e:
-                # Array id are sometimes displayed with weird chars
-                warnings.warn(
-                    f"Could not interpret {job_id} correctly (please open an issue):\n{e}", DeprecationWarning
-                )
+                warnings.warn(f"Could not interpret {raw_jobid} correctly (please open an issue):\n{e}", DeprecationWarning)
                 continue
-            for split_job_id in multi_split_job_id:
-                all_stats[
-                    "_".join(split_job_id[:2])
-                ] = stats  # this works for simple jobs, or job array unique instance
-                # then, deal with ranges:
+
+            for split_job_id in multi:
+                key = "_".join(split_job_id[:2])
+                all_stats[key] = out_stats
                 if len(split_job_id) >= 3:
-                    for index in range(int(split_job_id[1]), int(split_job_id[2]) + 1):
-                        all_stats[f"{split_job_id[0]}_{index}"] = stats
+                    # if there's a range specified, fill each index within that range
+                    start = int(split_job_id[1])
+                    end = int(split_job_id[2])
+                    for idx in range(start, end + 1):
+                        all_stats[f"{split_job_id[0]}_{idx}"] = out_stats
+
         return all_stats
 
 
 class PBSJob(core.Job[core.R]):
-    _cancel_command = "scancel"
+    _cancel_command = "qdel"
     watcher = PBSInfoWatcher(delay_s=600)
 
     def _interrupt(self, timeout: bool = False) -> None:
-        """Sends preemption or timeout signal to the job (for testing purpose)
+        """Cancels the job using PBS qdel.
 
         Parameter
         ---------
         timeout: bool
-            Whether to trigger a job time-out (if False, it triggers preemption)
+            Ignored for PBS qdel (keeps signature compatibility).
         """
-        cmd = ["scancel", self.job_id, "--signal"]
-        # in case of preemption, SIGTERM is sent first
-        if not timeout:
-            subprocess.check_call(cmd + ["SIGTERM"])
-        subprocess.check_call(cmd + [PBSJobEnvironment.USR_SIG])
+        subprocess.check_call(["qdel", self.job_id], timeout=60)
 
 
 class PBSParseException(Exception):
@@ -173,39 +238,94 @@ def _parse_node_list(node_list: str):
 
 
 class PBSJobEnvironment(job_environment.JobEnvironment):
+    # Common PBS environment variables. We prefer the most widely available names,
+    # but many clusters vary — the hostnames property below includes fallbacks.
     _env = {
-        "job_id": "PBS_JOB_ID",
-        "num_tasks": "PBS_NTASKS",
-        "num_nodes": "PBS_JOB_NUM_NODES",
-        "node": "PBS_NODEID",
-        "nodes": "PBS_JOB_NODELIST",
-        "global_rank": "PBS_PROCID",
-        "local_rank": "PBS_LOCALID",
-        "array_job_id": "PBS_ARRAY_JOB_ID",
-        "array_task_id": "PBS_ARRAY_TASK_ID",
+        "job_id": "PBS_JOBID",
+        "num_tasks": "PBS_NP",
+        "num_nodes": "PBS_NUM_NODES",
+        "node": "HOSTNAME",
+        "nodes": "PBS_NODEFILE",  # typically a path to a file listing nodes (one per slot)
+        # MPI/OpenMPI common rank env vars as PBS doesn't always provide these directly
+        "global_rank": "OMPI_COMM_WORLD_RANK",
+        "local_rank": "OMPI_COMM_WORLD_LOCAL_RANK",
+        # Array vars (different installations expose different names; these are common)
+        "array_job_id": "PBS_ARRAYID",
+        "array_task_id": "PBS_ARRAY_INDEX",
     }
 
     def _requeue(self, countdown: int) -> None:
+        """Requeue the current job using PBS qrerun."""
         jid = self.job_id
-        subprocess.check_call(["scontrol", "requeue", jid], timeout=60)
+        # qrerun is the common PBS/Torque/PBS Pro way to re-run/requeue a job.
+        subprocess.check_call(["qrerun", jid], timeout=60)
         logger.get_logger().info(f"Requeued job {jid} ({countdown} remaining timeouts)")
 
     @property
     def hostnames(self) -> tp.List[str]:
-        """Parse the content of the "PBS_JOB_NODELIST" environment variable,
-        which gives access to the list of hostnames that are part of the current job.
+        """Return the list of hostnames for the current PBS job.
 
-        In PBS, the node list is formatted NODE_GROUP_1,NODE_GROUP_2,...,NODE_GROUP_N
-        where each node group is formatted as: PREFIX[1-3,5,8] to define the hosts:
-        [PREFIX1, PREFIX2, PREFIX3, PREFIX5, PREFIX8].
+        PBS clusters commonly expose node information in one of these ways:
+        - PBS_NODEFILE: path to a file that lists each allocated slot/node (often with duplicates)
+        - PBS_NODELIST / PBS_JOB_NODELIST: compressed node list, sometimes in Slurm-like bracket form
+          (e.g. node[001-004]) or in '+' separated form (e.g. node001+node002)
+        - A plain HOSTNAME for single-node jobs.
 
-        Link: https://hpcc.umd.edu/hpcc/help/pbsenv.html
+        This method supports those variants and normalizes the result to a list of unique hostnames
+        in the order they appear.
         """
+        # 1) If PBS_NODEFILE is present and points to a file, read it (one entry per slot)
+        nodefile = os.environ.get(self._env["nodes"])  # PBS_NODEFILE
+        if nodefile and os.path.exists(nodefile):
+            try:
+                with open(nodefile, "r") as fh:
+                    lines = [ln.strip() for ln in fh if ln.strip()]
+            except Exception:
+                lines = []
+            seen: tp.Set[str] = set()
+            parsed: tp.List[str] = []
+            for ln in lines:
+                # Some nodefiles contain "node:ppn=4" or similar — take the hostname part.
+                host = re.split(r"[:\s/]+", ln)[0]
+                if host and host not in seen:
+                    seen.add(host)
+                    parsed.append(host)
+            if parsed:
+                return parsed
 
-        node_list = os.environ.get(self._env["nodes"], "")
-        if not node_list:
-            return [self.hostname]
-        return _parse_node_list(node_list)
+        # 2) Check for compressed node list variables commonly used
+        node_vars = ("PBS_NODELIST", "PBS_JOB_NODELIST", "PBS_NODES", "NODELIST")
+        for var in node_vars:
+            node_list = os.environ.get(var)
+            if not node_list:
+                continue
+            node_list = node_list.strip()
+            # If it looks like the bracketed/compressed form, try to parse with _parse_node_list
+            if "[" in node_list and "]" in node_list:
+                try:
+                    parsed = _parse_node_list(node_list)
+                    if parsed:
+                        return parsed
+                except PBSParseException:
+                    # fall back to the generic parsing below
+                    pass
+            # Some PBS flavors use '+' or ',' between host groups, possibly with ":ppn=" suffixes.
+            parts = re.split(r"[+,]", node_list)
+            parsed = []
+            seen = set()
+            for p in parts:
+                host = p.split(":")[0].strip()
+                if host and host not in seen:
+                    seen.add(host)
+                    parsed.append(host)
+            if parsed:
+                return parsed
+
+        # 3) Fallbacks: single-host env or the hostname property from JobEnvironment
+        host = os.environ.get("HOSTNAME") or os.environ.get("PBS_O_HOST")
+        if host:
+            return [host]
+        return [self.hostname]
 
 
 class PBSExecutor(core.PicklingExecutor):
