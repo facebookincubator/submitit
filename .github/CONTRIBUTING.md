@@ -2,14 +2,14 @@
 We want to make contributing to this project as easy and transparent as possible.
 
 ## Our Development Process
-_submitthem_ is actively used by FAIR researcher and engineers.
+There is no proof _submitit_ is still actively used by FAIR researcher and engineers.
+We can’t garanty that _submitthem_ will be actively used by any researcher and engineers.
 All bugs tracking and feature plannings are public.
-_submitthem_ will be updated to keep up with Slurm versions and to fix bug,
-but we don't have any major feature planned ahead.
-
+_submitthem_ will NOT be updated to keep up with Slurm/PBS versions and to fix bug,
+We don't have any major feature planned ahead.
 
 ## Pull Requests
-We actively welcome your pull requests.
+We actively welcome pull requests and will review them as quickly as possible, subject to our availability.
 
 1. Fork the repo and create your branch from `main`.
 2. Create a virtual environment and activate it: `make venv && . venv/bin/activate`
@@ -18,21 +18,10 @@ We actively welcome your pull requests.
 5. Ensure the test suite passes: `make test`
 6. Make sure your code lints: `make pre_commit`. You can run this automatically on commit by making it a hook: `make register_pre_commit`
 7. When ready you can run the full test suits ran on CI with `make -k integration`
-8. If you haven't already, complete the Contributor License Agreement ("CLA").
-
-## Contributor License Agreement ("CLA")
-In order to accept your pull request, we need you to submit a CLA. You only need
-to do this once to work on any of Facebook's open source projects.
-
-Complete your CLA here: <https://code.facebook.com/cla>
 
 ## Issues
 We use GitHub issues to track public bugs. Please ensure your description is
 clear and has sufficient instructions to be able to reproduce the issue.
-
-Facebook has a [bounty program](https://www.facebook.com/whitehat/) for the safe
-disclosure of security bugs. In those cases, please go through the process
-outlined on that page and do not file a public issue.
 
 ## Coding Style
 We use black coding style with a generous 110 line length.

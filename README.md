@@ -6,7 +6,7 @@
 
 ## What is submitthem?
 
-Submitthem is a fork of Submitit.
+Submitthem is a fork of [Submitit](https://github.com/facebookincubator/submitit).
 
 Submitit is a lightweight tool for submitting Python functions for computation within a Slurm cluster.
 It basically wraps submission and provide access to results, logs and more.

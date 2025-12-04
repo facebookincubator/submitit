@@ -11,6 +11,7 @@ import pytest
 
 from ..local import debug
 from ..slurm import test_slurm
+from ..pbs import test_pbs
 from . import auto
 
 
@@ -34,6 +35,30 @@ def test_slurm_executor(tmp_path: Path, monkeypatch) -> None:
     # unknown slurm parameter
     with pytest.raises(NameError):
         executor.update_parameters(slurm_host_filter="blublu")
+    # check that error message contains all
+    with pytest.raises(NameError, match=r"debug_blublu.*\n.*local_num_threads"):
+        executor.update_parameters(debug_blublu=2.0, local_num_threads=4)
+
+def test_pbs_executor(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(debug.DebugExecutor, "_valid_parameters", lambda: {"blabla"})
+    with test_pbs.mocked_pbs():
+        executor = auto.AutoExecutor(folder=tmp_path)
+    assert executor.cluster == "pbs"
+
+    # local_xxx parameter is ignored
+    executor.update_parameters(mem_gb=2, name="machin", debug_blabla="blublu")
+    params = executor._executor.parameters
+    assert params == {"mem": "2GB", "job_name": "machin"}
+
+    # shared parameter with wrong type
+    with pytest.raises(AssertionError):
+        executor.update_parameters(mem_gb="2.0GB")  # should be int
+    # unknown shared parameter
+    with pytest.raises(NameError):
+        executor.update_parameters(blublu=2.0)
+    # unknown pbs parameter
+    with pytest.raises(NameError):
+        executor.update_parameters(pbs_host_filter="blublu")
     # check that error message contains all
     with pytest.raises(NameError, match=r"debug_blublu.*\n.*local_num_threads"):
         executor.update_parameters(debug_blublu=2.0, local_num_threads=4)
