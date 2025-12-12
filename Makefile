@@ -18,11 +18,12 @@ which:
 	$(BIN)python --version
 
 test:
-	$(BIN)pytest $(CODE)
+	$(BIN)pytest -n auto $(CODE)
 
 test_coverage:
 	$(BIN)pytest \
 		-v \
+		-n auto \
 		--cov=submitthem --cov-report=html --cov-report=term \
 		--durations=10 \
 		--junitxml=test_results/pytest/results.xml \
@@ -52,9 +53,9 @@ lint: mypy pylint
 venv: venv/pyproject.toml
 
 venv/pyproject.toml: pyproject.toml
-	python3 -m venv venv
-	venv/bin/pip install --progress-bar off --upgrade pip
-	venv/bin/pip install --progress-bar off -U -e .[dev]
+	python -m venv venv
+	venv/bin/pip install --upgrade pip
+	venv/bin/pip install -U -e .[dev]
 	cp $^ $@
 
 installable: installable_local installable_wheel
@@ -65,7 +66,7 @@ installable_local: venv
 BUILD=dev0$(CIRCLE_BUILD_NUM)
 USER_VENV=/tmp/submitthem_user_venv/
 CURRENT_VERSION=`grep -e '__version__' ./submitthem/__init__.py | sed 's/__version__ = //' | sed 's/"//g'`
-TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps --progress-bar off
+TEST_PYPI=--index-url 'https://test.pypi.org/simple/' --no-cache-dir --no-deps
 
 installable_wheel:
 	[ ! -d dist ] || rm -r dist
@@ -77,7 +78,7 @@ installable_wheel:
 
 	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
 	python3 -m venv $(USER_VENV)
-	$(USER_VENV)/bin/pip install --progress-bar off dist/submitthem-*any.whl
+	$(USER_VENV)/bin/pip install dist/submitthem-*any.whl
 	# Check that importing works
 	$(USER_VENV)/bin/python -c "import submitthem"
 
