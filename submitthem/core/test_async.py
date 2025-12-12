@@ -7,16 +7,17 @@
 from pathlib import Path
 
 import pytest
+import asyncio
 
 from . import submission, utils
 from .test_core import FakeExecutor, _three_time
 
 
 @pytest.mark.asyncio
-async def test_result(tmp_path: Path, event_loop):
+async def test_result(tmp_path: Path):
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
-    result_task = event_loop.create_task(job.awaitable().result())
+    result_task = asyncio.create_task(job.awaitable().result())
     with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
         submission.process_job(folder=job.paths.folder)
     result = await result_task
@@ -24,10 +25,10 @@ async def test_result(tmp_path: Path, event_loop):
 
 
 @pytest.mark.asyncio
-async def test_results_single(tmp_path: Path, event_loop):
+async def test_results_single(tmp_path: Path):
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
-    result_task = event_loop.create_task(job.awaitable().results())
+    result_task = asyncio.create_task(job.awaitable().results())
     with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
         submission.process_job(folder=job.paths.folder)
     result = await result_task
