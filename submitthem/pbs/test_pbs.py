@@ -31,7 +31,8 @@ def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> Non
 
 @contextlib.contextmanager
 def mocked_pbs() -> tp.Iterator[test_core.MockedSubprocess]:
-    mock = test_core.MockedSubprocess(known_cmds=["qsub_interactive"])
+    # TODO: check if both are needed
+    mock = test_core.MockedSubprocess(known_cmds=["qsub", "qsub -I"])
     try:
         with mock.context():
             yield mock
@@ -291,15 +292,143 @@ def test_update_parameters_error(tmp_path: Path) -> None:
         executor.update_parameters(blublu=12)
 
 
+def test_ntasks_per_node_conversion(tmp_path: Path) -> None:
+    """Test that ntasks_per_node is properly converted to PBS mpiprocs format"""
+    # Test: ntasks_per_node with nodes
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        nodes=2,
+        ntasks_per_node=4,
+    )
+    # Should have mpiprocs=4 in select clause
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "mpiprocs=4" in select_lines[0]
+    assert "2:" in select_lines[0]  # 2 nodes
+
+
+def test_ntasks_per_node_without_nodes(tmp_path: Path) -> None:
+    """Test that ntasks_per_node works without explicit nodes parameter"""
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        ntasks_per_node=8,
+    )
+    # Should have select with mpiprocs
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "mpiprocs=8" in select_lines[0]
+
+
+def test_ntasks_per_node_with_cpus_per_task(tmp_path: Path) -> None:
+    """Test that ntasks_per_node works with cpus_per_task"""
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        nodes=2,
+        ntasks_per_node=4,
+        cpus_per_task=2,
+    )
+    # Should have both mpiprocs and ncpus
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "mpiprocs=4" in select_lines[0]
+    assert "ncpus=2" in select_lines[0]
+
+
+def test_gpus_per_task_conversion() -> None:
+    """Test that gpus_per_task is properly converted to PBS ngpus format"""
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        gpus_per_task=2,
+    )
+    # Should have ngpus in select clause
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "ngpus=2" in select_lines[0]
+
+
+def test_mem_per_gpu_conversion() -> None:
+    """Test that mem_per_gpu is properly converted to PBS format"""
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        mem_per_gpu="4GB",
+    )
+    # Should have mem_per_gpu in select clause
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "mem_per_gpu=4GB" in select_lines[0]
+
+
+def test_mem_per_cpu_conversion() -> None:
+    """Test that mem_per_cpu is properly converted to PBS format"""
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        mem_per_cpu="1GB",
+    )
+    # Should have mem_per_cpu in select clause
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "mem_per_cpu=1GB" in select_lines[0]
+
+
+def test_memory_string_parsing() -> None:
+    """Test that memory values with units are properly parsed"""
+    # Test with string format "512MB"
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        mem="512MB",
+    )
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "mem=512gb" in select_lines[0]
+
+    # Test with numeric format
+    string = pbs._make_qsub_string(
+        command="test",
+        folder="/tmp",
+        mem="4",
+    )
+    select_lines = [line for line in string.splitlines() if "#PBS -l select" in line]
+    assert len(select_lines) == 1
+    assert "mem=4gb" in select_lines[0]
+
+
+def test_num_gpus_deprecation() -> None:
+    """Test that num_gpus parameter is deprecated"""
+    with pytest.warns(DeprecationWarning, match="num_gpus.*deprecated"):
+        string = pbs._make_qsub_string(
+            command="test",
+            folder="/tmp",
+            num_gpus=2,
+        )
+    # Parameter should not appear in output since it was popped
+    assert "num_gpus" not in string
+
+
 def test_read_info() -> None:
-    example = """JobID|State
-5610980|RUNNING
-5610980.ext+|RUNNING
-5610980.0|RUNING
-20956421_0|RUNNING
-20956421_[2-4%25]|PENDING
+    # TODO: check formatting
+    example = """
+Job Id: 5610980
+    job_state = R
+Job Id: 5610980.ext+
+    job_state = R
+Job Id: 5610980.0
+    job_state = R
+Job Id: 20956421_0
+    job_state = R
+Job Id: 20956421[]
+    job_state = R
+Job Id: 20956421[0]
+    job_state = R
 """
     output = pbs.PBSInfoWatcher().read_info(example)
+    print(f"{output=}")
     assert output["5610980"] == {"JobID": "5610980", "State": "RUNNING"}
     assert output["20956421_2"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
     assert set(output) == {"5610980", "20956421_0", "20956421_2", "20956421_3", "20956421_4"}

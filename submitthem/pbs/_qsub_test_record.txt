@@ -1,18 +1,15 @@
 #!/bin/bash
 
 # Parameters
-#PBS --blublu=12
-#PBS --error=/tmp/%j_0_log.err
-#PBS --exclusive
-#PBS --job-name=submitthem
-#PBS --nodes=1
-#PBS --open-mode=append
-#PBS --output=/tmp/%j_0_log.out
-#PBS --partition=learnfair
-#PBS --signal=USR2@90
-#PBS --time=5
-#PBS --wckey=submitthem
+#PBS -e /tmp/%j_0_log.err
+#PBS -l place=excl
+#PBS -N submitthem
+#PBS -l select=1
+#PBS -o /tmp/%j_0_log.out
+#PBS -q learnfair
+#PBS -l walltime=00:05:00
 
 # command
 export SUBMITTHEM_EXECUTOR=pbs
-srun --unbuffered --output /tmp/%j_%t_log.out --error /tmp/%j_%t_log.err -vv --cpu-bind none blublu bar
+# remove --unbuffered, --cpu-bind and -vv options as there are no equivalents for PBS
+qsub -o /tmp/%j_%t_log.out -e /tmp/%j_%t_log.err none blublu bar

@@ -51,7 +51,7 @@ class Checkpointable:
     def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
         """Resubmits the same callable with the same arguments"""
         # The DelayedSubmission class goal is only to register and format
-        # the arguments of the call "self(*args, **kwargs)" for submission to slurm
+        # the arguments of the call "self(*args, **kwargs)" for submission to slurm/PBS
         return DelayedSubmission(self, *args, **kwargs)  # type: ignore
 
 
@@ -294,7 +294,7 @@ def monitor_jobs(
 
 @contextlib.contextmanager
 def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
-    """Removes slurm and submitthem related environment variables so as to avoid interferences
+    """Removes slurm/pbs and submitthem related environment variables so as to avoid interferences
     when submiting a new job from a job.
 
     Parameters
@@ -319,7 +319,7 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
         x: os.environ.pop(x)
         for x in os.environ
         if (
-            x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITTHEM_"))
+            x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "PBS_", "SUBMITTHEM_"))
             or x in distrib_names
             or x in extra_names
         )

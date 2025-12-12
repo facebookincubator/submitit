@@ -832,6 +832,7 @@ class Executor(abc.ABC):
 
     def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
         """Update submission parameters."""
+        # TODO: check keywords are allowed options -> if scheduler is PBS it does NOT allow user-defined options
         self.parameters.update(kwargs)
 
     @classmethod

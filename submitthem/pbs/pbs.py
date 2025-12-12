@@ -80,6 +80,8 @@ class PBSInfoWatcher(core.InfoWatcher):
             blocks.append(current)
 
         all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
+        # TODO: check this convention for PBS
+        # (B for running job array ? -> https://centers.hpc.mil/users/docs/advancedTopics/Using_PBS_Job_Arrays.html)
         state_map = {
             "R": "RUNNING",
             "Q": "PENDING",
@@ -117,12 +119,12 @@ class PBSInfoWatcher(core.InfoWatcher):
                 stats[k] = v
 
             # Prepare normalized output fields
-            job_state_letter = stats.get("job_state") or stats.get("job_state")  # typical key
+            job_state_letter = stats.get("job_state")  # typical key
             state_val = None
             if job_state_letter:
                 state_val = state_map.get(job_state_letter, job_state_letter)
             # NodeList: prefer exec_host, fall back to nodes or nodect
-            node_list_raw = stats.get("exec_host") or stats.get("exec_host") or stats.get("nodes")
+            node_list_raw = stats.get("exec_host") or stats.get("nodes")
             node_list_str = ""
             if node_list_raw:
                 # exec_host like "node01/0+node02/0" -> "node01,node02"
@@ -240,6 +242,11 @@ def _parse_node_list(node_list: str):
 class PBSJobEnvironment(job_environment.JobEnvironment):
     # Common PBS environment variables. We prefer the most widely available names,
     # but many clusters vary — the hostnames property below includes fallbacks.
+    # TODO: some of these variables does not seem standard, e.g. PBS_NUM_NODES
+    # Maybe we can choose a convention here and ask the user to setup hooks on his side
+    # to automatically set this variables when job is launched
+    # as proposed here: https://community.openpbs.org/t/get-number-of-cpus-on-allocated-job-via-environment-variable/2843/5
+    # see https://2021.help.altair.com/2021.1.2/PBS%20Professional/PBSHooks2021.1.2.pdf
     _env = {
         "job_id": "PBS_JOBID",
         "num_tasks": "PBS_NP",
@@ -250,9 +257,35 @@ class PBSJobEnvironment(job_environment.JobEnvironment):
         "global_rank": "OMPI_COMM_WORLD_RANK",
         "local_rank": "OMPI_COMM_WORLD_LOCAL_RANK",
         # Array vars (different installations expose different names; these are common)
-        "array_job_id": "PBS_ARRAYID",
+        "array_job_id": "PBS_ARRAY_ID",
         "array_task_id": "PBS_ARRAY_INDEX",
     }
+    # # FYI: available PBS_ env variables
+    # PBS_ACCOUNT=
+    # PBS_ENVIRONMENT=PBS_INTERACTIVE or PBS_BATCH
+    # PBS_JOBCOOKIE=
+    # PBS_JOBDIR=<my-home>
+    # PBS_JOBID=<job-id>
+    # PBS_JOBNAME=STDIN
+    # PBS_MOMPORT=15003
+    # PBS_NODEFILE=/var/spool/pbs/aux/<job-id>
+    # PBS_NODENUM=0
+    # PBS_O_HOME=<my-home>
+    # PBS_O_HOST=<submission-hostname>
+    # PBS_O_LANG=en_US.UTF-8
+    # PBS_O_LOGNAME=<user>
+    # PBS_O_PATH=
+    # PBS_O_QUEUE=<a-partition>
+    # PBS_O_SHELL=/bin/bash
+    # PBS_O_SYSTEM=Linux
+    # PBS_O_WORKDIR=<workdir>
+    # PBS_QUEUE=<another-partition>
+    # PBS_TASKNUM=1
+    # # following looks less PBS specific, but I don’t set them so...
+    # ENVIRONMENT=BATCH
+    # NCPUS=1
+    # OMP_NUM_THREADS=1
+    # TMPDIR=<a-tmp-dir>
 
     def _requeue(self, countdown: int) -> None:
         """Requeue the current job using PBS qrerun."""
@@ -374,7 +407,7 @@ class PBSExecutor(core.PicklingExecutor):
         )
         self.python = shlex.quote(sys.executable) if python is None else python
         if not self.affinity() > 0:
-            raise RuntimeError('Could not detect "qsub_interactive", are you indeed on a pbs cluster?')
+            raise RuntimeError('Could not detect "qsub", are you indeed on a pbs cluster?')
 
     @classmethod
     def _equivalence_dict(cls) -> core.EquivalenceDict:
@@ -501,7 +534,7 @@ class PBSExecutor(core.PicklingExecutor):
 
     @classmethod
     def affinity(cls) -> int:
-        return -1 if shutil.which("qsub_interactive") is None else 2
+        return -1 if shutil.which("qsub") is None else 2
 
 
 @functools.lru_cache()
@@ -550,7 +583,7 @@ def _make_qsub_string(
     qsub_interactive_args: tp.Optional[tp.Iterable[str]] = None,
     use_qsub_interactive: bool = True,
 ) -> str:
-    """Creates the content of an qsub file with provided parameters
+    """Creates the content of a qsub file with provided parameters
 
     Parameters
     ----------
@@ -572,7 +605,7 @@ def _make_qsub_string(
         to add parameters which are not currently available in submitthem.
         Eg: {"mail-user": "blublu@fb.com", "mail-type": "BEGIN"}
     qsub_interactive_args: List[str]
-        Add each argument in the list to the qsub_interactive call
+        Add each argument in the list to the `qsub -I` call
 
     Raises
     ------
@@ -591,18 +624,111 @@ def _make_qsub_string(
         "signal_delay_s",
         "stderr_to_stdout",
         "qsub_interactive_args",
-        "use_qsub_interactive",  # if False, un python directly in qsub instead of through qsub_interactive
+        "use_qsub_interactive",  # if False, use python directly in qsub instead of through `qsub -I`
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonpbs}
-    # rename and reformat parameters
-    parameters["signal"] = f"{PBSJobEnvironment.USR_SIG}@{signal_delay_s}"
-    if num_gpus is not None:
-        warnings.warn(
-            '"num_gpus" is deprecated, please use "gpus_per_node" instead (overwritting with num_gpus)'
-        )
-        parameters["gpus_per_node"] = parameters.pop("num_gpus", 0)
+    ### rename and reformat parameters
+
+    #
+    # remove --signal option as there is no equivalent for PBS
+    # TODO: build an alternative with qalter or timeout command
+    # parameters["signal"] = f"{PBSJobEnvironment.USR_SIG}@{signal_delay_s}"
+
+    # replace any slurm option by select
+    if "nodes" in parameters:
+        num_nodes = parameters.pop("nodes")
+        # Build select clause: nodes with optional task and cpu specifications
+        # PBS format: select=<nodes>:ncpus=<cpus_per_node>:mpiprocs=<tasks_per_node>
+        select_parts = [str(num_nodes)]
+
+        # Add CPU specification
+        ncpus_val = parameters.pop("cpus_per_task", None)
+        if ncpus_val is not None:
+            select_parts.append(f"ncpus={ncpus_val}")
+        else:
+            select_parts.append("ncpus=1")
+
+        # Add MPI process specification (ntasks per node)
+        if ntasks_per_node is not None:
+            select_parts.append(f"mpiprocs={ntasks_per_node}")
+            if "ntasks_per_node" in parameters:
+                parameters.pop("ntasks_per_node")
+
+        parameters["l select"] = ":".join(select_parts)
+    elif "ntasks_per_node" in parameters:
+        # If ntasks_per_node is set but not nodes, add mpiprocs to existing select
+        mpiprocs = parameters.pop("ntasks_per_node")
+        if "l select" in parameters:
+            parameters["l select"] += f":mpiprocs={mpiprocs}"
+        else:
+            parameters["l select"] = f"1:mpiprocs={mpiprocs}"
+
+    if "gpus_per_node" in parameters:
+        gpus = parameters.pop("gpus_per_node")
+        parameters["l select"] += f":ngpus={gpus}"
+
+    if "mem" in parameters:
+        mem = parameters.pop('mem')
+        # Parse memory value - handle both numeric and string formats (e.g., "4", "4GB", "512MB")
+        mem_val: float = 0.0
+        if isinstance(mem, str):
+            # Extract numeric part
+            match = re.match(r'(\d+(?:\.\d+)?)', mem)
+            mem_val = float(match.group(1)) if match else 0.0
+        else:
+            mem_val = float(mem) if mem is not None else 0.0
+
+        # Format memory for PBS
+        if mem_val > 0:
+            parameters["l select"] += f":mem={int(mem_val)}gb"
+
+    # Handle memory per GPU (convert to PBS format)
+    if "mem_per_gpu" in parameters:
+        mem_per_gpu = parameters.pop("mem_per_gpu")
+        if "l select" in parameters:
+            parameters["l select"] += f":mem_per_gpu={mem_per_gpu}"
+        else:
+            parameters["l select"] = f"1:mem_per_gpu={mem_per_gpu}"
+
+    # Handle memory per CPU (convert to PBS format)
+    if "mem_per_cpu" in parameters:
+        mem_per_cpu = parameters.pop("mem_per_cpu")
+        if "l select" in parameters:
+            parameters["l select"] += f":mem_per_cpu={mem_per_cpu}"
+        else:
+            parameters["l select"] = f"1:mem_per_cpu={mem_per_cpu}"
+
+    if exclusive:
+        parameters.pop("exclusive")
+        parameters["l place"] = "excl"
+
+    if partition is not None:
+        parameters.pop("partition")
+        parameters["q"] = partition
+
+    # Handle gpus_per_task (convert to PBS format)
+    if "gpus_per_task" in parameters:
+        gpus_per_task = parameters.pop("gpus_per_task")
+        # In PBS, gpus_per_task is typically represented as ngpus in select with proper constraints
+        if "l select" in parameters:
+            parameters["l select"] += f":ngpus={gpus_per_task}"
+        else:
+            parameters["l select"] = f"1:ngpus={gpus_per_task}"
+
+    #
     if "cpus_per_gpu" in parameters and "gpus_per_task" not in parameters:
         warnings.warn('"cpus_per_gpu" requires to set "gpus_per_task" to work (and not "gpus_per_node")')
+
+    # Remove legacy num_gpus parameter and warn if used
+    if "num_gpus" in parameters:
+        _ = parameters.pop("num_gpus")  # Extract and discard legacy parameter
+        warnings.warn(
+            '"num_gpus" is deprecated. Use "gpus_per_node", "gpus_per_task", '
+            'or "gres" instead for PBS compatibility.',
+            DeprecationWarning,
+            stacklevel=2
+        )
+
     # add necessary parameters
     paths = utils.JobPaths(folder=folder)
     stdout = str(paths.stdout)
@@ -610,13 +736,19 @@ def _make_qsub_string(
     # Job arrays will write files in the form  <ARRAY_ID>_<ARRAY_TASK_ID>_<TASK_ID>
     if map_count is not None:
         assert isinstance(map_count, int) and map_count
-        parameters["array"] = f"0-{map_count - 1}%{min(map_count, array_parallelism)}"
+        parameters["J"] = f"0-{map_count - 1}%{min(map_count, array_parallelism)}"
         stdout = stdout.replace("%j", "%A_%a")
         stderr = stderr.replace("%j", "%A_%a")
-    parameters["output"] = stdout.replace("%t", "0")
+    parameters["o"] = stdout.replace("%t", "0")
     if not stderr_to_stdout:
-        parameters["error"] = stderr.replace("%t", "0")
-    parameters["open-mode"] = "append"
+        parameters["e"] = stderr.replace("%t", "0")
+        parameters["j"] = "oe"
+
+    #
+    # remove --open-mode option as there is no equivalent for PBS
+    # parameters["open-mode"] = "append"
+
+    #
     if additional_parameters is not None:
         parameters.update(additional_parameters)
     # now create
@@ -627,16 +759,18 @@ def _make_qsub_string(
     if setup is not None:
         lines += ["", "# setup"] + setup
     # commandline (this will run the function and args specified in the file provided as argument)
-    # We pass --output and --error here, because the qsub command doesn't work as expected with a filename pattern
+    # We pass -o and -e here, (TODO: check this statement for PBS: because the qsub command doesn't work as expected with a filename pattern)
 
     if use_qsub_interactive:
-        # using qsub_interactive has been the only option historically,
+        # using `qsub -I` has been the only option historically,
+        # TODO: check next statement for PBS
         # but it's not clear anymore if it is necessary, and using it prevents
         # jobs from scheduling other jobs
-        stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
+        stderr_flags = [] if stderr_to_stdout else ["-e", stderr]
         if qsub_interactive_args is None:
             qsub_interactive_args = []
-        qsub_interactive_cmd = _shlex_join(["qsub_interactive", "--unbuffered", "--output", stdout, *stderr_flags, *qsub_interactive_args])
+        # TODO: modify for PBS -> remove --unbuffered option as there is no equivalent for PBS
+        qsub_interactive_cmd = _shlex_join(["qsub", "-I", "-o", stdout, *stderr_flags, *qsub_interactive_args])
         command = " ".join((qsub_interactive_cmd, command))
 
     lines += [
@@ -659,10 +793,13 @@ def _convert_mem(mem_gb: float) -> str:
 def _as_qsub_flag(key: str, value: tp.Any) -> str:
     key = key.replace("_", "-")
     if value is True:
-        return f"#qsub --{key}"
+        return f"#PBS -{key}"
 
     value = shlex.quote(str(value))
-    return f"#qsub --{key}={value}"
+    if key.startswith('l '):
+        return f"#PBS -{key}={value}"
+    else:
+        return f"#PBS -{key} {value}"
 
 
 def _shlex_join(split_command: tp.List[str]) -> str:

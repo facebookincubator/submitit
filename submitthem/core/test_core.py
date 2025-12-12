@@ -34,7 +34,7 @@ class MockedSubprocess:
 
     def __call__(self, command: tp.Sequence[str], **kwargs: tp.Any) -> bytes:
         program = command[0]
-        if program in ["sacct", "sbatch", "scancel"]:
+        if program in ["sacct", "sbatch", "scancel", "qstat", "qsub", "qdel"]:
             return getattr(self, program)(command[1:]).encode()
         elif program == "tail":
             return self._subprocess_check_output(command, **kwargs)
@@ -53,13 +53,35 @@ class MockedSubprocess:
         if sbatch_file.exists():
             array_lines = [l for l in sbatch_file.read_text().splitlines() if "--array" in l]
             if array_lines:
-                # SBATCH --array=0-4%3
+                # line should look like: #SBATCH --array=0-4%3
                 array = int(array_lines[0].split("=0-")[-1].split("%")[0])
                 array += 1
         self.set_job_state(job_id, "RUNNING", array)
         return f"Running job {job_id}\n"
 
     def scancel(self, _: tp.Sequence[str]) -> str:
+        # TODO:should we call set_job_state ?
+        return ""
+
+    def qstat(self, _: tp.Sequence[str]) -> str:
+        return "\n".join(self.job_sacct.values())
+
+    def qsub(self, args: tp.Sequence[str]) -> str:
+        """Create a "RUNNING" job."""
+        job_id = str(self.job_count)
+        self.job_count += 1
+        qsub_file = Path(args[0])
+        array = 0
+        if qsub_file.exists():
+            array_lines = [l for l in qsub_file.read_text().splitlines() if "-J" in l]
+            if array_lines:
+                # line should look like: #PBS -J 0-12:3
+                array = int(array_lines[0].split(" 0-")[-1].split(":")[0])
+                array += 1
+        self.set_job_state(job_id, "RUNNING", array)
+        return f"Running job {job_id}\n"
+
+    def qdel(self, _: tp.Sequence[str]) -> str:
         # TODO:should we call set_job_state ?
         return ""
 

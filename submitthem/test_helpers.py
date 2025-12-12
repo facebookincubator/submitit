@@ -138,7 +138,7 @@ def _get_env() -> tp.Dict[str, str]:
 
 def test_clean_env() -> None:
     base = _get_env()
-    with utils.environment_variables(SLURM_BLUBLU=12, SUBMITTHEM_BLUBLU=12):
+    with utils.environment_variables(SLURM_BLUBLU=12, PBS_BLUBLU=12, SUBMITTHEM_BLUBLU=12):
         assert len(_get_env()) == len(base) + 2
         with helpers.clean_env():
             assert not _get_env()
