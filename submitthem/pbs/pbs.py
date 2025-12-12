@@ -24,18 +24,29 @@ def read_job_id(job_id: str) -> tp.List[tp.Tuple[str, ...]]:
     """Reads formated job id and returns a tuple with format:
     (main_id, [array_index, [final_array_index])
     """
-    pattern = r"(?P<main_id>\d+)_\[(?P<arrays>(\d+(-\d+)?(,)?)+)(\%\d+)?\]"
+    # Updated pattern to better handle comma-separated ranges like "2,4-12"
+    pattern = r"(?P<main_id>\d+)_\[(?P<arrays>[0-9,\-]+)(\%\d+)?\]"
     match = re.search(pattern, job_id)
     if match is not None:
         main = match.group("main_id")
-        array_ranges = match.group("arrays").split(",")
-        return [tuple([main] + array_range.split("-")) for array_range in array_ranges]
+        arrays_str = match.group("arrays")
+        result = []
+        for array_range in arrays_str.split(","):
+            array_range = array_range.strip()
+            if "-" in array_range:
+                parts = array_range.split("-")
+                result.append(tuple([main] + parts))
+            else:
+                result.append((main, array_range))
+        return result
     else:
         main_id, *array_id = job_id.split("_", 1)
         if not array_id:
             return [(main_id,)]
         # there is an array
-        array_num = str(int(array_id[0]))  # trying to cast to int to make sure we understand
+        # Strip throttle notation (e.g., "4%3" -> "4")
+        array_str = array_id[0].split("%")[0]
+        array_num = str(int(array_str))  # Validate it's an integer
         return [(main_id, array_num)]
 
 
@@ -54,7 +65,11 @@ class PBSInfoWatcher(core.InfoWatcher):
         return info.get("State") or "UNKNOWN"
 
     def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
-        """Parse qstat -f output and return dict mapping job_id/_index -> stats dict.
+        """Parse qstat output and return dict mapping job_id/_index -> stats dict.
+
+        Handles multiple formats:
+        1. qstat -f format (full, multi-line): Job Id: X, job_state = Y
+        2. qstat format (simple, column-based): Fixed-width columns with Job ID, Username, Queue, etc.
 
         We normalize to keys similar to the Slurm reader: each entry contains at least
         "JobID", "State" and "NodeList".
@@ -65,6 +80,35 @@ class PBSInfoWatcher(core.InfoWatcher):
         if not lines:
             return {}
 
+        state_map = {
+            "R": "RUNNING",
+            "Q": "PENDING",
+            "H": "HELD",
+            "S": "SUSPENDED",
+            "E": "EXITING",
+            "C": "COMPLETED",
+            "F": "FAILED",
+            "X": "EXITING",
+            "U": "UNKNOWN",
+            # fallback will return single-letter if unknown
+        }
+
+        # Check if this is qstat -f format (starts with "Job Id:" - lowercase 'd')
+        # Skip leading empty lines to find the first non-empty line
+        for line in lines:
+            if line.strip():
+                if re.match(r"^Job Id:\s*\S+", line.strip()):
+                    return self._read_info_qstat_f_format(lines, state_map)
+                break
+
+        # Otherwise, parse qstat format (simple column-based format with "Job ID" - uppercase 'D')
+        return self._read_info_qstat_format(lines, state_map)
+
+    def _read_info_qstat_f_format(self, lines: tp.List[str], state_map: tp.Dict[str, str]) -> tp.Dict[str, tp.Dict[str, str]]:
+        """Parse qstat -f format output (full format, multi-line blocks)"""
+        all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
+
+        # Split input into job blocks
         blocks: tp.List[tp.List[str]] = []
         current: tp.List[str] = []
         for ln in lines:
@@ -74,41 +118,30 @@ class PBSInfoWatcher(core.InfoWatcher):
                     blocks.append(current)
                 current = [ln]
             else:
-                if current is not None:
+                if current:
                     current.append(ln)
         if current:
             blocks.append(current)
 
-        all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
-        # TODO: check this convention for PBS
-        # (B for running job array ? -> https://centers.hpc.mil/users/docs/advancedTopics/Using_PBS_Job_Arrays.html)
-        state_map = {
-            "R": "RUNNING",
-            "Q": "PENDING",
-            "H": "HELD",
-            "S": "SUSPENDED",
-            "E": "EXITING",
-            "C": "COMPLETED",
-            "F": "FAILED",
-            # fallback will return single-letter if unknown
-        }
-
         for block in blocks:
-            # extract job id from the first line: "Job Id: 12345.server" or "Job Id: 12345[1].server"
+            if not block:
+                continue
+
+            # Extract job id from the first line: "Job Id: 12345.server" or "Job Id: 12345[1].server"
             first = block[0]
             m = re.match(r"^Job Id:\s*(\S+)", first)
             if not m:
                 continue
             raw_jobid = m.group(1)
-            # strip server suffix after dot
+            # Strip server suffix after dot
             raw_jobid = raw_jobid.split(".", 1)[0]
-            # normalize bracketed array form "12345[1-3]" -> "12345_[1-3]" so read_job_id can parse it
-            if "[" in raw_jobid and "]" in raw_jobid:
-                normalized_jobid = raw_jobid.replace("[", "_[")
-            else:
-                normalized_jobid = raw_jobid
+            # Normalize bracketed array form "12345[1-3]" -> "12345_[1-3]"
+            # Only add underscore if not already present
+            normalized_jobid = raw_jobid.replace("[", "_[") if "[" in raw_jobid and "_[" not in raw_jobid else raw_jobid
+            # Normalize JobID in output: add underscore before brackets if not already present
+            output_jobid = raw_jobid.replace("[", "_[") if "[" in raw_jobid and "_[" not in raw_jobid else raw_jobid
 
-            # parse key = value lines
+            # Parse key = value lines
             stats: tp.Dict[str, str] = {}
             for ln in block[1:]:
                 kv = re.match(r"^\s*(\S+)\s*=\s*(.*)$", ln)
@@ -118,54 +151,190 @@ class PBSInfoWatcher(core.InfoWatcher):
                 v = kv.group(2).strip()
                 stats[k] = v
 
-            # Prepare normalized output fields
-            job_state_letter = stats.get("job_state")  # typical key
-            state_val = None
-            if job_state_letter:
-                state_val = state_map.get(job_state_letter, job_state_letter)
-            # NodeList: prefer exec_host, fall back to nodes or nodect
+            # Get job state
+            job_state_letter = stats.get("job_state", "")
+            state_val = state_map.get(job_state_letter, job_state_letter) if job_state_letter else "UNKNOWN"
+
+            # Get node list
             node_list_raw = stats.get("exec_host") or stats.get("nodes")
             node_list_str = ""
             if node_list_raw:
                 # exec_host like "node01/0+node02/0" -> "node01,node02"
                 parts = re.split(r"\+|,", node_list_raw)
                 nodes = []
-                seen = set()
+                seen: tp.Set[str] = set()
                 for p in parts:
                     host = p.split("/")[0].strip()
                     if host and host not in seen:
                         seen.add(host)
                         nodes.append(host)
                 node_list_str = ",".join(nodes)
-            # Build the minimal stats dict returned to consumers
-            out_stats: tp.Dict[str, str] = {}
-            out_stats["JobID"] = raw_jobid
-            if state_val:
-                out_stats["State"] = state_val
-            elif "job_state" in stats:
-                out_stats["State"] = stats["job_state"]
-            if node_list_str:
-                out_stats["NodeList"] = node_list_str
-            else:
-                # try other fallbacks (queue host, exec_host formatted differently)
-                out_stats["NodeList"] = stats.get("exec_host", "")
 
-            # Now expand possible array job id ranges using existing read_job_id helper
+            # Parse the job ID to get main job and array indices
             try:
                 multi = read_job_id(normalized_jobid)
             except Exception as e:
                 warnings.warn(f"Could not interpret {raw_jobid} correctly (please open an issue):\n{e}", DeprecationWarning)
                 continue
 
+            # Expand array ranges
             for split_job_id in multi:
-                key = "_".join(split_job_id[:2])
-                all_stats[key] = out_stats
-                if len(split_job_id) >= 3:
-                    # if there's a range specified, fill each index within that range
+                main_id = split_job_id[0]
+                if len(split_job_id) == 1:
+                    # Non-array job
+                    key = main_id
+                    out_stats: tp.Dict[str, str] = {"JobID": output_jobid, "State": state_val}
+                    if node_list_str:
+                        out_stats["NodeList"] = node_list_str
+                    all_stats[key] = out_stats
+                elif len(split_job_id) == 2:
+                    # Single array task
+                    array_idx = split_job_id[1]
+                    key = f"{main_id}_{array_idx}"
+                    out_stats = {"JobID": output_jobid, "State": state_val}
+                    if node_list_str:
+                        out_stats["NodeList"] = node_list_str
+                    all_stats[key] = out_stats
+                elif len(split_job_id) >= 3:
+                    # Array range - expand it
                     start = int(split_job_id[1])
                     end = int(split_job_id[2])
                     for idx in range(start, end + 1):
-                        all_stats[f"{split_job_id[0]}_{idx}"] = out_stats
+                        key = f"{main_id}_{idx}"
+                        out_stats = {"JobID": output_jobid, "State": state_val}
+                        if node_list_str:
+                            out_stats["NodeList"] = node_list_str
+                        all_stats[key] = out_stats
+
+        return all_stats
+
+    def _read_info_qstat_format(self, lines: tp.List[str], state_map: tp.Dict[str, str]) -> tp.Dict[str, tp.Dict[str, str]]:
+        """Parse simple qstat format with fixed-width columns.
+
+        Format:
+                                                                    Req'd  Req'd   Elap
+        Job ID          Username Queue    Jobname    SessID NDS TSK Memory Time  S Time
+        --------------- -------- -------- ---------- ------ --- --- ------ ----- - -----
+
+        Or minimal format:
+        JobID            S
+        5610980          R
+        """
+        all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
+
+        if not lines:
+            return all_stats
+
+        # Find the separator line (contains dashes) if it exists
+        separator_idx = -1
+        for i, line in enumerate(lines):
+            if re.match(r"^\s*-+\s*-+", line):
+                separator_idx = i
+                break
+
+        # Determine data start index
+        if separator_idx > 0:
+            # Standard format with separator: header at separator_idx - 1, data after separator
+            header_line = lines[separator_idx - 1]
+            data_start_idx = separator_idx + 1
+        elif lines:
+            # Simple format without separator: first line is header, data starts at line 1
+            header_line = lines[0]
+            data_start_idx = 1
+        else:
+            return all_stats
+
+        if not header_line:
+            return all_stats
+
+        # Find column positions by looking for "Job ID" (the standard qstat format)
+        jobid_pos = header_line.find("Job ID")
+        # Also accept "JobID" as fallback for test/simplified formats
+        if jobid_pos < 0:
+            jobid_pos = header_line.find("JobID")
+        state_pos = header_line.rfind(" S ")  # State column is marked with 'S'
+
+        if jobid_pos < 0:
+            return all_stats
+
+        # Parse data rows
+        for line in lines[data_start_idx:]:
+            if not line.strip():
+                continue
+
+            # Extract job ID from fixed position
+            if len(line) > jobid_pos:
+                # Find the end of the job ID (next whitespace or fixed width)
+                jobid_end = jobid_pos
+                while jobid_end < len(line) and not line[jobid_end].isspace():
+                    jobid_end += 1
+                raw_jobid = line[jobid_pos:jobid_end].strip()
+                if not raw_jobid:
+                    continue
+
+                # Skip entries with dots or plus signs (PBS metadata entries like 5610980.ext+ or 5610980.0)
+                if "." in raw_jobid or "+" in raw_jobid:
+                    continue
+            else:
+                continue
+
+            # Extract state - look for the single character in the S column
+            state_letter = ""
+            if state_pos >= 0 and len(line) > state_pos:
+                # State should be a single non-space character around the S column
+                state_letter = line[state_pos:state_pos + 2].strip()
+                if len(state_letter) > 1:
+                    state_letter = state_letter[0]
+
+            # If we didn't find state, try to extract from the line by looking for single-letter codes
+            if not state_letter or state_letter not in state_map:
+                # Try alternative: look for known state letters in the latter part of the line
+                for part in line.split():
+                    if len(part) == 1 and part in state_map:
+                        state_letter = part
+                        break
+
+            if not state_letter or state_letter not in state_map:
+                state_letter = "U"  # Default to UNKNOWN if we can't determine state
+
+            state_val = state_map.get(state_letter, state_letter)
+
+            # Normalize bracketed array form "12345[1-3]" -> "12345_[1-3]"
+            # Only add underscore if not already present
+            normalized_jobid = raw_jobid.replace("[", "_[") if "[" in raw_jobid and "_[" not in raw_jobid else raw_jobid
+
+            # Parse the job ID to get main job and array indices
+            try:
+                multi = read_job_id(normalized_jobid)
+            except Exception as e:
+                warnings.warn(f"Could not interpret {raw_jobid} correctly (please open an issue):\n{e}", DeprecationWarning)
+                continue
+
+            # Normalize JobID in output: add underscore before brackets if not already present
+            output_jobid = raw_jobid.replace("[", "_[") if "[" in raw_jobid and "_[" not in raw_jobid else raw_jobid
+
+            # Expand array ranges
+            for split_job_id in multi:
+                main_id = split_job_id[0]
+                if len(split_job_id) == 1:
+                    # Non-array job
+                    key = main_id
+                    out_stats = {"JobID": output_jobid, "State": state_val}
+                    all_stats[key] = out_stats
+                elif len(split_job_id) == 2:
+                    # Single array task
+                    array_idx = split_job_id[1]
+                    key = f"{main_id}_{array_idx}"
+                    out_stats = {"JobID": output_jobid, "State": state_val}
+                    all_stats[key] = out_stats
+                elif len(split_job_id) >= 3:
+                    # Array range - expand it
+                    start = int(split_job_id[1])
+                    end = int(split_job_id[2])
+                    for idx in range(start, end + 1):
+                        key = f"{main_id}_{idx}"
+                        out_stats = {"JobID": output_jobid, "State": state_val}
+                        all_stats[key] = out_stats
 
         return all_stats
 
@@ -195,10 +364,23 @@ def _expand_id_suffix(suffix_parts: str) -> tp.List[str]:
     """
     suffixes = []
     for suffix_part in suffix_parts.split(","):
+        suffix_part = suffix_part.strip()
+        if not suffix_part:
+            raise PBSParseException(f"Empty suffix in '{suffix_parts}'")
         if "-" in suffix_part:
-            low, high = suffix_part.split("-")
+            parts = suffix_part.split("-")
+            if len(parts) != 2:
+                raise PBSParseException(f"Invalid range format in '{suffix_parts}': '{suffix_part}'")
+            low, high = parts
+            if not low or not high:
+                raise PBSParseException(f"Invalid range format in '{suffix_parts}': '{suffix_part}' (missing start or end)")
+            try:
+                low_int = int(low)
+                high_int = int(high)
+            except ValueError as e:
+                raise PBSParseException(f"Non-numeric values in range '{suffix_part}': {e}") from e
             int_length = len(low)
-            for num in range(int(low), int(high) + 1):
+            for num in range(low_int, high_int + 1):
                 suffixes.append(f"{num:0{int_length}}")
         else:
             suffixes.append(suffix_part)
@@ -335,13 +517,10 @@ class PBSJobEnvironment(job_environment.JobEnvironment):
             node_list = node_list.strip()
             # If it looks like the bracketed/compressed form, try to parse with _parse_node_list
             if "[" in node_list and "]" in node_list:
-                try:
-                    parsed = _parse_node_list(node_list)
-                    if parsed:
-                        return parsed
-                except PBSParseException:
-                    # fall back to the generic parsing below
-                    pass
+                # Bracketed format must be valid - don't fall back on error
+                parsed = _parse_node_list(node_list)
+                if parsed:
+                    return parsed
             # Some PBS flavors use '+' or ',' between host groups, possibly with ":ppn=" suffixes.
             parts = re.split(r"[+,]", node_list)
             parsed = []
@@ -576,7 +755,6 @@ def _make_qsub_string(
     dependency: tp.Optional[str] = None,
     exclusive: tp.Optional[tp.Union[bool, str]] = None,
     array_parallelism: int = 256,
-    wckey: str = "submitthem",
     stderr_to_stdout: bool = False,
     map_count: tp.Optional[int] = None,  # used internally
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
@@ -629,95 +807,100 @@ def _make_qsub_string(
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonpbs}
     ### rename and reformat parameters
 
-    #
-    # remove --signal option as there is no equivalent for PBS
-    # TODO: build an alternative with qalter or timeout command
-    # parameters["signal"] = f"{PBSJobEnvironment.USR_SIG}@{signal_delay_s}"
+    # Merge additional_parameters early so they go through conversion logic
+    if additional_parameters is not None:
+        parameters.update(additional_parameters)
 
-    # replace any slurm option by select
+    # Build the select clause incrementally with all resource specifications
+    select_clause = ""
+
+    # Start with nodes specification
     if "nodes" in parameters:
         num_nodes = parameters.pop("nodes")
-        # Build select clause: nodes with optional task and cpu specifications
-        # PBS format: select=<nodes>:ncpus=<cpus_per_node>:mpiprocs=<tasks_per_node>
-        select_parts = [str(num_nodes)]
+        select_clause = str(num_nodes)
+    else:
+        select_clause = "1"  # Default to 1 node if not specified
 
-        # Add CPU specification
-        ncpus_val = parameters.pop("cpus_per_task", None)
-        if ncpus_val is not None:
-            select_parts.append(f"ncpus={ncpus_val}")
-        else:
-            select_parts.append("ncpus=1")
+    # Add CPU specification (cpus_per_task or cpus_per_node)
+    ncpus_val = parameters.pop("cpus_per_task", None)
+    if ncpus_val is not None:
+        select_clause += f":ncpus={ncpus_val}"
+    else:
+        select_clause += ":ncpus=1"
 
-        # Add MPI process specification (ntasks per node)
-        if ntasks_per_node is not None:
-            select_parts.append(f"mpiprocs={ntasks_per_node}")
-            if "ntasks_per_node" in parameters:
-                parameters.pop("ntasks_per_node")
+    # Add MPI process specification (ntasks_per_node / mpiprocs)
+    ntasks_val = parameters.pop("ntasks_per_node", None)
+    if ntasks_val is not None:
+        select_clause += f":mpiprocs={ntasks_val}"
 
-        parameters["l select"] = ":".join(select_parts)
-    elif "ntasks_per_node" in parameters:
-        # If ntasks_per_node is set but not nodes, add mpiprocs to existing select
-        mpiprocs = parameters.pop("ntasks_per_node")
-        if "l select" in parameters:
-            parameters["l select"] += f":mpiprocs={mpiprocs}"
-        else:
-            parameters["l select"] = f"1:mpiprocs={mpiprocs}"
+    # Add GPU specifications
+    gpus_per_node_val = parameters.pop("gpus_per_node", None)
+    if gpus_per_node_val is not None:
+        select_clause += f":ngpus={gpus_per_node_val}"
 
-    if "gpus_per_node" in parameters:
-        gpus = parameters.pop("gpus_per_node")
-        parameters["l select"] += f":ngpus={gpus}"
+    gpus_per_task_val = parameters.pop("gpus_per_task", None)
+    if gpus_per_task_val is not None:
+        select_clause += f":ngpus={gpus_per_task_val}"
 
-    if "mem" in parameters:
-        mem = parameters.pop('mem')
+    # Add memory specifications
+    mem_val = parameters.pop("mem", None)
+    if mem_val is not None:
         # Parse memory value - handle both numeric and string formats (e.g., "4", "4GB", "512MB")
-        mem_val: float = 0.0
-        if isinstance(mem, str):
+        mem_num: float = 0.0
+        if isinstance(mem_val, str):
             # Extract numeric part
-            match = re.match(r'(\d+(?:\.\d+)?)', mem)
-            mem_val = float(match.group(1)) if match else 0.0
+            match = re.match(r'(\d+(?:\.\d+)?)', mem_val)
+            mem_num = float(match.group(1)) if match else 0.0
         else:
-            mem_val = float(mem) if mem is not None else 0.0
+            mem_num = float(mem_val) if mem_val is not None else 0.0
 
-        # Format memory for PBS
-        if mem_val > 0:
-            parameters["l select"] += f":mem={int(mem_val)}gb"
+        if mem_num > 0:
+            select_clause += f":mem={int(mem_num)}gb"
 
-    # Handle memory per GPU (convert to PBS format)
-    if "mem_per_gpu" in parameters:
-        mem_per_gpu = parameters.pop("mem_per_gpu")
-        if "l select" in parameters:
-            parameters["l select"] += f":mem_per_gpu={mem_per_gpu}"
-        else:
-            parameters["l select"] = f"1:mem_per_gpu={mem_per_gpu}"
+    mem_per_gpu_val = parameters.pop("mem_per_gpu", None)
+    if mem_per_gpu_val is not None:
+        select_clause += f":mem_per_gpu={mem_per_gpu_val}"
 
-    # Handle memory per CPU (convert to PBS format)
-    if "mem_per_cpu" in parameters:
-        mem_per_cpu = parameters.pop("mem_per_cpu")
-        if "l select" in parameters:
-            parameters["l select"] += f":mem_per_cpu={mem_per_cpu}"
-        else:
-            parameters["l select"] = f"1:mem_per_cpu={mem_per_cpu}"
+    mem_per_cpu_val = parameters.pop("mem_per_cpu", None)
+    if mem_per_cpu_val is not None:
+        select_clause += f":mem_per_cpu={mem_per_cpu_val}"
 
+    # Set the select clause
+    parameters["l select"] = select_clause
+
+    # Handle job name (rename job_name -> N)
+    if "job_name" in parameters:
+        job_name_val = parameters.pop("job_name")
+        parameters["N"] = job_name_val
+
+    # Handle time/walltime (convert time minutes to walltime)
+    if "time" in parameters:
+        time_min = parameters.pop("time")
+        # Convert minutes to walltime format HH:MM:SS
+        hours = time_min // 60
+        minutes = time_min % 60
+        parameters["l walltime"] = f"{hours:02d}:{minutes:02d}:00"
+
+    # Handle QoS (convert qos -> qos in resource list)
+    if "qos" in parameters:
+        qos_val = parameters.pop("qos")
+        parameters["l qos"] = qos_val
+
+    # Handle placement constraints (exclusive)
     if exclusive:
-        parameters.pop("exclusive")
+        parameters.pop("exclusive", None)
         parameters["l place"] = "excl"
 
+    # Handle partition/queue
     if partition is not None:
-        parameters.pop("partition")
+        parameters.pop("partition", None)
         parameters["q"] = partition
 
-    # Handle gpus_per_task (convert to PBS format)
-    if "gpus_per_task" in parameters:
-        gpus_per_task = parameters.pop("gpus_per_task")
-        # In PBS, gpus_per_task is typically represented as ngpus in select with proper constraints
-        if "l select" in parameters:
-            parameters["l select"] += f":ngpus={gpus_per_task}"
-        else:
-            parameters["l select"] = f"1:ngpus={gpus_per_task}"
-
-    #
-    if "cpus_per_gpu" in parameters and "gpus_per_task" not in parameters:
-        warnings.warn('"cpus_per_gpu" requires to set "gpus_per_task" to work (and not "gpus_per_node")')
+    # Handle cpus_per_gpu warning
+    if "cpus_per_gpu" in parameters:
+        parameters.pop("cpus_per_gpu")
+        if gpus_per_task_val is None:
+            warnings.warn('"cpus_per_gpu" requires to set "gpus_per_task" to work (and not "gpus_per_node")')
 
     # Remove legacy num_gpus parameter and warn if used
     if "num_gpus" in parameters:
@@ -747,10 +930,6 @@ def _make_qsub_string(
     #
     # remove --open-mode option as there is no equivalent for PBS
     # parameters["open-mode"] = "append"
-
-    #
-    if additional_parameters is not None:
-        parameters.update(additional_parameters)
     # now create
     lines = ["#!/bin/bash", "", "# Parameters"]
     for k in sorted(parameters):
@@ -791,15 +970,43 @@ def _convert_mem(mem_gb: float) -> str:
 
 
 def _as_qsub_flag(key: str, value: tp.Any) -> str:
-    key = key.replace("_", "-")
+    """Convert parameter key-value pair to PBS qsub directive format.
+
+    PBS uses format: #PBS -flag value or #PBS -flag=value
+    Different flags have different conventions.
+    """
+    # Handle special key mappings for PBS compatibility
+    pbs_flag_map = {
+        'job-name': 'N',
+        'output': 'o',
+        'error': 'e',
+        'join': 'j',
+        'J': 'J',  # Array job range
+        'select': 'l select',
+        'place': 'l place',
+        'walltime': 'l walltime',
+    }
+
+    # Map the key if it's in our special map
+    if key in pbs_flag_map:
+        key = pbs_flag_map[key]
+    else:
+        # Replace underscores with hyphens for other keys
+        key = key.replace("_", "-")
+
+    # Handle boolean flags
     if value is True:
         return f"#PBS -{key}"
 
-    value = shlex.quote(str(value))
-    if key.startswith('l '):
-        return f"#PBS -{key}={value}"
+    value_str = shlex.quote(str(value))
+
+    # Different formatting for different flag types
+    if key.startswith('l ') or key.startswith('W '):
+        # Resource list and -W flags use -flag key=value format
+        return f"#PBS -{key}={value_str}"
     else:
-        return f"#PBS -{key} {value}"
+        # Other flags use -flag value format
+        return f"#PBS -{key} {value_str}"
 
 
 def _shlex_join(split_command: tp.List[str]) -> str:

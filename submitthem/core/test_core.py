@@ -20,13 +20,20 @@ from . import core, submission, utils
 
 
 class MockedSubprocess:
-    """Helper for mocking subprocess calls"""
+    """Helper for mocking subprocess calls - scheduler agnostic.
 
-    SACCT_HEADER = "JobID|State"
-    SACCT_JOB = "{j}|{state}\n{j}.ext+|{state}\n{j}.0|{state}"
+    Subclasses should override:
+    - _get_array_count(): Parse array specification from submission file
+    - get_job_context_env_vars(): Return dict of environment variables for job execution
+    - Provide scheduler-specific command handlers (e.g., "sbatch" for Slurm or "qsub" for PBS)
+    """
+
+    # Default headers/templates used to build mock scheduler output; subclasses can override.
+    INFO_HEADER = "JobID|State"
+    INFO_TEMPLATES: tp.Tuple[str, ...] = ("{j}|{state}",)
 
     def __init__(self, known_cmds: tp.Optional[tp.Sequence[str]] = None) -> None:
-        self.job_sacct: tp.Dict[str, str] = {}
+        self.job_info: tp.Dict[str, str] = {}
         self.last_job: str = ""
         self._subprocess_check_output = subprocess.check_output
         self.known_cmds = known_cmds or []
@@ -34,67 +41,39 @@ class MockedSubprocess:
 
     def __call__(self, command: tp.Sequence[str], **kwargs: tp.Any) -> bytes:
         program = command[0]
-        if program in ["sacct", "sbatch", "scancel", "qstat", "qsub", "qdel"]:
-            return getattr(self, program)(command[1:]).encode()
-        elif program == "tail":
+        # Dispatch to a method named after the program if provided by subclass
+        if hasattr(self, program):
+            func = getattr(self, program)
+            return func(command[1:]).encode()
+        if program == "tail":
             return self._subprocess_check_output(command, **kwargs)
-        else:
-            raise ValueError(f'Unknown command to mock "{command}".')
+        raise ValueError(f'Unknown command to mock "{command}".')
 
-    def sacct(self, _: tp.Sequence[str]) -> str:
-        return "\n".join(self.job_sacct.values())
-
-    def sbatch(self, args: tp.Sequence[str]) -> str:
-        """Create a "RUNNING" job."""
-        job_id = str(self.job_count)
-        self.job_count += 1
-        sbatch_file = Path(args[0])
-        array = 0
-        if sbatch_file.exists():
-            array_lines = [l for l in sbatch_file.read_text().splitlines() if "--array" in l]
-            if array_lines:
-                # line should look like: #SBATCH --array=0-4%3
-                array = int(array_lines[0].split("=0-")[-1].split("%")[0])
-                array += 1
-        self.set_job_state(job_id, "RUNNING", array)
-        return f"Running job {job_id}\n"
-
-    def scancel(self, _: tp.Sequence[str]) -> str:
-        # TODO:should we call set_job_state ?
-        return ""
-
-    def qstat(self, _: tp.Sequence[str]) -> str:
-        return "\n".join(self.job_sacct.values())
-
-    def qsub(self, args: tp.Sequence[str]) -> str:
-        """Create a "RUNNING" job."""
-        job_id = str(self.job_count)
-        self.job_count += 1
-        qsub_file = Path(args[0])
-        array = 0
-        if qsub_file.exists():
-            array_lines = [l for l in qsub_file.read_text().splitlines() if "-J" in l]
-            if array_lines:
-                # line should look like: #PBS -J 0-12:3
-                array = int(array_lines[0].split(" 0-")[-1].split(":")[0])
-                array += 1
-        self.set_job_state(job_id, "RUNNING", array)
-        return f"Running job {job_id}\n"
-
-    def qdel(self, _: tp.Sequence[str]) -> str:
-        # TODO:should we call set_job_state ?
-        return ""
+    def _get_array_count(self, submission_file: Path) -> int:
+        """Parse array count from submission file.
+        Override in subclass for scheduler-specific array specification format.
+        Returns 0 if no array specification found (non-array job).
+        """
+        return 0
 
     def set_job_state(self, job_id: str, state: str, array: int = 0) -> None:
-        self.job_sacct[job_id] = self._sacct(state, job_id, array)
+        self.job_info[job_id] = self._format_info(state, job_id, array)
         self.last_job = job_id
 
-    def _sacct(self, state: str, job_id: str, array: int) -> str:
+    def _format_info(self, state: str, job_id: str, array: int) -> str:
+        # Default textual format used by scheduler info mocks. Subclasses may
+        # override INFO_HEADER and INFO_TEMPLATES to mimic scheduler output.
+        header = getattr(self, "INFO_HEADER", self.INFO_HEADER)
+        templates: tp.Tuple[str, ...] = getattr(self, "INFO_TEMPLATES", self.INFO_TEMPLATES)
+
+        def render(j: str) -> str:
+            return "\n".join(t.format(j=j, state=state) for t in templates)
+
         if array == 0:
-            lines = self.SACCT_JOB.format(j=job_id, state=state)
+            lines = render(job_id)
         else:
-            lines = "\n".join(self.SACCT_JOB.format(j=f"{job_id}_{i}", state=state) for i in range(array))
-        return "\n".join((self.SACCT_HEADER, lines))
+            lines = "\n".join(render(f"{job_id}_{i}") for i in range(array))
+        return "\n".join((header, lines))
 
     def which(self, name: str) -> tp.Optional[str]:
         return "here" if name in self.known_cmds else None
@@ -111,13 +90,23 @@ class MockedSubprocess:
                     with patch("subprocess.check_call", new=self):
                         yield None
 
+    def get_job_context_env_vars(self, job_id: str) -> tp.Dict[str, str]:
+        """Return dict of environment variables to set in job context.
+        Subclasses should return scheduler-specific env vars.
+        Default is generic minimal env.
+        """
+        return {
+            "_USELESS_TEST_ENV_VAR_": "1",
+            "SUBMITTHEM_EXECUTOR": "unknown",
+            "JOB_ID": str(job_id),
+        }
+
     @contextlib.contextmanager
     def job_context(self, job_id: str) -> tp.Iterator[None]:
-        with utils.environment_variables(
-            _USELESS_TEST_ENV_VAR_="1", SUBMITTHEM_EXECUTOR="slurm", SLURM_JOB_ID=str(job_id)
-        ):
+        """Context manager that sets environment variables for a running job.
+        Uses get_job_context_env_vars() for scheduler-specific variables."""
+        with utils.environment_variables(**self.get_job_context_env_vars(job_id)):
             yield None
-
 
 class FakeInfoWatcher(core.InfoWatcher):
     # pylint: disable=abstract-method

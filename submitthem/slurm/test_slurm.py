@@ -29,15 +29,59 @@ def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> Non
             f.write(msg)
 
 
+class MockedSlurmSubprocess(test_core.MockedSubprocess):
+    """SLURM-specific mocked subprocess that handles SLURM directives"""
+
+    INFO_HEADER = "JobID|State"
+    INFO_TEMPLATES = ("{j}|{state}", "{j}.ext+|{state}", "{j}.0|{state}")
+
+    def sacct(self, _: tp.Sequence[str]) -> str:
+        return "\n".join(self.job_info.values())
+
+    def sbatch(self, args: tp.Sequence[str]) -> str:
+        job_id = str(self.job_count)
+        self.job_count += 1
+        sbatch_file = Path(args[0])
+        array = self._get_array_count(sbatch_file)
+        self.set_job_state(job_id, "RUNNING", array)
+        return f"Submitted batch job {job_id}\n"
+
+    def scancel(self, _: tp.Sequence[str]) -> str:
+        return ""
+
+    def _get_array_count(self, submission_file: Path) -> int:
+        """Parse SLURM array specification from --array directive.
+        Format: #SBATCH --array=0-12%3
+        Returns the number of array tasks.
+        """
+        if not submission_file.exists():
+            return 0
+        array_lines = [line for line in submission_file.read_text().splitlines() if "--array" in line]
+        if array_lines:
+            # line should look like: #SBATCH --array=0-12%3
+            array_str = array_lines[0].split("=0-")[-1].split("%")[0]
+            return int(array_str) + 1
+        return 0
+
+    def get_job_context_env_vars(self, job_id: str) -> tp.Dict[str, str]:
+        """Return SLURM-specific environment variables for job execution"""
+        return {
+            "_USELESS_TEST_ENV_VAR_": "1",
+            "SUBMITTHEM_EXECUTOR": "slurm",
+            "SLURM_JOB_ID": str(job_id),
+        }
+
+
 @contextlib.contextmanager
-def mocked_slurm() -> tp.Iterator[test_core.MockedSubprocess]:
-    mock = test_core.MockedSubprocess(known_cmds=["srun"])
+def mocked_slurm() -> tp.Iterator[MockedSlurmSubprocess]:
+    mock = MockedSlurmSubprocess(known_cmds=["srun"])
     try:
         with mock.context():
             yield mock
     finally:
         # Clear the state of the shared watcher
         slurm.SlurmJob.watcher.clear()
+
 
 
 def test_mocked_missing_state(tmp_path: Path) -> None:

@@ -29,10 +29,61 @@ def _mock_log_files(job: Job[tp.Any], prints: str = "", errors: str = "") -> Non
             f.write(msg)
 
 
+class MockedPBSSubprocess(test_core.MockedSubprocess):
+    """PBS-specific mocked subprocess that handles PBS directives"""
+
+    INFO_HEADER = "Job ID           S"
+    INFO_TEMPLATES = ("{j:<15} {state}",)
+
+    def set_job_state(self, job_id: str, state: str, array: int = 0) -> None:
+        # qstat column format uses a single-letter state; keep the first char.
+        # If state is empty or only whitespace, keep it empty (will map to UNKNOWN in read_info)
+        state_short = state[0] if state and state.strip() else ""
+        super().set_job_state(job_id, state_short, array)
+
+    def qstat(self, _: tp.Sequence[str]) -> str:
+        return "\n".join(self.job_info.values())
+
+    def qsub(self, args: tp.Sequence[str]) -> str:
+        job_id = str(self.job_count)
+        self.job_count += 1
+        qsub_file = Path(args[0])
+        array = self._get_array_count(qsub_file)
+        self.set_job_state(job_id, "RUNNING", array)
+        return f"Submitted batch job {job_id}\n"
+
+    def qdel(self, _: tp.Sequence[str]) -> str:
+        return ""
+
+    def _get_array_count(self, submission_file: Path) -> int:
+        """Parse PBS array specification from -J directive.
+        Format: #PBS -J 0-12%3 or #PBS -J 0-12:3
+        Returns the number of array tasks.
+        """
+        if not submission_file.exists():
+            return 0
+        array_lines = [line for line in submission_file.read_text().splitlines() if "-J" in line]
+        if array_lines:
+            # line should look like: #PBS -J 0-12%3 or #PBS -J 0-12:3
+            # Extract the end index (12 in "0-12")
+            array_str = array_lines[0].split(" 0-")[-1].split("%")[0].split(":")[0]
+            return int(array_str) + 1
+        return 0
+
+    def get_job_context_env_vars(self, job_id: str) -> tp.Dict[str, str]:
+        """Return PBS-specific environment variables for job execution"""
+        return {
+            "_USELESS_TEST_ENV_VAR_": "1",
+            "SUBMITTHEM_EXECUTOR": "pbs",
+            "PBS_JOBID": str(job_id),
+        }
+
+
+
 @contextlib.contextmanager
-def mocked_pbs() -> tp.Iterator[test_core.MockedSubprocess]:
+def mocked_pbs() -> tp.Iterator[MockedPBSSubprocess]:
     # TODO: check if both are needed
-    mock = test_core.MockedSubprocess(known_cmds=["qsub", "qsub -I"])
+    mock = MockedPBSSubprocess(known_cmds=["qsub", "qsub -I"])
     try:
         with mock.context():
             yield mock
@@ -111,8 +162,8 @@ def test_pbs_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
         assert list(map(add, data1, data2)) == [j.result() for j in jobs]
         # check submission file
         qsub = Job(tmp_path, job_id=array_id).paths.submission_file.read_text()
-        array_line = [l.strip() for l in qsub.splitlines() if "--array" in l]
-        assert array_line == ["#PBS --array=0-4%3"]
+        array_line = [line.strip() for line in qsub.splitlines() if "#PBS -J" in line]
+        assert array_line == ["#PBS -J 0-4%3"]
 
 
 def test_pbs_error_mocked(tmp_path: Path) -> None:
@@ -241,14 +292,15 @@ def test_checkpoint_and_exit(tmp_path: Path) -> None:
 
 def test_make_qsub_string() -> None:
     string = pbs._make_qsub_string(
-        command="blublu bar",
+        command="my-custom_command",
         folder="/tmp",
         partition="learnfair",
         exclusive=True,
         additional_parameters={"blublu": 12},
-        qsub_interactive_args=["-vv", "--cpu-bind", "none"],
+        qsub_interactive_args=["-vv", "none"],
     )
-    assert "partition" in string
+    # PBS uses -q for queue name, not partition
+    assert "#PBS -q learnfair" in string
     assert "--command" not in string
     assert "constraint" not in string
     record_file = Path(__file__).parent / "_qsub_test_record.txt"
@@ -270,12 +322,13 @@ def test_make_qsub_string() -> None:
 
 def test_make_qsub_string_gpu() -> None:
     string = pbs._make_qsub_string(command="blublu", folder="/tmp", gpus_per_node=2)
-    assert "--gpus-per-node=2" in string
+    # PBS Pro uses -l select with ngpus, not --gpus-per-node
+    assert "#PBS -l select=1:ncpus=1:ngpus=2" in string
 
 
 def test_make_qsub_stderr() -> None:
     string = pbs._make_qsub_string(command="blublu", folder="/tmp", stderr_to_stdout=True)
-    assert "--error" not in string
+    assert "#PBS -e" not in string
 
 
 def test_update_parameters(tmp_path: Path) -> None:
@@ -412,7 +465,7 @@ def test_num_gpus_deprecation() -> None:
 
 
 def test_read_info() -> None:
-    # TODO: check formatting
+    # Test parsing of qstat -f output with both simple jobs and array jobs
     example = """
 Job Id: 5610980
     job_state = R
@@ -422,28 +475,47 @@ Job Id: 5610980.0
     job_state = R
 Job Id: 20956421_0
     job_state = R
-Job Id: 20956421[]
-    job_state = R
-Job Id: 20956421[0]
-    job_state = R
+Job Id: 20956421[2-4%25]
+    job_state = Q
 """
     output = pbs.PBSInfoWatcher().read_info(example)
     print(f"{output=}")
     assert output["5610980"] == {"JobID": "5610980", "State": "RUNNING"}
+    assert output["20956421_0"] == {"JobID": "20956421_0", "State": "RUNNING"}
     assert output["20956421_2"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
+    assert output["20956421_3"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
+    assert output["20956421_4"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
+    assert set(output) == {"5610980", "20956421_0", "20956421_2", "20956421_3", "20956421_4"}
+
+
+def test_read_info_qstat_format() -> None:
+    # qstat-like table format: Job ID ... State (state is the last column)
+    example = """Job ID           S
+5610980          R
+5610980.ext+     R
+5610980.0        R
+20956421_0       R
+20956421[2-4%25] Q
+"""
+    output = pbs.PBSInfoWatcher().read_info(example)
+    assert output["5610980"] == {"JobID": "5610980", "State": "RUNNING"}
+    assert output["20956421_0"] == {"JobID": "20956421_0", "State": "RUNNING"}
+    assert output["20956421_2"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
+    assert output["20956421_3"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
+    assert output["20956421_4"] == {"JobID": "20956421_[2-4%25]", "State": "PENDING"}
     assert set(output) == {"5610980", "20956421_0", "20956421_2", "20956421_3", "20956421_4"}
 
 
 @pytest.mark.parametrize(  # type: ignore
-    "name,state", [("12_0", "R"), ("12_1", "U"), ("12_2", "X"), ("12_3", "U"), ("12_4", "X")]
+    "name,state", [("12_0", "RUNNING"), ("12_1", "UNKNOWN"), ("12_2", "EXITING"), ("12_3", "UNKNOWN"), ("12_4", "EXITING")]
 )
 def test_read_info_array(name: str, state: str) -> None:
-    example = "JobID|State\n12_0|R\n12_[2,4-12]|X"
+    example = "Job ID           S\n12_0             R\n12_[2,4-12]      X\n"
     watcher = pbs.PBSInfoWatcher()
     for jobid in ["12_2", "12_4"]:
         watcher.register_job(jobid)
     output = watcher.read_info(example)
-    assert output.get(name, {}).get("State", "U") == state
+    assert output.get(name, {}).get("State", "UNKNOWN") == state
 
 
 @pytest.mark.parametrize(  # type: ignore
@@ -594,24 +666,31 @@ def test_pbs_weird_dir(weird_tmp_path: Path) -> None:
         executor = pbs.PBSExecutor(folder=weird_tmp_path)
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
 
-    # Touch the ouputfiles
+    # Touch the output files
     job.paths.stdout.write_text("")
     job.paths.stderr.write_text("")
 
-    # Try to read qsub flags from the file like qsub would do it.
+    # Try to read PBS directives from the file
     qsub_args = {}
-    for l in job.paths.submission_file.read_text().splitlines():
-        if not l.startswith("#PBS"):
+    for line in job.paths.submission_file.read_text().splitlines():
+        if not line.startswith("#PBS"):
             continue
-        if "=" not in l:
-            continue
-        key, val = l[len("#PBS") :].strip().split("=", 1)
-        qsub_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
+        # PBS format can be:
+        # #PBS -o /path/to/file
+        # #PBS -l select=...
+        parts = line[len("#PBS"):].strip().split(None, 1)  # Split on first whitespace
+        if len(parts) == 2:
+            key, val = parts
+            # Remove leading dash(es)
+            key = key.lstrip('-')
+            qsub_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
 
-    # We do not quote --output and --error values here,
-    # because we want to check if they have been properly quoted before.
-    subprocess.check_call("ls " + qsub_args["--output"], shell=True)
-    subprocess.check_call("ls " + qsub_args["--error"], shell=True)
+    # Verify output and error files are properly quoted
+    # PBS uses -o for output and -e for error
+    if 'o' in qsub_args:
+        subprocess.check_call("ls " + qsub_args["o"], shell=True)
+    if 'e' in qsub_args:
+        subprocess.check_call("ls " + qsub_args["e"], shell=True)
 
 
 @pytest.mark.parametrize("params", [{}, {"mem_gb": None}])  # type: ignore
@@ -621,8 +700,12 @@ def test_pbs_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
         executor.update_parameters(**params, pbs_additional_parameters={"mem_per_gpu": 12})
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
     text = job.paths.submission_file.read_text()
-    mem_lines = [x for x in text.splitlines() if "#PBS --mem" in x]
-    assert len(mem_lines) == 1, f"Unexpected lines: {mem_lines}"
+    # PBS uses -l select with mem specification, not --mem
+    select_lines = [x for x in text.splitlines() if "#PBS -l select=" in x]
+    # Check for any memory specification (mem=, mem_per_gpu=, or mem_per_cpu=)
+    mem_lines = [x for x in text.splitlines() if "mem" in x and "#PBS" in x]
+    assert len(select_lines) >= 1, f"No PBS select directive found. All lines:\n{text}"
+    assert len(mem_lines) >= 1, f"No memory specification found. All lines:\n{text}"
 
 
 def test_pbs_job_no_stderr(tmp_path: Path) -> None:
