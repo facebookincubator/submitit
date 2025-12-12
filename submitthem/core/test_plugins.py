@@ -4,12 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import importlib
 import logging
 import re
 import typing as tp
 from pathlib import Path
 
-import pkg_resources
 import pytest
 
 from . import core, plugins
@@ -35,6 +35,7 @@ def test_finds_default_environments() -> None:
     envs = plugins.get_job_environments()
     assert len(envs) >= 3
     assert "slurm" in envs
+    assert "pbs" in envs
     assert "local" in envs
     assert "debug" in envs
 
@@ -43,11 +44,12 @@ def test_finds_default_executors() -> None:
     ex = plugins.get_executors()
     assert len(ex) >= 3
     assert "slurm" in ex
+    assert "pbs" in ex
     assert "local" in ex
     assert "debug" in ex
 
 
-def test_job_environment_works(monkeypatch):
+def test_job_environment_works_slurm(monkeypatch):
     monkeypatch.setenv("_TEST_CLUSTER_", "slurm")
     env = plugins.get_job_environment()
     assert env.cluster == "slurm"
@@ -58,8 +60,19 @@ def test_job_environment_works(monkeypatch):
     assert type(env2).__name__ == "SlurmJobEnvironment"
 
 
+def test_job_environment_works_pbs(monkeypatch):
+    monkeypatch.setenv("_TEST_CLUSTER_", "pbs")
+    env = plugins.get_job_environment()
+    assert env.cluster == "pbs"
+    assert type(env).__name__ == "PBSJobEnvironment"
+
+    env2 = JobEnvironment()
+    assert env2.cluster == "pbs"
+    assert type(env2).__name__ == "PBSJobEnvironment"
+
+
 def test_job_environment_raises_outside_of_job() -> None:
-    with pytest.raises(RuntimeError, match=r"which environment.*slurm.*local.*debug"):
+    with pytest.raises(RuntimeError, match=r"which environment.*slurm.*pbs.*local.*debug"):
         plugins.get_job_environment()
 
 
@@ -69,17 +82,23 @@ class PluginCreator:
         self.monkeypatch = monkeypatch
 
     def add_plugin(self, name: str, entry_points: str, init: str):
-        plugin = self.tmp_path / name
-        plugin.mkdir(mode=0o777)
-        plugin_egg = plugin.with_suffix(".egg-info")
-        plugin_egg.mkdir(mode=0o777)
+        # Extract version from init string if available
+        version = "0.0.0"  # default fallback - this bit doesn't matter for testing
+        version_match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', init)
+        if version_match:
+            version = version_match.group(1)
 
-        (plugin_egg / "entry_points.txt").write_text(entry_points)
-        (plugin / "__init__.py").write_text(init)
+        pkg_dir = self.tmp_path / name
+        pkg_dir.mkdir(mode=0o777)
+        (pkg_dir / "__init__.py").write_text(init)
 
-        # also fix pkg_resources since it already has loaded old packages in other tests.
-        working_set = pkg_resources.WorkingSet([str(self.tmp_path)])
-        self.monkeypatch.setattr(pkg_resources, "iter_entry_points", working_set.iter_entry_points)
+        dist = self.tmp_path / f"{name}-{version}.dist-info"
+        dist.mkdir(mode=0o777)
+        (dist / "METADATA").write_text(f"Name: {name}\nVersion: {version}\n")
+        (dist / "entry_points.txt").write_text(entry_points)
+
+        # Make sure Python and metadata see the new files
+        importlib.invalidate_caches()
 
     def __enter__(self) -> None:
         _clear_plugin_cache()
@@ -99,7 +118,6 @@ def _plugin_creator(tmp_path: Path, monkeypatch) -> tp.Iterator[PluginCreator]:
     creator = PluginCreator(tmp_path, monkeypatch)
     with creator:
         yield creator
-
 
 def test_find_good_plugin(plugin_creator: PluginCreator) -> None:
     plugin_creator.add_plugin(
@@ -122,7 +140,7 @@ class GoodJobEnvironment:
 
     executors = plugins.get_executors().keys()
     # Only the plugins declared with plugin_creator are visible.
-    assert set(executors) == {"good", "slurm", "local", "debug"}
+    assert set(executors) == {"good", "slurm", "pbs", "local", "debug"}
 
 
 def test_skip_bad_plugin(caplog, plugin_creator: PluginCreator) -> None:
@@ -146,7 +164,7 @@ class BadEnvironment:
     )
 
     executors = plugins.get_executors().keys()
-    assert {"slurm", "local", "debug"} == set(executors)
+    assert {"slurm", "pbs", "local", "debug"} == set(executors)
     assert "bad" not in executors
     expected = [
         (logging.ERROR, r"'submitthem_bad'.*no attribute 'NonExisitingExecutor'"),

@@ -6,6 +6,7 @@
 
 import functools
 import os
+from importlib import metadata
 from typing import TYPE_CHECKING, List, Mapping, Tuple, Type
 
 from ..core import logger
@@ -16,43 +17,62 @@ if TYPE_CHECKING:
     from ..core.job_environment import JobEnvironment
 
 
+def _iter_submitthem_entrypoints():
+    """Return an iterable of EntryPoint objects in the 'submitthem' group
+    compatible with Python 3.8+ and the backport."""
+
+    # 3.10+ API: EntryPoints with .select
+    eps = metadata.entry_points()
+    if hasattr(eps, "select"):
+        return eps.select(group="submitthem")
+
+    # importlib_metadata backport newer signature: entry_points("submitthem")
+    try:
+        return metadata.entry_points()["submitthem"]
+    except TypeError:
+        pass  # older API; fall through
+
+    # 3.8/3.9 legacy: mapping {group: [EntryPoint, ...]}
+    if hasattr(eps, "get"):
+        return eps.get("submitthem", [])
+
+    # old style (should in theory never get here if 3.8+): flat iterable; filter by .group
+    return [ep for ep in eps if getattr(ep, "group", None) == "submitthem"]
+
+
 @functools.lru_cache()
 def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
     # pylint: disable=cyclic-import,import-outside-toplevel
-    # Load dynamically to avoid import cycle
-    # pkg_resources goes through all modules on import.
-    import pkg_resources
-
     from ..local import debug, local
     from ..slurm import slurm
     from ..pbs import pbs
 
-    # TODO: use sys.modules.keys() and importlib.resources to find the files
-    # We load both kind of entry points at the same time because we have to go through all module files anyway.
     executors: List[Type["Executor"]] = [slurm.SlurmExecutor, pbs.PBSExecutor, local.LocalExecutor, debug.DebugExecutor]
     job_envs = [slurm.SlurmJobEnvironment(), pbs.PBSJobEnvironment(), local.LocalJobEnvironment(), debug.DebugJobEnvironment()]
-    for entry_point in pkg_resources.iter_entry_points("submitthem"):
+    for entry_point in _iter_submitthem_entrypoints():
         if entry_point.name not in ("executor", "job_environment"):
-            logger.warning(f"Found unknown entry point in package {entry_point.module_name}: {entry_point}")
+            logger.warning(f"{entry_point.name} = {entry_point.value}")
             continue
 
+        module_name = entry_point.value.split(":", 1)[0]
         try:
             # call `load` rather than `resolve`.
             # `load` also checks the module and its dependencies are correctly installed.
-            cls = entry_point.load()
+            obj = entry_point.load()
         except Exception as e:
             # This may happen if the plugin haven't been correctly installed
-            logger.exception(f"Failed to load submitthem plugin '{entry_point.module_name}': {e}")
+            logger.exception(f"Failed to load submitthem plugin '{module_name}': {e}")
             continue
 
         if entry_point.name == "executor":
-            executors.append(cls)
+            executors.append(obj)
         else:
             try:
-                job_env = cls()
+                job_env = obj()
             except Exception as e:
+                name = getattr(obj, "name", getattr(obj, "__name__", str(obj)))
                 logger.exception(
-                    f"Failed to init JobEnvironment '{cls.name}' ({cls}) from submitthem plugin '{entry_point.module_name}': {e}"
+                    f"Failed to init JobEnvironment '{name}' ({obj}) from submitthem plugin '{module_name}': {e}"
                 )
                 continue
             job_envs.append(job_env)
