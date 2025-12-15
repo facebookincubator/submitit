@@ -6,16 +6,20 @@
 
 ## What is submitthem?
 
-Submitthem is a fork of [Submitit](https://github.com/facebookincubator/submitit).
+*Submitthem* is a fork of [*Submitit*](https://github.com/facebookincubator/submitit).
 
-Submitit is a lightweight tool for submitting Python functions for computation within a Slurm cluster.
+*Submitit* is a lightweight tool for submitting Python functions for computation within a Slurm cluster.
 It basically wraps submission and provide access to results, logs and more.
 
 [Slurm](https://slurm.schedmd.com/quickstart.html) is an open source, fault-tolerant, and highly scalable cluster management and job scheduling system for large and small Linux clusters.
 
-PBS (Portable Batch System) is another popular job scheduler for high‑performance computing clusters, providing queuing, resource management and job control similar to Slurm. There are 2 implementations [PBS Pro](https://altair.com/pbs-professional/) and [OpenPBS](https://www.openpbs.org/).
+PBS (Portable Batch System) is another popular job scheduler for high‑performance computing clusters, providing queuing, resource management and job control similar to Slurm. There are 2 main implementations [PBS Pro](https://altair.com/pbs-professional/) and [OpenPBS](https://www.openpbs.org/).
 
-Submitthem allows to switch seamlessly between executing on Slurm, PBS or locally.
+[*Submitit*](https://github.com/facebookincubator/submitit) seems unmaintained since 2021 and only supports Slurm.
+
+*Submitthem* extends *Submitit* by adding support for PBS Pro clusters while keeping all the original features of *Submitit*.
+
+*Submitthem* won’t be maintained as actively as *Submitit* was, but I will try to keep it working and fix bugs as they arise. I only have access to a PBS Pro cluster, so I can’t test Slurm-related features myself. If you want to contribute, feel free to open issues and pull requests!
 
 ### An example is worth a thousand words: performing an addition
 
@@ -45,7 +49,7 @@ By default stdout is silenced in `CommandFunction`, but it can be unsilenced wit
 
 **Find more examples [here](docs/examples.md)!!!**
 
-Submitthem is a Python 3.8+ toolbox for submitting jobs to Slurm, PBS or locally.
+*Submitthem* is a Python 3.10+ toolbox for submitting jobs to Slurm, PBS or locally.
 It aims at running python function from python code.
 
 
@@ -83,27 +87,91 @@ See the following pages for more detailled information:
 - [PBS User’s Guide](https://help.altair.com/2022.1.0/PBS%20Professional/PBSUserGuide2022.1.pdf)
 - [PBS Reference Guide](https://help.altair.com/2022.1.0/PBS%20Professional/PBSReferenceGuide2022.1.pdf)
 
-### Goals
+## Available Plugins
 
-The aim of this Python3 package is to be able to launch jobs on Slurm painlessly from *inside Python*, using the same submission and job patterns than the standard library package `concurrent.futures`:
+*Submitthem* provides several built-in plugins to support different execution environments. You can switch between them seamlessly without changing your core code.
+
+### Auto Executor
+
+The `AutoExecutor` is the recommended way to submit jobs as it automatically detects your execution environment and selects the appropriate executor. This allows your code to work across different clusters without modifications.
+
+**Use case:** Default choice for most users. Automatically selects the right executor based on your environment.
+
+**Key features:**
+
+- Automatic detection of available cluster type
+- Fallback to local execution if no cluster is available
+- Support for executor-specific parameters with prefix syntax (e.g., `slurm_partition`, `pbs_queue`)
+- Optional debug mode for local in-process execution
+
+### Slurm Executor
+
+Submits jobs to [Slurm](https://slurm.schedmd.com/quickstart.html) clusters, a widely-used open source job scheduler for high-performance computing.
+
+**Use case:** When running on Slurm-based HPC clusters.
+
+**Key features:**
+
+- Job array support for batch submissions
+- Preemption handling with automatic requeue capability
+- Partition and node selection
+- CPU, GPU, and memory resource allocation
+- Job dependency management
+- Native Slurm signal handling for graceful shutdowns
+
+### PBS Executor
+
+Submits jobs to PBS (Portable Batch System) clusters, supporting both [PBS Pro](https://altair.com/pbs-professional/) and [OpenPBS](https://www.openpbs.org/).
+
+**Use case:** When running on PBS-based HPC clusters.
+
+**Key features:**
+
+- Queue selection
+- Resource specification (CPU, GPU, memory, walltime)
+- Job array support
+- Node list and resource node handling
+- Queue-specific parameter customization
+
+### Local Executor
+
+Executes jobs locally on your machine using subprocess or in-process execution.
+
+**Use case:** Development, testing, and small-scale computations on a single machine.
+
+**Key features:**
+
+- Subprocess execution for isolated job environment
+- Debug mode for in-process execution (useful for debugging)
+- No cluster dependencies required
+- Same API as cluster executors for seamless testing
+- Process management and signal handling
+- Timeout and resource limit enforcement
+
+For more details on implementing custom plugins, see [Plugins](docs/plugins.md).
+
+## Goals
+
+The aim of this Python package is to be able to launch jobs on Slurm/PBS painlessly from *inside Python*, using the same submission and job patterns than the standard library package `concurrent.futures`:
 
 Here are a few benefits of using this lightweight package:
- - submit any function, even lambda and script-defined functions.
- - raises an error with stack trace if the job failed.
- - requeue preempted jobs (Slurm only)
- - swap between `submitthem` executor and one of `concurrent.futures` executors in a line, so that it is easy to run your code either on slurm, or locally with multithreading for instance.
- - checkpoints stateful callables when preempted or timed-out and requeue from current state (advanced feature).
- - easy access to task local/global rank for multi-nodes/tasks jobs.
- - same code can work for different clusters thanks to a plugin system.
 
-Submitthem is used by FAIR researchers on the FAIR cluster.
+- submit any function, even lambda and script-defined functions.
+- raises an error with stack trace if the job failed.
+- requeue preempted jobs (Slurm only)
+- swap between `submitthem` executor and one of `concurrent.futures` executors in a line, so that it is easy to run your code either on slurm, or locally with multithreading for instance.
+- checkpoints stateful callables when preempted or timed-out and requeue from current state (advanced feature).
+- easy access to task local/global rank for multi-nodes/tasks jobs.
+- same code can work for different clusters thanks to a plugin system.
+
+*Submitit* was used by FAIR researchers on the FAIR cluster.
 The defaults are chosen to make their life easier, and might not be ideal for every cluster.
 
 ### Non-goals
 
 - a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitit plugin](https://hydra.cc/docs/next/plugins/submitit_launcher) (version >= 1.0.0).
 - a task queue, this only implements the ability to launch tasks, but does not schedule them in any way.
-- being used in Python2! This is a Python3.8+ only package :)
+- being used in Python2! This is a Python 3.10+ only package :)
 
 
 ### Comparison with dask.distributed
@@ -124,8 +192,10 @@ The key difference with `submitthem` is that `dask.distributed` distributes the 
 
 ## Contributors
 
-By chronological order: Jérémy Rapin, Louis Martin, Lowik Chanussot, Lucas Hosseini, Fabio Petroni, Francisco Massa, Guillaume Wenzek, Thibaut Lavril, Vinayak Tantia, Andrea Vedaldi, Max Nickel, Quentin Duval (feel free to [contribute](.github/CONTRIBUTING.md) and add your name ;) )
+By chronological order:
+- [*Submitit*](https://github.com/facebookincubator/submitit) contributors: Jérémy Rapin, Louis Martin, Lowik Chanussot, Lucas Hosseini, Fabio Petroni, Francisco Massa, Guillaume Wenzek, Thibaut Lavril, Vinayak Tantia, Andrea Vedaldi, Max Nickel, Quentin Duval
+- *Submitthem* contributors: Xavier Roynard (feel free to [contribute](.github/CONTRIBUTING.md) and add your name ;) )
 
 ## License
 
-Submitthem is released under the [MIT License](LICENSE).
+*Submitthem* is released under the [MIT License](LICENSE).

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Example of submitting jobs to a SLURM cluster using submitthem.
 

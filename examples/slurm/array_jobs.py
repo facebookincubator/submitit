@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Advanced example using SLURM with job arrays and batch processing.
 

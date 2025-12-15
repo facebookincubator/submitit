@@ -5,8 +5,8 @@ build-backend = "flit_core.buildapi"
 [project]
 name = "submitthem"
 readme = "README.md"
-authors = [{name = "Facebook AI Research"}]
-requires-python = ">=3.8"
+authors = [{name = "Xavier Roynard", email = "xavroynard@hotmail.com"}]
+requires-python = ">=3.10"
 dynamic = ["version", "description"]
 
 dependencies = [
@@ -32,6 +32,7 @@ classifiers=[
         "pytest-cov>=4.1.0",
         "pytest-xdist>=3.6.1",
         "coverage[toml]>=5.1",
+        "cloudpickle>=3.1.2",
         # Format
         "black==23.3.0",
         "isort==5.11.5",

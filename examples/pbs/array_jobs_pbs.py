@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Example of submitting PBS array jobs with submitthem.
 

@@ -77,7 +77,7 @@ installable_wheel:
 	git checkout HEAD -- ./submitthem/__init__.py
 
 	[ ! -d $(USER_VENV) ] || rm -r $(USER_VENV)
-	python3 -m venv $(USER_VENV)
+	python -m venv $(USER_VENV)
 	$(USER_VENV)/bin/pip install dist/submitthem-*any.whl
 	# Check that importing works
 	$(USER_VENV)/bin/python -c "import submitthem"

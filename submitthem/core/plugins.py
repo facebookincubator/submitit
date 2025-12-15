@@ -19,25 +19,11 @@ if TYPE_CHECKING:
 
 def _iter_submitthem_entrypoints():
     """Return an iterable of EntryPoint objects in the 'submitthem' group
-    compatible with Python 3.8+ and the backport."""
+    compatible with Python 3.10+ and the backport."""
 
     # 3.10+ API: EntryPoints with .select
     eps = metadata.entry_points()
-    if hasattr(eps, "select"):
-        return eps.select(group="submitthem")
-
-    # importlib_metadata backport newer signature: entry_points("submitthem")
-    try:
-        return metadata.entry_points()["submitthem"]
-    except TypeError:
-        pass  # older API; fall through
-
-    # 3.8/3.9 legacy: mapping {group: [EntryPoint, ...]}
-    if hasattr(eps, "get"):
-        return eps.get("submitthem", [])
-
-    # old style (should in theory never get here if 3.8+): flat iterable; filter by .group
-    return [ep for ep in eps if getattr(ep, "group", None) == "submitthem"]
+    return eps.select(group="submitthem")
 
 
 @functools.lru_cache()

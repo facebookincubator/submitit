@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
 Advanced example of using the Local executor with parameter updates.
 

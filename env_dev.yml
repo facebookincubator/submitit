@@ -1,0 +1,24 @@
+name: submitthem_dev
+
+channels:
+  - conda-forge
+  - nodefaults
+
+dependencies:
+  - python>=3.10
+  # Test
+  - pytest
+  - pytest-asyncio
+  - pytest-cov
+  - pytest-xdist
+  - coverage
+  - cloudpickle
+  # Format
+  - black
+  - isort
+  - pre-commit
+  # Linters
+  - mypy
+  - pylint
+  # Release
+  - flit
