@@ -80,7 +80,7 @@ Most cluster-specific parameters (time, cpus, memory, etc.) are ignored by the l
    ```python
    # Start with local
    executor = submitthem.LocalExecutor()
-   
+
    # Then switch to cluster
    executor = submitthem.SlurmExecutor()
    # Same code works!

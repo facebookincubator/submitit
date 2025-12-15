@@ -160,10 +160,10 @@ qstat -q <queue_name> # Show specific queue details
    ```bash
    # Check job script that was generated
    cat jobs/job_<id>/pbs_script.sh
-   
+
    # Check job output
    cat jobs/job_<id>/output.log
-   
+
    # Check detailed job info
    qstat -f <job_id>
    ```
@@ -246,7 +246,7 @@ results = [job.result(timeout=1800) for job in jobs]
 
 ## Performance Optimization
 
-1. **Resource efficiency**: 
+1. **Resource efficiency**:
    - Request only what you need
    - Monitor actual usage
 

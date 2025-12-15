@@ -12,11 +12,11 @@ import submitthem
 def scientific_simulation(simulation_id: int, timesteps: int = 1000) -> dict:
     """
     A scientific simulation task.
-    
+
     Args:
         simulation_id: ID of the simulation
         timesteps: Number of simulation timesteps
-    
+
     Returns:
         Simulation results
     """
@@ -24,7 +24,7 @@ def scientific_simulation(simulation_id: int, timesteps: int = 1000) -> dict:
     energy = 0.0
     for t in range(timesteps):
         energy += (t * 0.1) ** 2
-    
+
     return {
         "simulation_id": simulation_id,
         "timesteps": timesteps,
@@ -36,14 +36,14 @@ def main():
     """Submit jobs to PBS cluster."""
     # Method 1: Use AutoExecutor (auto-detects the cluster)
     executor = submitthem.AutoExecutor(folder="./pbs_jobs")
-    
+
     print(f"Executor type: {executor.cluster}")
     print()
-    
+
     # Configure executor for PBS (if auto-detected)
     if executor.cluster == "pbs":
         executor.update_parameters(
-            time=20,  # 20 minutes walltime
+            pbs_time=20,  # 20 minutes walltime
             nodes=2,  # Request 2 nodes
             cpus_per_task=4,  # 4 CPUs per task
             mem_gb=32,  # 32 GB memory per node
@@ -54,28 +54,36 @@ def main():
         print("  CPUs per task: 4")
         print("  Memory: 32 GB per node")
         print()
-    
+
     # Submit jobs
+    NB_JOBS = 2
     jobs = []
-    simulation_ids = range(10)
-    
+    simulation_ids = range(NB_JOBS)
+
     for sim_id in simulation_ids:
         job = executor.submit(scientific_simulation, sim_id, timesteps=5000)
         jobs.append(job)
         print(f"Submitted job {job.job_id}: simulation {sim_id}")
-    
+
     # Monitor and collect results
     print("\nWaiting for simulations to complete...")
+    import time
+    start_time = time.time()
     results = []
     for i, job in enumerate(jobs):
+        job_start = time.time()
         try:
-            result = job.result(timeout=600)  # 10 minute timeout
+            result = job.result()
+            job_elapsed = time.time() - job_start
+            total_elapsed = time.time() - start_time
             results.append(result)
-            print(f"Job {job.job_id} (sim {result['simulation_id']}): "
-                  f"energy={result['total_energy']:.2f}")
+            print(f"[{total_elapsed:6.1f}s] Job {job.job_id} (sim {result['simulation_id']}): "
+                  f"energy={result['total_energy']:.2f} (waited {job_elapsed:5.1f}s)")
         except Exception as e:
-            print(f"Job {job.job_id} failed: {e}")
-    
+            job_elapsed = time.time() - job_start
+            total_elapsed = time.time() - start_time
+            print(f"[{total_elapsed:6.1f}s] Job {job.job_id} failed after {job_elapsed:5.1f}s: {e}")
+
     print(f"\nCompleted {len(results)}/{len(jobs)} simulations")
 
 

@@ -19,11 +19,11 @@ run_example() {
     local example_path="$1"
     local example_name="$(basename "$example_path")"
     local scheduler="$(basename "$(dirname "$example_path")")"
-    
+
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo -e "${GREEN}Running: $scheduler/$example_name${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    
+
     if python "$example_path"; then
         echo -e "${GREEN}✓ $scheduler/$example_name completed successfully${NC}"
     else

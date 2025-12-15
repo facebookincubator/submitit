@@ -12,10 +12,10 @@ import submitthem
 def compute_intensive_task(n: int) -> int:
     """
     A compute-intensive task that benefits from cluster execution.
-    
+
     Args:
         n: Problem size
-    
+
     Returns:
         Result of computation
     """
@@ -30,10 +30,10 @@ def main():
     """Submit jobs to SLURM cluster."""
     # Method 1: Use AutoExecutor (auto-detects the cluster)
     executor = submitthem.AutoExecutor(folder="./slurm_jobs")
-    
+
     print(f"Executor type: {executor.cluster}")
     print()
-    
+
     # Configure executor for SLURM (if auto-detected)
     if executor.cluster == "slurm":
         executor.update_parameters(
@@ -48,27 +48,34 @@ def main():
         print(f"  Tasks: 4")
         print(f"  Memory: 8 GB")
         print()
-    
+
     # Submit jobs
     jobs = []
     problem_sizes = [1000, 5000, 10000, 50000]
-    
+
     for size in problem_sizes:
         job = executor.submit(compute_intensive_task, size)
         jobs.append(job)
         print(f"Submitted job {job.job_id}: computing with n={size}")
-    
+
     # Monitor jobs
     print("\nWaiting for jobs to complete...")
+    import time
+    start_time = time.time()
     results = []
     for i, job in enumerate(jobs):
+        job_start = time.time()
         try:
-            result = job.result(timeout=300)  # 5 minute timeout
+            result = job.result()
+            job_elapsed = time.time() - job_start
+            total_elapsed = time.time() - start_time
             results.append(result)
-            print(f"Job {job.job_id} (n={problem_sizes[i]}): {result}")
-        except submitthem.UncompletedJobError:
-            print(f"Job {job.job_id} did not complete in time")
-    
+            print(f"[{total_elapsed:6.1f}s] Job {job.job_id} (n={problem_sizes[i]}): {result} (waited {job_elapsed:5.1f}s)")
+        except Exception as e:
+            job_elapsed = time.time() - job_start
+            total_elapsed = time.time() - start_time
+            print(f"[{total_elapsed:6.1f}s] Job {job.job_id} failed after {job_elapsed:5.1f}s: {e}")
+
     print(f"\nCompleted {len(results)}/{len(jobs)} jobs")
 
 

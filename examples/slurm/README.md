@@ -121,7 +121,7 @@ squeue -j <job_id> --long
    ```bash
    # Check job script that was generated
    cat jobs/job_<id>/slurm_script.sh
-   
+
    # Check job output
    cat jobs/job_<id>/output.log
    ```
