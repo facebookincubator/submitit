@@ -269,6 +269,12 @@ def start_controller(
     if need_shell:
         proc_cmd = " && ".join(list(setup) + [shlex.join(proc_cmd)])
     process = subprocess.Popen(proc_cmd, shell=need_shell, env=env)
+    # When using shell=True, we need to pass the shell's PID to the subprocess.
+    # The subprocess's os.getpid() will return the Python process ID (child of shell),
+    # but we need the shell's PID for job tracking. We write it to a temp file.
+    if need_shell:
+        pid_file = Path(folder) / ".submitthem_shell_pid"
+        pid_file.write_text(str(process.pid))
     return process
 
 
@@ -291,9 +297,15 @@ class Controller:
         self.tasks: tp.List[subprocess.Popen] = []  # type: ignore
         self.stdouts: tp.List[tp.IO[tp.Any]] = []
         self.stderrs: tp.List[tp.IO[tp.Any]] = []
-        with_shell = bool(os.environ["SUBMITTHEM_LOCAL_WITH_SHELL"])
-        self.pid = str(os.getppid() if with_shell else os.getpid())
-        self.folder = Path(folder)
+        # When shell=True, the shell's PID is written to a file by start_controller.
+        # Read it if it exists, otherwise use os.getpid()
+        folder_path = Path(folder)
+        pid_file = folder_path / ".submitthem_shell_pid"
+        if pid_file.exists():
+            self.pid = pid_file.read_text().strip()
+        else:
+            self.pid = str(os.getpid())
+        self.folder = folder_path
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
 
     # pylint:disable=unused-argument
