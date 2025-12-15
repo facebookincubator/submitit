@@ -435,6 +435,16 @@ class Job(tp.Generic[R]):
             return True
         # check with a call to sacct/qstat
         if self.watcher.is_done(self.job_id, mode="force" if force_check else "standard"):
+            # Job is reported as done by scheduler, but result file might not be visible yet
+            # Give it a moment for the filesystem to sync and then check again
+            _time.sleep(0.1)
+            try:
+                p.chmod(p.stat().st_mode)
+            except OSError:
+                pass
+            if self.paths.result_pickle.exists():
+                return True
+            # Still no result file after brief wait - job is truly done (may have failed)
             return True
         return False
 

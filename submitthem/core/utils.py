@@ -287,7 +287,7 @@ class CommandFunction:
     pipeline and notify when it is finished.
     The output is a string containing everything that has been sent to stdout.
     WARNING: use CommandFunction only if you know the output won't be too big !
-    Otherwise use subprocess.run() that also streams the outputto stdout/stderr.
+    Otherwise use subprocess.run() that also streams the output to stdout/stderr.
 
     Parameters
     ----------
@@ -319,7 +319,7 @@ class CommandFunction:
         self.env = env
 
     def __call__(self, *args: tp.Any, **kwargs: tp.Any) -> str:
-        """Call the cammand line with addidional arguments
+        """Call the command line with additional arguments
         The keyword arguments will be sent as --{key}={val}
         The logs bufferized. They will be printed if the job fails, or sent as output of the function
         Errors are provided with the internal stderr.

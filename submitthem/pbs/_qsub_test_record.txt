@@ -13,4 +13,8 @@
 
 # command
 export SUBMITTHEM_EXECUTOR=pbs
-qsub -I -o /tmp/%j_%t_log.out -e /tmp/%j_%t_log.err -vv none my-custom_command
+# Allow time for qalter to set output file paths before job starts writing logs
+sleep 0.5
+# The input "command" is supposed to be a valid shell command
+set -e  # Exit on error
+my-custom_command

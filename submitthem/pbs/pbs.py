@@ -12,6 +12,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import time as _time
 import typing as tp
 import uuid
 import warnings
@@ -56,13 +57,45 @@ class PBSInfoWatcher(core.InfoWatcher):
         to_check = {x.split("_")[0] for x in self._registered - self._finished}
         if not to_check:
             return None
-        # qstat -f <jobid> returns full job info for each requested id
-        return ["qstat", "-f", *map(str, to_check)]
+        # Use qstat -f with specific job IDs and -x flag for finished job support
+        # First try to get active jobs, then get finished jobs
+        return ["qstat", "-f", "-x", *sorted(to_check)]
 
     def get_state(self, job_id: str, mode: str = "standard") -> str:
-        """Returns the state of the job (mapped to readable names)."""
-        info = self.get_info(job_id, mode=mode)
-        return info.get("State") or "UNKNOWN"
+        """Returns the state of the job (mapped to readable names).
+
+        If a job is not found in qstat output (even with -x flag), it could mean:
+        1. It finished and was purged from history (return COMPLETED)
+        2. It's newly submitted and not in qstat yet (return PENDING)
+        3. It never existed or we explicitly queried and it wasn't there (return UNKNOWN)
+
+        We distinguish by checking:
+        - If we've done an update since registering the job and it's still not there → UNKNOWN
+        - If we haven't updated yet since registering → PENDING
+
+        Note: PBS job_ids may have domain suffix (e.g., "6122024.<domain>")
+        but qstat returns only the main job_id (e.g., "6122024"), so we strip the
+        domain suffix for _info_dict lookup.
+        """
+        # Register the job if not already registered
+        if job_id not in self._registered:
+            self.register_job(job_id)
+        self.update_if_long_enough(mode)
+        # Strip domain suffix from job_id for lookup (PBS adds domain like ".<domain>")
+        main_job_id = job_id.split(".")[0]
+        info = self._info_dict.get(main_job_id, {})
+        state = info.get("State")
+        if state:
+            return state
+
+        # Job not found in qstat output
+        # Check if we've done at least one update since start
+        if self._num_calls > 0:
+            # We've checked qstat and the job wasn't there
+            return "UNKNOWN"
+        else:
+            # We haven't checked qstat yet, so job might just not have appeared
+            return "PENDING"
 
     def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
         """Parse qstat output and return dict mapping job_id/_index -> stats dict.
@@ -98,11 +131,13 @@ class PBSInfoWatcher(core.InfoWatcher):
         for line in lines:
             if line.strip():
                 if re.match(r"^Job Id:\s*\S+", line.strip()):
-                    return self._read_info_qstat_f_format(lines, state_map)
+                    result = self._read_info_qstat_f_format(lines, state_map)
+                    return result
                 break
 
         # Otherwise, parse qstat format (simple column-based format with "Job ID" - uppercase 'D')
-        return self._read_info_qstat_format(lines, state_map)
+        result = self._read_info_qstat_format(lines, state_map)
+        return result
 
     def _read_info_qstat_f_format(self, lines: tp.List[str], state_map: tp.Dict[str, str]) -> tp.Dict[str, tp.Dict[str, str]]:
         """Parse qstat -f format output (full format, multi-line blocks)"""
@@ -338,10 +373,52 @@ class PBSInfoWatcher(core.InfoWatcher):
 
         return all_stats
 
+    def update(self) -> None:
+        """Updates the info of all registered jobs with a call to qstat.
+        Overrides the base class to use the -x flag for querying finished jobs.
+        """
+        command = self._make_command()
+        if command is None:
+            return
+        self._num_calls += 1
+        try:
+            logger.get_logger().debug(f"Call #{self.num_calls} - Command {' '.join(command)}")
+            # Use -x flag to include finished jobs in query results
+            self._output = subprocess.check_output(command, shell=False)
+        except Exception as e:
+            logger.get_logger().warning(
+                f"Call #{self.num_calls} - Bypassing qstat error {e}, status may be inaccurate."
+            )
+        else:
+            self._info_dict.update(self.read_info(self._output))
+        self._last_status_check = _time.time()
+        # check for finished jobs
+        to_check = self._registered - self._finished
+        for job_id in to_check:
+            if self.is_done(job_id, mode="cache"):
+                self._finished.add(job_id)
+
 
 class PBSJob(core.Job[core.R]):
     _cancel_command = "qdel"
-    watcher = PBSInfoWatcher(delay_s=600)
+    watcher = PBSInfoWatcher(delay_s=60)  # Check status frequently during job allocation/execution (max 60s between checks)
+
+    @property
+    def paths(self) -> utils.JobPaths:
+        """Override paths to handle PBS domain suffixes in job IDs.
+
+        PBS job IDs may have a domain suffix (e.g., "6122024.<domain>")
+        but the actual files created by the job script use the main job ID
+        from $PBS_JOBID environment variable. This property strips the domain
+        suffix to ensure we look for files with the correct name.
+        """
+        # Strip domain suffix from job_id for PBS jobs (format: "main_id.<domain>" or "main_id_task.<domain>")
+        job_id_parts = self.job_id.split(".")
+        main_job_id = job_id_parts[0]  # Remove domain suffix if present
+        # Use the base folder from the parent's internal _paths object
+        # which stores the unformatted folder path
+        base_folder = self._paths._folder
+        return utils.JobPaths(folder=base_folder, job_id=main_job_id, task_id=self.task_id)
 
     def _interrupt(self, timeout: bool = False) -> None:
         """Cancels the job using PBS qdel.
@@ -442,6 +519,34 @@ class PBSJobEnvironment(job_environment.JobEnvironment):
         "array_job_id": "PBS_ARRAY_ID",
         "array_task_id": "PBS_ARRAY_INDEX",
     }
+
+    @property
+    def node(self) -> int:
+        """Id of the current node (numeric index based on hostname position in the node list)"""
+        hostname = os.environ.get(self._env["node"], "")
+        if not hostname:
+            return 0
+        # Get all unique hostnames for this job
+        all_hostnames = self.hostnames
+        try:
+            # Return the index of the current hostname in the list of all hostnames
+            return all_hostnames.index(hostname)
+        except ValueError:
+            # If hostname not found in list, return 0
+            return 0
+
+    @property
+    def raw_job_id(self) -> str:
+        """Override to strip PBS domain suffix from job_id.
+
+        PBS may store the full job ID with domain suffix in $PBS_JOBID (e.g., "6122024.<domain>"),
+        but we need just the main job ID (e.g., "6122024") to match the pickle files created during submission.
+        """
+        job_id = os.environ[self._env["job_id"]]
+        # Strip domain suffix (everything after the first dot or underscore)
+        # Format can be: "main_id" or "main_id.<domain>" or "main_id_task_id" or "main_id_task_id.<domain>"
+        return job_id.split(".")[0]
+
     # # FYI: available PBS_ env variables
     # PBS_ACCOUNT=
     # PBS_ENVIRONMENT=PBS_INTERACTIVE or PBS_BATCH
@@ -684,7 +789,7 @@ class PBSExecutor(core.PicklingExecutor):
 
     @property
     def _submitthem_command_str(self) -> str:
-        return " ".join([self.python, "-u -m submitthem.core._submit", shlex.quote(str(self.folder))])
+        return " ".join([self.python, "-u", "-m", "submitthem.core._submit", shlex.quote(str(self.folder))])
 
     def _make_submission_file_text(self, command: str, uid: str) -> str:
         return _make_qsub_string(command=command, folder=self.folder, **self.parameters)
@@ -697,12 +802,78 @@ class PBSExecutor(core.PicklingExecutor):
     def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
         return ["qsub", str(submission_file_path)]
 
+    def _submit_command(self, command: str) -> core.Job[tp.Any]:
+        """Override to use qalter for setting output files after job submission.
+
+        Since PBS doesn't recognize %j placeholders or $PBS_JOBID in directives,
+        we submit without output redirection and use qalter to set the output files
+        with the actual job ID.
+        """
+        import uuid as uuid_module
+
+        tmp_uuid = uuid_module.uuid4().hex
+        submission_file_path = (
+            utils.JobPaths.get_first_id_independent_folder(self.folder) / f".submission_file_{tmp_uuid}.sh"
+        )
+        with submission_file_path.open("w") as f:
+            f.write(self._make_submission_file_text(command, tmp_uuid))
+
+        command_list = self._make_submission_command(submission_file_path)
+        # run qsub
+        output = utils.CommandFunction(command_list, verbose=False)()  # explicit errors
+        job_id = self._get_job_id_from_submission_command(output)
+
+        # Remove any log files created from the temporary submission file
+        # These will have been created with placeholder paths before qalter is called
+        temp_paths = utils.JobPaths(folder=self.folder, job_id=tmp_uuid)
+        for log_file in [Path(str(temp_paths.stdout)), Path(str(temp_paths.stderr))]:
+            try:
+                log_file.unlink(missing_ok=True)
+            except Exception:
+                pass  # Ignore errors if files don't exist
+
+        # Use qalter to set output files with the actual job ID
+        paths = utils.JobPaths(folder=self.folder, job_id=job_id)
+        stdout_path = str(paths.stdout)
+        stderr_path = str(paths.stderr)
+
+        # Remove any log files that might have been created before qalter is called
+        # This ensures clean output files with the correct paths
+        for log_file in [Path(stdout_path), Path(stderr_path)]:
+            try:
+                log_file.unlink(missing_ok=True)
+            except Exception:
+                pass  # Ignore errors if files don't exist
+
+        # Build qalter command
+        qalter_cmd = ["qalter", "-o", stdout_path]
+        if not self.parameters.get("stderr_to_stdout", False):
+            qalter_cmd.extend(["-e", stderr_path])
+        qalter_cmd.append(job_id)
+
+        try:
+            subprocess.check_call(qalter_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            logger.get_logger().warning(f"qalter failed to set output files for job {job_id}: {e}")
+
+        tasks_ids = list(range(self._num_tasks()))
+        job: core.Job[tp.Any] = self.job_class(folder=self.folder, job_id=job_id, tasks=tasks_ids)
+        job.paths.move_temporary_file(submission_file_path, "submission_file", keep_as_symlink=True)
+        self._write_job_id(job.job_id, tmp_uuid)
+        self._set_job_permissions(job.paths.folder)
+        return job
+
     @staticmethod
     def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
         """Returns the job ID from the output of qsub string"""
         if not isinstance(string, str):
             string = string.decode()
-        output = re.search(r"job (?P<id>[0-9]+)", string)
+        # PBS qsub outputs job ID directly, optionally with domain (e.g., "6122024.<domain>")
+        # Try to match "job <id>" format first (some PBS variants), then fall back to bare job ID
+        output = re.search(r"job (?P<id>[0-9]+(?:\.[^\s]+)?)", string)
+        if output is None:
+            # Try bare job ID format: digits optionally followed by dot and domain
+            output = re.search(r"^(?P<id>[0-9]+(?:\.[^\s]+)?)\s*$", string.strip())
         if output is None:
             raise utils.FailedSubmissionError(
                 f'Could not make sense of qsub output "{string}"\n'
@@ -758,8 +929,6 @@ def _make_qsub_string(
     stderr_to_stdout: bool = False,
     map_count: tp.Optional[int] = None,  # used internally
     additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
-    qsub_interactive_args: tp.Optional[tp.Iterable[str]] = None,
-    use_qsub_interactive: bool = True,
 ) -> str:
     """Creates the content of a qsub file with provided parameters
 
@@ -775,7 +944,7 @@ def _make_qsub_string(
     signal_delay_s: int
         delay between the kill signal and the actual kill of the pbs job.
     setup: list
-        a list of command to run in qsub before running qsub_interactive
+        a list of command to run in qsub before the job
     map_size: int
         number of simultaneous map/array jobs allowed
     additional_parameters: dict
@@ -801,8 +970,6 @@ def _make_qsub_string(
         "setup",
         "signal_delay_s",
         "stderr_to_stdout",
-        "qsub_interactive_args",
-        "use_qsub_interactive",  # if False, use python directly in qsub instead of through `qsub -I`
     ]
     parameters = {k: v for k, v in locals().items() if v is not None and k not in nonpbs}
     ### rename and reformat parameters
@@ -922,6 +1089,8 @@ def _make_qsub_string(
         parameters["J"] = f"0-{map_count - 1}%{min(map_count, array_parallelism)}"
         stdout = stdout.replace("%j", "%A_%a")
         stderr = stderr.replace("%j", "%A_%a")
+    # Use PBS output redirection with proper path handling
+    # PBS will substitute %j with the job ID when the job runs
     parameters["o"] = stdout.replace("%t", "0")
     if not stderr_to_stdout:
         parameters["e"] = stderr.replace("%t", "0")
@@ -940,23 +1109,14 @@ def _make_qsub_string(
     # commandline (this will run the function and args specified in the file provided as argument)
     # We pass -o and -e here, (TODO: check this statement for PBS: because the qsub command doesn't work as expected with a filename pattern)
 
-    if use_qsub_interactive:
-        # using `qsub -I` has been the only option historically,
-        # TODO: check next statement for PBS
-        # but it's not clear anymore if it is necessary, and using it prevents
-        # jobs from scheduling other jobs
-        stderr_flags = [] if stderr_to_stdout else ["-e", stderr]
-        if qsub_interactive_args is None:
-            qsub_interactive_args = []
-        # TODO: modify for PBS -> remove --unbuffered option as there is no equivalent for PBS
-        qsub_interactive_cmd = _shlex_join(["qsub", "-I", "-o", stdout, *stderr_flags, *qsub_interactive_args])
-        command = " ".join((qsub_interactive_cmd, command))
-
     lines += [
         "",
         "# command",
         "export SUBMITTHEM_EXECUTOR=pbs",
-        # The input "command" is supposed to be a valid shell command
+        "# Allow time for qalter to set output file paths before job starts writing logs",
+        "sleep 0.5",
+        "# The input \"command\" is supposed to be a valid shell command",
+        "set -e  # Exit on error",
         command,
         "",
     ]
@@ -1007,8 +1167,3 @@ def _as_qsub_flag(key: str, value: tp.Any) -> str:
     else:
         # Other flags use -flag value format
         return f"#PBS -{key} {value_str}"
-
-
-def _shlex_join(split_command: tp.List[str]) -> str:
-    """Same as shlex.join, but that was only added in Python 3.8"""
-    return " ".join(shlex.quote(arg) for arg in split_command)

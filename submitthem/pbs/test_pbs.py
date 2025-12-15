@@ -297,7 +297,6 @@ def test_make_qsub_string() -> None:
         partition="learnfair",
         exclusive=True,
         additional_parameters={"blublu": 12},
-        qsub_interactive_args=["-vv", "none"],
     )
     # PBS uses -q for queue name, not partition
     assert "#PBS -q learnfair" in string
