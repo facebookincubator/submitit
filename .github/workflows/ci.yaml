@@ -1,73 +1,71 @@
-name: Build, and run tests lint and format
+name: Tests, Lint, and Format
 env:
     IN_GITHUB_ACTION: 1
 
-on: [push]
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
 
 jobs:
-  build-linux:
-    # require 8-core machines (Github Actions Larger Runners) to have more than 14GB disk space
-    runs-on: 8-core-ubuntu  # ubuntu-latest
+  test:
+    runs-on: ubuntu-latest
     strategy:
-      max-parallel: 5
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
 
     steps:
     - uses: actions/checkout@v4
-    - name: Set up Python 3.10
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Sync dependencies with uv
+      run: uv sync --all-groups
+
+    - name: Run pytest
+      run: uv run pytest -n auto submitthem
+
+    - name: Run pytest with coverage
+      run: uv run pytest -v -n auto --cov=submitthem --cov-report=xml submitthem
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.xml
+        fail_ci_if_error: false
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v2
+
+    - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
 
-    # Building/caching the environment
+    - name: Sync dependencies with uv
+      run: uv sync --all-groups
 
-    - name: Add conda to system path
-      run: |
-        # $CONDA is an environment variable pointing to the root of the miniconda directory
-        echo $CONDA
-        echo $CONDA/bin >> $GITHUB_PATH
-        echo $CONDA_PREFIX
+    - name: Run ruff format check
+      run: uv run ruff format --check submitthem docs integration
 
-    - name: Cache conda env
-      id: cache-conda
-      uses: actions/cache@v4
-      env:
-        # change name here (only) to invalidate cache
-        cache-name: cache-conda-env-v0
-      with:
-          key: ${{ env.cache-name }}-${{ hashFiles('pyproject.toml') }}
-          path: ./ci_env
+    - name: Run ruff lint
+      run: uv run ruff check submitthem
 
-    - name: Create conda env & Install dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install rsync
-        if [ ! -d "./ci_env" ]; then \
-          # creates the env if it does not exist (not loaded from cache)
-          conda create -p ./ci_env python=3.10 ipython -y
-        fi
-        source activate ./ci_env
-        pip install --progress-bar off --upgrade pip
-        pip install --progress-bar off -U -e .[dev]
+    - name: Run mypy
+      run: uv run mypy submitthem
 
-    - name: Print installed packages
-      run: |
-        source activate ./ci_env
-        pip freeze
-
-    # start checks
-
-    - name: Test lint
-      run: |
-        source activate ./ci_env
-        pip show mypy
-        make use_venv=0 lint
-
-    - name: Test coverage
-      run: |
-        source activate ./ci_env
-        make use_venv=0 test_coverage
-
-    - name: Test format
-      run: |
-        source activate ./ci_env
-        make use_venv=0 format
+    - name: Run pylint
+      run: uv run pylint submitthem

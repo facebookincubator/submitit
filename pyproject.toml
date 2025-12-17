@@ -11,9 +11,9 @@ dynamic = ["version", "description"]
 
 dependencies = [
   "cloudpickle>=1.2.1",
-  "typing_extensions>=3.7.4.2"
+  "typing_extensions>=3.7.4.2",
 ]
-# zip_safe = false
+
 classifiers=[
     "License :: OSI Approved :: MIT License",
     "Topic :: System :: Distributed Computing",
@@ -21,95 +21,112 @@ classifiers=[
 ]
 
 [project.urls]
-  Source = "https://github.com/xroynard/submitthem"
-  Tracker = "https://github.com/xroynard/submitthem/issues"
+Source = "https://github.com/xroynard/submitthem"
+Tracker = "https://github.com/xroynard/submitthem/issues"
 
-[project.optional-dependencies]
-    dev = [
-        # Test
-        "pytest>=7.4.2",
-        "pytest-asyncio>=0.15.0",
-        "pytest-cov>=4.1.0",
-        "pytest-xdist>=3.6.1",
-        "coverage[toml]>=5.1",
-        "cloudpickle>=3.1.2",
-        # Format
-        "black==23.3.0",
-        "isort==5.11.5",
-        "pre-commit>=1.15.2",
-        # Linters
-        "mypy>=1.4.1",
-        "pylint>=3.0.0",
-        # Release
-        "flit>=3.5.1",
-    ]
+[tool.uv]
+# uv configuration - modern Python package manager
+python-preference = "managed"
 
-[tool.black]
+[tool.uv.pip]
+compile-bytecode = true
+
+[dependency-groups]
+test = [
+    "pytest>=7.4.2",
+    "pytest-asyncio>=0.15.0",
+    "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.6.1",
+    "coverage[toml]>=5.1",
+    "cloudpickle>=3.1.2",
+]
+lint = [
+    "ruff>=0.1.0",
+    "mypy>=1.4.1",
+    "pylint>=3.0.0",
+]
+format = [
+    "ruff>=0.1.0",
+    "pre-commit>=1.15.2",
+]
+release = [
+    "flit>=3.5.1",
+]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    { include-group = "format" },
+    { include-group = "release" },
+]
+
+[tool.ruff]
 line-length = 110
-exclude = '''
-/(
-  | \.git
-  | \.mypy_cache
-  | venv
-)/
-'''
+extend-exclude = [".git", ".mypy_cache", "venv"]
 
-[tool.isort]
-profile = "black"
-line_length = 110
-skip_gitignore = true
-
-
-[tool.pylint]
-  [tool.pylint."MESSAGES CONTROL"]
-  # disabled messages
-  # * no-member has a lot of false positive, mypy does it better
-  disable = """
-      broad-except,
-      fixme,
-      invalid-name,
-      logging-fstring-interpolation,
-      missing-docstring,
-      no-else-return,
-      no-member,
-      protected-access,
-      too-few-public-methods,
-      useless-import-alias,
-      unspecified-encoding,
-      too-many-positional-arguments,
-  """
-  [tool.pylint.DESIGN]
-  max-args = 6
-
-  [tool.pylint.FORMAT]
-  max-line-length = "140"
-
-  [tool.pylint.SIMILARITIES]
-  ignore-imports = "yes"
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # Pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
 
 
-[tool.coverage]
-  [tool.coverage.run]
-    omit = ["*/test_*.py", "/tmp/pytest*/*"]
-    data_file = "test_results/coverage/coverage.bin"
+[tool.pylint."MESSAGES CONTROL"]
+# disabled messages
+# * no-member has a lot of false positive, mypy does it better
+disable = """
+    broad-except,
+    fixme,
+    invalid-name,
+    logging-fstring-interpolation,
+    missing-docstring,
+    no-else-return,
+    no-member,
+    protected-access,
+    too-few-public-methods,
+    useless-import-alias,
+    unspecified-encoding,
+    too-many-positional-arguments,
+"""
 
-  [tool.coverage.html]
-    directory = "test_results/coverage_html"
+[tool.pylint.DESIGN]
+max-args = 6
 
-  [tool.coverage.xml]
-    output = "test_results/coverage/coverage.xml"
+[tool.pylint.FORMAT]
+max-line-length = "140"
 
-  [tool.coverage.report]
-    fail_under = 90
-    exclude_lines = [
-      "pragma: no cover", # Re-enable the standard pragma
-      "raise NotImplementedError",
-      "^\\s+\\.\\.\\.$",
-    ]
+[tool.pylint.SIMILARITIES]
+ignore-imports = "yes"
+
+[tool.coverage.run]
+omit = ["*/test_*.py", "/tmp/pytest*/*"]
+data_file = "test_results/coverage/coverage.bin"
+
+[tool.coverage.html]
+directory = "test_results/coverage_html"
+
+[tool.coverage.xml]
+output = "test_results/coverage/coverage.xml"
+
+[tool.coverage.report]
+fail_under = 90
+exclude_lines = [
+  "pragma: no cover", # Re-enable the standard pragma
+  "raise NotImplementedError",
+  "^\\s+\\.\\.\\.$",
+]
 
 [tool.mypy]
-  show_error_codes = true
+show_error_codes = true
+files = ["submitthem", "integration", "examples"]
 
 [[tool.mypy.overrides]]
-  module = ['cloudpickle', 'ipdb', 'pytest', 'setuptools']
-  ignore_missing_imports = true
+module = ['cloudpickle', 'ipdb', 'pytest', 'setuptools']
+ignore_missing_imports = true

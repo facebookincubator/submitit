@@ -1,5 +1,5 @@
-[![CircleCI](https://circleci.com/gh/facebookincubator/submitthem.svg?style=svg)](https://circleci.com/gh/facebookincubator/workflows/submitthem)
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![GitHub Actions](https://github.com/xroynard/submitthem/workflows/CI/badge.svg)](https://github.com/xroynard/submitthem/actions)
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Pypi](https://img.shields.io/pypi/v/submitthem)](https://pypi.org/project/submitthem/)
 [![conda-forge](https://img.shields.io/conda/vn/conda-forge/submitthem)](https://anaconda.org/conda-forge/submitthem)
 # Submit them!
@@ -55,19 +55,29 @@ It aims at running python function from python code.
 
 ## Install
 
-Quick install, in a virtualenv/conda environment where `pip` is installed (check `which pip`):
-- stable release:
-  ```
-  pip install submitthem
-  ```
-- stable release using __conda__:
-  ```
-  conda install -c conda-forge submitthem
-  ```
-- main branch:
-  ```
-  pip install git+https://github.com/xroynard/submitthem@main#egg=submitthem
-  ```
+Quick install:
+
+**From PyPI (stable release):**
+```bash
+pip install submitthem
+```
+
+**From conda-forge:**
+```bash
+conda install -c conda-forge submitthem
+```
+
+**From source (development):**
+```bash
+git clone https://github.com/xroynard/submitthem
+cd submitthem
+uv run pytest submitthem  # Auto-syncs dependencies and runs tests
+```
+
+Make sure [uv is installed](https://docs.astral.sh/uv/getting-started/installation/). You can install it via:
+- **Recommended:** `curl -LsSf https://astral.sh/uv/install.sh | sh` (Linux/macOS)
+- **Via pip:** `pip install uv` (requires Python 3.8+)
+- **Via conda:** `conda install -c conda-forge uv`
 
 You can try running the [MNIST example](docs/mnist.py) to check that everything is working as expected (requires sklearn).
 
@@ -169,7 +179,7 @@ The defaults are chosen to make their life easier, and might not be ideal for ev
 
 ### Non-goals
 
-- a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitit plugin](https://hydra.cc/docs/next/plugins/submitit_launcher) (version >= 1.0.0).
+- a commandline tool for running Slurm/PBS jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitthem plugin](https://github.com/xroynard/hydra_submitthem_launcher).
 - a task queue, this only implements the ability to launch tasks, but does not schedule them in any way.
 - being used in Python2! This is a Python 3.10+ only package :)
 
