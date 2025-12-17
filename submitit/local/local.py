@@ -273,7 +273,7 @@ def start_controller(
     return process
 
 
-class Controller:
+class Controller:  # pragma: no cover
     """This controls a job:
     - instantiate each of the tasks
     - sends timeout signal
