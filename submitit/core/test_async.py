@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import asyncio
 from pathlib import Path
 
 import pytest
@@ -13,7 +14,8 @@ from .test_core import FakeExecutor, _three_time
 
 
 @pytest.mark.asyncio
-async def test_result(tmp_path: Path, event_loop):
+async def test_result(tmp_path: Path) -> None:
+    event_loop = asyncio.get_running_loop()
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
     result_task = event_loop.create_task(job.awaitable().result())
@@ -24,7 +26,8 @@ async def test_result(tmp_path: Path, event_loop):
 
 
 @pytest.mark.asyncio
-async def test_results_single(tmp_path: Path, event_loop):
+async def test_results_single(tmp_path: Path) -> None:
+    event_loop = asyncio.get_running_loop()
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
     result_task = event_loop.create_task(job.awaitable().results())
@@ -35,7 +38,7 @@ async def test_results_single(tmp_path: Path, event_loop):
 
 
 @pytest.mark.asyncio
-async def test_results_ascompleted_single(tmp_path: Path):
+async def test_results_ascompleted_single(tmp_path: Path) -> None:
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
     with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):

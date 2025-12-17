@@ -518,11 +518,15 @@ def test_slurm_job_no_stderr(tmp_path: Path) -> None:
         with pytest.raises(utils.UncompletedJobError, match="No output/error stream produced !"):
             job._get_outcome_and_result()
 
+
 def test_slurm_through_auto_with_setup_and_teardown(tmp_path: Path) -> None:
     with mocked_slurm():
         executor = submitit.AutoExecutor(folder=tmp_path)
-        executor.update_parameters(slurm_additional_parameters={"mem_per_gpu": 12}, slurm_setup=["This is a setup command"],
-                                          slurm_teardown=["This is a teardown command"])
+        executor.update_parameters(
+            slurm_additional_parameters={"mem_per_gpu": 12},
+            slurm_setup=["This is a setup command"],
+            slurm_teardown=["This is a teardown command"],
+        )
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
     text = job.paths.submission_file.read_text()
     assert "This is a setup command" in text

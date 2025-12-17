@@ -330,7 +330,7 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
         os.environ.update(cluster_env)
 
 
-class TorchDistributedEnvironment:
+class TorchDistributedEnvironment:  # pragma: no cover
     def __init__(self) -> None:
         """Construct a class holding the parameters required to properly setup
         PyTorch distributed (with the default env:// initialization method).
