@@ -79,10 +79,17 @@ submitted to a slurm job, which will be checkpointed and requeued at most `slurm
 (and any number of time if preempted):
 ```python
 import submitit
+import clusterscope
 from .network import NetworkTraining  # must be defined in an importable module!
 executor = submitit.AutoExecutor(folder="logs_training", slurm_max_num_timeout=3)
-executor.update_parameters(timeout_min=30, slurm_partition="your_partition",
-                           gpus_per_node=1, cpus_per_task=2)
+slurm_partition = "your_partition"
+# clusterscope assigns the proportionate amount of resources based on gpus/cpus being requested.
+resources = clusterscope.job_gen_task_slurm(partition=slurm_partition, gpus_per_task=1, tasks_per_node=1)
+executor.update_parameters(timeout_min=30,
+                           slurm_partition=slurm_partition,
+                           gpus_per_node=resources["gpus_per_task"] * resources["tasks_per_node"],
+                           cpus_per_task=resources["cpus_per_task"],
+                           mem_gb=resources["mem_gb"])
 training_callable = NetworkTraining()
 job = executor.submit(training_callable, "some/path/for/checkpointing/your/network")
 ```
