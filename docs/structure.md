@@ -36,8 +36,9 @@ Its main methods are:
    an argument ;) )
 
 `submitit` has a plugin system so that several executor implementations can be provided. There are currently several implementations:
-- `AutoExecutor` which **we advise to always use** for submititting to clusters. This executor chooses the best available plugin to use depending on your environment. The aim is to be able to use the same code an several clusters.
-- `SlurmExecutor` which only works for slurm, and should be used through `AutoExecutor`.
+- `AutoExecutor` which **we advise to always use** for submitting to clusters. This executor chooses the best available plugin to use depending on your environment. The aim is to be able to use the same code on several clusters.
+- `SlurmExecutor` which only works for Slurm, and should be used through `AutoExecutor`.
+- `LsfExecutor` which only works for LSF, and should be used through `AutoExecutor`.
 - `LocalExecutor` which provides a way to test job submission locally through multiprocessing.
 - `DebugExecutor` which mocks job submission and does all the computation in the same process.
 
