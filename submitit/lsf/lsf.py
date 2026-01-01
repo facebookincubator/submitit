@@ -640,7 +640,18 @@ def _make_bsub_string(
         lines += ["", "# User setup"] + setup
 
     # Main command
-    lines += ["", "# Main command", command]
+    # Run the command as a child process so the parent shell can forward the warning signal
+    # (USR2 by default) to Python. This is important because `bkill -s USR2 <jobid>` targets the
+    # job's main process (the shell script), and without forwarding, the shell may exit before
+    # the Python handler checkpoints/requeues.
+    lines += [
+        "",
+        "# Main command",
+        f"{command} &",
+        "SUBMITIT_MAIN_PID=$!",
+        'trap "kill -USR2 $SUBMITIT_MAIN_PID 2>/dev/null || true" USR2',
+        "wait $SUBMITIT_MAIN_PID",
+    ]
 
     # User teardown commands
     if teardown is not None:

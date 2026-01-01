@@ -23,7 +23,6 @@ from pathlib import Path
 import pytest
 
 import submitit
-from submitit.core import utils
 
 # Skip all tests unless explicitly enabled
 pytestmark = pytest.mark.skipif(
@@ -71,15 +70,92 @@ def _wait_for_job(job: submitit.Job, max_wait_s: int = 300) -> str:
         )
         output = result.stdout.strip()
         if not output:
-            # Job no longer exists, assume completed
-            return job.state
-        # Check if all relevant jobs are finished
-        lines = output.splitlines()
-        finished = all("DONE" in line or "EXIT" in line for line in lines if line.strip())
-        if finished:
-            return job.state
+            # Job no longer exists in bjobs (can happen after it completes/exits)
+            return "GONE"
+
+        # Check if all relevant jobs are finished, based on bjobs output (not job.state).
+        lines = [ln for ln in output.splitlines() if ln.strip()]
+        stats: tp.List[str] = []
+        for line in lines:
+            parts = line.split()
+            # JOBID JOBINDEX STAT OR JOBID STAT (depending on LSF config / query)
+            if len(parts) >= 3:
+                stats.append(parts[2])
+            elif len(parts) >= 2:
+                stats.append(parts[1])
+
+        if stats and all(s in ("DONE", "EXIT") for s in stats):
+            # Prefer EXIT if any element exited.
+            return "EXIT" if any(s == "EXIT" for s in stats) else "DONE"
         time.sleep(5)
-    return job.state
+    return "TIMEOUT"
+
+
+def _wait_for_job_running(job: submitit.Job, max_wait_s: int = 300) -> None:
+    """Wait for a job to reach RUN state, polling bjobs directly.
+
+    This avoids relying on submitit's cached watcher state, which can be stale.
+    """
+    job_id = job.job_id.split("_")[0]
+    start = time.time()
+    last: str = ""
+    while time.time() - start < max_wait_s:
+        result = subprocess.run(
+            ["bjobs", "-o", "JOBID JOBINDEX STAT", "-noheader", job_id],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        last = (result.stdout or "").strip() or (result.stderr or "").strip()
+        out = (result.stdout or "").strip()
+        if out:
+            for line in out.splitlines():
+                parts = line.split()
+                stat = parts[2] if len(parts) >= 3 else (parts[1] if len(parts) >= 2 else "")
+                if stat == "RUN":
+                    return
+                if stat in ("DONE", "EXIT"):
+                    # Job finished before reaching RUN (unexpected for long jobs).
+                    break
+        time.sleep(5)
+    pytest.fail(f"Job did not reach RUN state within {max_wait_s}s. Last bjobs output: {last}")
+
+
+def _wait_for_result_pickle(job: submitit.Job, max_wait_s: int = 900) -> None:
+    """Wait until submitit produced a result pickle for this job.
+
+    This is the most reliable completion signal for integration tests, especially when jobs
+    may get requeued and transiently appear as EXIT in scheduler queries.
+    """
+    start = time.time()
+    while time.time() - start < max_wait_s:
+        if job.paths.result_pickle.exists():
+            return
+        time.sleep(2)
+    pytest.fail(f"Result pickle was not produced within {max_wait_s}s: {job.paths.result_pickle}")
+
+
+def _wait_for_submitit_start(job: submitit.Job, max_wait_s: int = 120) -> None:
+    """Wait until the submitit worker started (log line present).
+
+    LSF can report a job as RUN before the Python process installed signal handlers.
+    If we send USR2 too early, it may terminate the job before checkpoint/requeue logic runs.
+
+    We rely on Submitit's canonical log path (`job.paths.stdout`) rather than re-encoding
+    filename conventions here.
+    """
+    stdout = job.paths.stdout
+    start = time.time()
+    while time.time() - start < max_wait_s:
+        if stdout.exists():
+            try:
+                text = stdout.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                text = ""
+            if "Starting with JobEnvironment" in text:
+                return
+        time.sleep(2)
+    pytest.fail(f"Submitit worker did not start within {max_wait_s}s (no marker in {stdout})")
 
 
 @pytest.fixture
@@ -113,9 +189,8 @@ def test_lsf_submit_result_logs_cpu(test_folder: Path) -> None:
     job = executor.submit(add, 5, 7)
     assert job.job_id is not None
 
-    # Wait for completion
-    final_state = _wait_for_job(job)
-    assert final_state in ("COMPLETED", "DONE"), f"Job ended in state: {final_state}"
+    # Wait for completion (via result pickle)
+    _wait_for_result_pickle(job, max_wait_s=300)
 
     # Check result
     result = job.result()
@@ -149,7 +224,7 @@ def test_lsf_map_array_cpu(test_folder: Path) -> None:
 
     # Wait for all to complete
     for job in jobs:
-        _wait_for_job(job)
+        _wait_for_result_pickle(job, max_wait_s=300)
 
     # Check results
     results = [job.result() for job in jobs]
@@ -210,11 +285,11 @@ def test_lsf_cancel_cpu(test_folder: Path) -> None:
 
     job = executor.submit(long_sleep, 42)
 
-    # Wait for job to start (or give up after 60s)
-    for _ in range(30):
-        if job.state == "RUNNING":
-            break
-        time.sleep(2)
+    # Wait for job to start (best-effort; cancel works even if still pending).
+    try:
+        _wait_for_job_running(job, max_wait_s=120)
+    except pytest.fail.Exception:
+        pass
 
     # Cancel the job
     job.cancel()
@@ -247,7 +322,7 @@ def test_lsf_gpu_request(test_folder: Path) -> None:
     executor.update_parameters(**params)
 
     job = executor.submit(check_gpu)
-    _wait_for_job(job)
+    _wait_for_result_pickle(job, max_wait_s=600)
 
     result = job.result()
     assert "GPU" in result, f"GPU not found in nvidia-smi output: {result}"
@@ -290,14 +365,9 @@ def test_lsf_checkpoint_requeue(test_folder: Path) -> None:
     counter = Counter()
     job = executor.submit(counter, 100)  # Will take 100 seconds
 
-    # Wait for job to start running
-    for _ in range(30):
-        if job.state == "RUNNING":
-            break
-        time.sleep(2)
-
-    if job.state != "RUNNING":
-        pytest.skip("Job did not start running in time")
+    # Wait for job to start running (poll bjobs directly)
+    _wait_for_job_running(job, max_wait_s=300)
+    _wait_for_submitit_start(job, max_wait_s=120)
 
     # Send warning signal to trigger checkpoint
     try:
@@ -309,12 +379,8 @@ def test_lsf_checkpoint_requeue(test_folder: Path) -> None:
     time.sleep(10)
 
     # The job should eventually complete (possibly after requeue)
-    _wait_for_job(job, max_wait_s=600)
+    _wait_for_result_pickle(job, max_wait_s=900)
 
     # Job should have completed successfully
-    try:
-        result = job.result()
-        assert result == 100
-    except utils.UncompletedJobError as e:
-        # May fail if requeue didn't work, which is OK for this test
-        pytest.skip(f"Job did not complete after checkpoint: {e}")
+    result = job.result()
+    assert result == 100
