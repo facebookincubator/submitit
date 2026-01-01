@@ -50,7 +50,7 @@ class LsfInfoWatcher(core.InfoWatcher):
             return None
         # Use bjobs with specific output format for easier parsing
         # -o specifies output format, -noheader removes header line
-        command = ["bjobs", "-o", "JOBID STAT", "-noheader"]
+        command = ["bjobs", "-o", "JOBID JOBINDEX STAT", "-noheader"]
         for jid in to_check:
             command.append(str(jid))
         return command
@@ -70,7 +70,12 @@ class LsfInfoWatcher(core.InfoWatcher):
         return info.get("State") or "UNKNOWN"
 
     def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
-        """Reads the output of bjobs and returns a dictionary containing main information."""
+        """Reads the output of bjobs -o 'JOBID JOBINDEX STAT' -noheader.
+
+        Format:
+        - Non-array job: "301828 0 DONE" (JOBINDEX=0)
+        - Array job element: "301970 1 RUN" (1-based index)
+        """
         if not isinstance(string, str):
             string = string.decode()
         lines = string.strip().splitlines()
@@ -83,28 +88,27 @@ class LsfInfoWatcher(core.InfoWatcher):
             if not line:
                 continue
             parts = line.split()
-            if len(parts) < 2:
-                continue
-            job_id_raw = parts[0]
-            state_raw = parts[1]
 
-            # Normalize LSF states to submitit-compatible states
-            state = self._normalize_state(state_raw)
+            # Handle 3-column format: JOBID JOBINDEX STAT
+            if len(parts) >= 3:
+                job_id_raw = parts[0]
+                job_index = parts[1]
+                state_raw = parts[2]
+                state = self._normalize_state(state_raw)
 
-            # Parse the job ID which may include array index: 12345[1]
-            # Convert to submitit format: 12345_1
-            if "[" in job_id_raw:
-                match = re.match(r"(\d+)\[(\d+)\]", job_id_raw)
-                if match:
-                    main_id = match.group(1)
-                    array_idx = match.group(2)
-                    submitit_job_id = f"{main_id}_{array_idx}"
-                    all_stats[submitit_job_id] = {"JobID": job_id_raw, "State": state}
-                    # Also store under the main ID for non-array queries
-                    if main_id not in all_stats:
-                        all_stats[main_id] = {"JobID": job_id_raw, "State": state}
-            else:
-                # Simple job ID
+                # JOBINDEX=0 means non-array job, JOBINDEX>0 means array element (1-based)
+                if job_index == "0":
+                    all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
+                else:
+                    submitit_job_id = f"{job_id_raw}_{job_index}"
+                    all_stats[submitit_job_id] = {"JobID": f"{job_id_raw}[{job_index}]", "State": state}
+                    if job_id_raw not in all_stats:
+                        all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
+            # Fallback for 2-column format: JOBID STAT
+            elif len(parts) == 2:
+                job_id_raw = parts[0]
+                state_raw = parts[1]
+                state = self._normalize_state(state_raw)
                 all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
 
         return all_stats
@@ -320,7 +324,7 @@ class LsfExecutor(core.PicklingExecutor):
         first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
         tasks_ids = list(range(first_job.num_tasks))
         jobs: tp.List[core.Job[tp.Any]] = [
-            LsfJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(n)
+            LsfJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(1, n + 1)
         ]
         for job, pickle_path in zip(jobs, pickle_paths):
             job.paths.move_temporary_file(pickle_path, "submitted_pickle")
@@ -485,9 +489,9 @@ def _make_bsub_string(
         job_name_val = parameters.pop("job_name")
         if map_count is not None:
             # Array job: use LSF array syntax
-            array_spec = f"[0-{map_count - 1}]"
+            array_spec = f"[1-{map_count}]"
             if array_parallelism < map_count:
-                array_spec = f"[0-{map_count - 1}]%{array_parallelism}"
+                array_spec = f"[1-{map_count}]%{array_parallelism}"
             lines.append(f'#BSUB -J "{job_name_val}{array_spec}"')
             # For arrays, include %I in output paths
             stdout = stdout.replace("%J", "%J_%I")
@@ -549,7 +553,7 @@ def _make_bsub_string(
 
     # Signal handling for checkpointing
     # LSF uses -wa for warning action and -wt for warning time
-    lines.append(f"#BSUB -wt '{signal_delay_s}s'")
+    lines.append(f"#BSUB -wt '{signal_delay_s // 60}'")
     lines.append(f"#BSUB -wa 'USR2'")
 
     # Additional parameters (escape hatch)
@@ -580,7 +584,7 @@ def _make_bsub_string(
         "export SUBMITIT_LSF_LOCAL_RANK=0",
         "",
         "# Handle array jobs",
-        'if [ -n "$LSB_JOBINDEX" ]; then',
+        'if [ "$LSB_JOBINDEX" != "0" ] && [ -n "$LSB_JOBINDEX" ]; then',
         '    export SUBMITIT_LSF_ARRAY_JOB_ID="$LSB_JOBID"',
         '    export SUBMITIT_LSF_ARRAY_TASK_ID="$LSB_JOBINDEX"',
         "fi",
@@ -610,4 +614,3 @@ def _convert_mem(mem_gb: float) -> str:
     if mem_gb == int(mem_gb):
         return f"{int(mem_gb)}G"
     return f"{int(mem_gb * 1024)}M"
-

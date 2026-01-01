@@ -81,7 +81,7 @@ with executor.batch():
     jobs = [executor.submit(my_function, i, i+1) for i in range(100)]
 ```
 
-LSF arrays use 0-based indexing by default. The job IDs follow submitit's convention: `{array_job_id}_{array_index}`.
+LSF arrays use 1-based indexing. The job IDs follow submitit's convention: `{array_job_id}_{array_index}`, where `array_index` starts at 1.
 
 ## Checkpointing and Requeue
 
