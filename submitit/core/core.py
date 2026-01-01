@@ -740,7 +740,8 @@ class Executor(abc.ABC):
     @abc.abstractmethod
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]
-    ) -> tp.List[Job[tp.Any]]: ...
+    ) -> tp.List[Job[tp.Any]]:
+        ...
 
     def map_array(self, fn: tp.Callable[..., R], *iterable: tp.Iterable[tp.Any]) -> tp.List[Job[R]]:
         """A distributed equivalent of the map() built-in function

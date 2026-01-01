@@ -1,9 +1,3 @@
-# Copyright (c) Facebook, Inc. and its affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
-#
-
 import functools
 import os
 import re
@@ -70,6 +64,7 @@ class LsfInfoWatcher(core.InfoWatcher):
         info = self.get_info(job_id, mode=mode)
         return info.get("State") or "UNKNOWN"
 
+    # pylint: disable=too-many-branches
     def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
         """Reads the output of bjobs and returns a dictionary containing main information.
 
@@ -92,41 +87,53 @@ class LsfInfoWatcher(core.InfoWatcher):
 
             # Preferred 3-column format: JOBID JOBINDEX STAT
             if len(parts) >= 3:
-                job_id_raw = parts[0]
-                job_index = parts[1]
-                state_raw = parts[2]
-                state = self._normalize_state(state_raw)
-
-                # JOBINDEX=0 means non-array job, JOBINDEX>0 means array element (1-based)
-                if job_index == "0":
-                    all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
-                else:
-                    submitit_job_id = f"{job_id_raw}_{job_index}"
-                    all_stats[submitit_job_id] = {"JobID": f"{job_id_raw}[{job_index}]", "State": state}
-                    # Also store under the main ID for queries that don't specify index
-                    if job_id_raw not in all_stats:
-                        all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
+                self._parse_three_column_format(parts, all_stats)
                 continue
 
             # Fallback 2-column format: JOBID STAT (legacy or bracket format)
             if len(parts) == 2:
-                job_id_raw = parts[0]
-                state_raw = parts[1]
-                state = self._normalize_state(state_raw)
-
-                if "[" in job_id_raw:
-                    match = re.match(r"(\d+)\[(\d+)\]", job_id_raw)
-                    if match:
-                        main_id = match.group(1)
-                        array_idx = match.group(2)
-                        submitit_job_id = f"{main_id}_{array_idx}"
-                        all_stats[submitit_job_id] = {"JobID": job_id_raw, "State": state}
-                        if main_id not in all_stats:
-                            all_stats[main_id] = {"JobID": job_id_raw, "State": state}
-                else:
-                    all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
+                self._parse_two_column_format(parts, all_stats)
 
         return all_stats
+
+    def _parse_three_column_format(
+        self, parts: tp.List[str], all_stats: tp.Dict[str, tp.Dict[str, str]]
+    ) -> None:
+        """Parse 3-column bjobs output: JOBID JOBINDEX STAT."""
+        job_id_raw = parts[0]
+        job_index = parts[1]
+        state_raw = parts[2]
+        state = self._normalize_state(state_raw)
+
+        # JOBINDEX=0 means non-array job, JOBINDEX>0 means array element (1-based)
+        if job_index == "0":
+            all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
+        else:
+            submitit_job_id = f"{job_id_raw}_{job_index}"
+            all_stats[submitit_job_id] = {"JobID": f"{job_id_raw}[{job_index}]", "State": state}
+            # Also store under the main ID for queries that don't specify index
+            if job_id_raw not in all_stats:
+                all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
+
+    def _parse_two_column_format(
+        self, parts: tp.List[str], all_stats: tp.Dict[str, tp.Dict[str, str]]
+    ) -> None:
+        """Parse 2-column bjobs output: JOBID STAT (legacy or bracket format)."""
+        job_id_raw = parts[0]
+        state_raw = parts[1]
+        state = self._normalize_state(state_raw)
+
+        if "[" in job_id_raw:
+            match = re.match(r"(\d+)\[(\d+)\]", job_id_raw)
+            if match:
+                main_id = match.group(1)
+                array_idx = match.group(2)
+                submitit_job_id = f"{main_id}_{array_idx}"
+                all_stats[submitit_job_id] = {"JobID": job_id_raw, "State": state}
+                if main_id not in all_stats:
+                    all_stats[main_id] = {"JobID": job_id_raw, "State": state}
+        else:
+            all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
 
     @staticmethod
     def _normalize_state(lsf_state: str) -> str:
@@ -153,7 +160,7 @@ class LsfJob(core.Job[core.R]):
     _cancel_command = "bkill"
     watcher = LsfInfoWatcher(delay_s=60)
 
-    def _interrupt(self, timeout: bool = False) -> None:
+    def _interrupt(self, timeout: bool = False) -> None:  # pylint: disable=unused-argument
         """Sends preemption or timeout signal to the job (for testing purpose)
 
         Parameter
@@ -167,8 +174,6 @@ class LsfJob(core.Job[core.R]):
 
 class LsfParseException(Exception):
     """Exception raised when parsing LSF output fails."""
-
-    pass
 
 
 class LsfJobEnvironment(job_environment.JobEnvironment):
@@ -340,7 +345,8 @@ class LsfExecutor(core.PicklingExecutor):
         tasks_ids = list(range(first_job.num_tasks))
         jobs: tp.List[core.Job[tp.Any]] = [
             # LSF arrays are 1-based, so indices go from 1 to n
-            LsfJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(1, n + 1)
+            LsfJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids)
+            for a in range(1, n + 1)
         ]
         for job, pickle_path in zip(jobs, pickle_paths):
             job.paths.move_temporary_file(pickle_path, "submitted_pickle")
@@ -421,7 +427,7 @@ def _get_default_parameters() -> tp.Dict[str, tp.Any]:
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
-# pylint: disable=too-many-arguments,unused-argument,too-many-locals
+# pylint: disable=too-many-arguments,unused-argument,too-many-locals,too-many-branches,too-many-statements
 def _make_bsub_string(
     command: str,
     folder: tp.Union[str, Path],
@@ -572,15 +578,15 @@ def _make_bsub_string(
     # Many LSF installations expect -wt in minutes (and don't accept a seconds suffix like '90s').
     # Use ceil(minutes) so that e.g. 90s becomes 2 minutes.
     warn_min = max(1, (signal_delay_s + 59) // 60)
-    lines.append(f"#BSUB -wt '{warn_min}'")
-    lines.append(f"#BSUB -wa 'USR2'")
+    lines.append("#BSUB -wt '" + str(warn_min) + "'")
+    lines.append("#BSUB -wa 'USR2'")
 
     # Additional parameters (escape hatch)
     if additional_parameters is not None:
         for key, value in additional_parameters.items():
             if isinstance(value, bool):
                 if value:
-                    lines.append(f"#BSUB -{key}")
+                    lines.append("#BSUB -" + key)
             else:
                 lines.append(f"#BSUB -{key} {shlex.quote(str(value))}")
 

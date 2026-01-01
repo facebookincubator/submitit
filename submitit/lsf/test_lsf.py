@@ -1,5 +1,6 @@
 import contextlib
 import os
+import re
 import signal
 import typing as tp
 from pathlib import Path
@@ -56,14 +57,14 @@ class MockedLsfSubprocess:
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def bjobs(self, args: tp.Sequence[str]) -> str:
+    def bjobs(self, args: tp.Sequence[str]) -> str:  # pylint: disable=unused-argument
         # Return status for all tracked jobs in format: "JOBID JOBINDEX STAT"
         lines = []
         for (job_id, job_index), state in self.job_bjobs.items():
             lines.append(f"{job_id} {job_index} {state}")
         return "\n".join(lines)
 
-    def bsub(self, args: tp.Sequence[str]) -> str:
+    def bsub(self, args: tp.Sequence[str]) -> str:  # pylint: disable=unused-argument
         """Create a "RUN" job from command line args."""
         return self._create_job()
 
@@ -74,8 +75,6 @@ class MockedLsfSubprocess:
         array_match = None
         for line in content.splitlines():
             if "#BSUB -J" in line and "[" in line:
-                import re
-
                 array_match = re.search(r"\[(\d+)-(\d+)\]", line)
                 break
 
@@ -339,7 +338,7 @@ def test_make_bsub_string() -> None:
 
 def test_make_bsub_string_gpu() -> None:
     string = lsf._make_bsub_string(command="blublu", folder="/tmp", gpus_per_node=2)
-    assert 'num=2' in string
+    assert "num=2" in string
 
 
 def test_make_bsub_stderr() -> None:
@@ -556,4 +555,3 @@ def test_parse_real_bjobs_output_mixed_states() -> None:
     assert output["316693_2"] == {"JobID": "316693[2]", "State": "RUNNING"}
     assert output["316693_3"] == {"JobID": "316693[3]", "State": "COMPLETED"}
     assert output["317063"] == {"JobID": "317063", "State": "FAILED"}
-

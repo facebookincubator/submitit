@@ -12,6 +12,7 @@ These tests are SKIPPED by default. To run them:
 2. Run tests:
    python -m pytest submitit/lsf/test_lsf_integration.py -v
 """
+# pylint: disable=redefined-outer-name
 import os
 import shutil
 import subprocess
@@ -56,7 +57,7 @@ def _get_timeout() -> int:
 
 def _wait_for_job(job: submitit.Job, max_wait_s: int = 300) -> str:
     """Wait for a job to finish, polling bjobs directly.
-    
+
     Returns the final state.
     """
     job_id = job.job_id.split("_")[0]  # Get main job ID for arrays
@@ -66,6 +67,7 @@ def _wait_for_job(job: submitit.Job, max_wait_s: int = 300) -> str:
             ["bjobs", "-o", "JOBID JOBINDEX STAT", "-noheader", job_id],
             capture_output=True,
             text=True,
+            check=False,
         )
         output = result.stdout.strip()
         if not output:
@@ -81,7 +83,7 @@ def _wait_for_job(job: submitit.Job, max_wait_s: int = 300) -> str:
 
 
 @pytest.fixture
-def test_folder(tmp_path: Path) -> tp.Generator[Path, None, None]:
+def test_folder() -> tp.Generator[Path, None, None]:
     """Create a unique test folder under the configured LSF test folder."""
     base_folder = _get_test_folder()
     folder = base_folder / f"test_{os.getpid()}_{int(time.time())}"
@@ -160,8 +162,9 @@ def test_lsf_cancel_cpu(test_folder: Path) -> None:
         pytest.skip("bsub not found in PATH")
 
     def long_sleep(x: int) -> int:
-        import time
-        time.sleep(600)
+        import time as time_mod  # pylint: disable=reimported,import-outside-toplevel
+
+        time_mod.sleep(600)
         return x
 
     executor = submitit.AutoExecutor(folder=test_folder, cluster="lsf")
@@ -197,8 +200,9 @@ def test_lsf_gpu_request(test_folder: Path) -> None:
         pytest.skip("bsub not found in PATH")
 
     def check_gpu() -> str:
-        import subprocess
-        result = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True)
+        import subprocess as sp  # pylint: disable=reimported,import-outside-toplevel
+
+        result = sp.run(["nvidia-smi", "-L"], capture_output=True, text=True, check=False)
         return result.stdout
 
     executor = submitit.AutoExecutor(folder=test_folder, cluster="lsf")
@@ -223,7 +227,7 @@ def test_lsf_gpu_request(test_folder: Path) -> None:
 )
 def test_lsf_checkpoint_requeue(test_folder: Path) -> None:
     """Test checkpoint and requeue functionality.
-    
+
     This test submits a checkpointable job, sends SIGUSR2 to trigger
     checkpoint, and verifies the job is requeued.
     """
@@ -235,14 +239,16 @@ def test_lsf_checkpoint_requeue(test_folder: Path) -> None:
             self.count = 0
 
         def __call__(self, max_count: int) -> int:
-            import time
+            import time as time_mod  # pylint: disable=reimported,import-outside-toplevel
+
             while self.count < max_count:
                 self.count += 1
-                time.sleep(1)
+                time_mod.sleep(1)
             return self.count
 
-        def checkpoint(self, max_count: int) -> submitit.helpers.DelayedSubmission:
-            return submitit.helpers.DelayedSubmission(self, max_count)
+        def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> submitit.helpers.DelayedSubmission:
+            # args[0] is max_count when called
+            return submitit.helpers.DelayedSubmission(self, *args, **kwargs)
 
     executor = submitit.AutoExecutor(folder=test_folder, cluster="lsf")
     params: tp.Dict[str, tp.Any] = {
@@ -284,4 +290,3 @@ def test_lsf_checkpoint_requeue(test_folder: Path) -> None:
     except utils.UncompletedJobError as e:
         # May fail if requeue didn't work, which is OK for this test
         pytest.skip(f"Job did not complete after checkpoint: {e}")
-
