@@ -162,9 +162,7 @@ def test_lsf_cancel_cpu(test_folder: Path) -> None:
         pytest.skip("bsub not found in PATH")
 
     def long_sleep(x: int) -> int:
-        import time as time_mod  # pylint: disable=reimported,import-outside-toplevel
-
-        time_mod.sleep(600)
+        time.sleep(600)
         return x
 
     executor = submitit.AutoExecutor(folder=test_folder, cluster="lsf")
@@ -200,9 +198,7 @@ def test_lsf_gpu_request(test_folder: Path) -> None:
         pytest.skip("bsub not found in PATH")
 
     def check_gpu() -> str:
-        import subprocess as sp  # pylint: disable=reimported,import-outside-toplevel
-
-        result = sp.run(["nvidia-smi", "-L"], capture_output=True, text=True, check=False)
+        result = subprocess.run(["nvidia-smi", "-L"], capture_output=True, text=True, check=False)
         return result.stdout
 
     executor = submitit.AutoExecutor(folder=test_folder, cluster="lsf")
@@ -239,11 +235,9 @@ def test_lsf_checkpoint_requeue(test_folder: Path) -> None:
             self.count = 0
 
         def __call__(self, max_count: int) -> int:
-            import time as time_mod  # pylint: disable=reimported,import-outside-toplevel
-
             while self.count < max_count:
                 self.count += 1
-                time_mod.sleep(1)
+                time.sleep(1)
             return self.count
 
         def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> submitit.helpers.DelayedSubmission:

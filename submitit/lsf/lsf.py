@@ -1,3 +1,6 @@
+# pylint: disable=duplicate-code
+# LSF executor intentionally mirrors Slurm patterns for consistency.
+
 import functools
 import os
 import re
@@ -64,7 +67,6 @@ class LsfInfoWatcher(core.InfoWatcher):
         info = self.get_info(job_id, mode=mode)
         return info.get("State") or "UNKNOWN"
 
-    # pylint: disable=too-many-branches
     def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
         """Reads the output of bjobs and returns a dictionary containing main information.
 
@@ -160,7 +162,7 @@ class LsfJob(core.Job[core.R]):
     _cancel_command = "bkill"
     watcher = LsfInfoWatcher(delay_s=60)
 
-    def _interrupt(self, timeout: bool = False) -> None:  # pylint: disable=unused-argument
+    def _interrupt(self, timeout: bool = False) -> None:
         """Sends preemption or timeout signal to the job (for testing purpose)
 
         Parameter
@@ -168,8 +170,10 @@ class LsfJob(core.Job[core.R]):
         timeout: bool
             Whether to trigger a job time-out (if False, it triggers preemption)
         """
-        cmd = ["bkill", "-s", LsfJobEnvironment.USR_SIG, self.job_id]
-        subprocess.check_call(cmd)
+        # In case of preemption, SIGTERM is sent first (same as Slurm behavior)
+        if not timeout:
+            subprocess.check_call(["bkill", "-s", "SIGTERM", self.job_id])
+        subprocess.check_call(["bkill", "-s", LsfJobEnvironment.USR_SIG, self.job_id])
 
 
 class LsfParseException(Exception):
@@ -427,7 +431,110 @@ def _get_default_parameters() -> tp.Dict[str, tp.Any]:
     return {key: val for key, val in zipped if key not in {"command", "folder", "map_count"}}
 
 
-# pylint: disable=too-many-arguments,unused-argument,too-many-locals,too-many-branches,too-many-statements
+def _bsub_job_name_directive(
+    job_name: str, map_count: tp.Optional[int], array_parallelism: int
+) -> tp.Tuple[str, bool]:
+    """Generate the job name BSUB directive.
+
+    Returns (directive_line, is_array_job).
+    """
+    if map_count is not None:
+        # Array job: use LSF array syntax (1-based indexing)
+        array_spec = f"[1-{map_count}]"
+        if array_parallelism < map_count:
+            array_spec = f"[1-{map_count}]%{array_parallelism}"
+        return f'#BSUB -J "{job_name}{array_spec}"', True
+    return f'#BSUB -J "{job_name}"', False
+
+
+def _bsub_time_directive(time_min: int) -> str:
+    """Generate the wall time BSUB directive in HH:MM format."""
+    hours = time_min // 60
+    mins = time_min % 60
+    return f"#BSUB -W {hours}:{mins:02d}"
+
+
+def _bsub_resource_directives(**kwargs: tp.Any) -> tp.List[str]:
+    """Generate resource-related BSUB directives.
+
+    Accepts: nodes, cpus_per_task, gpus_per_node, mem, account, constraint, exclude, comment
+    """
+    lines: tp.List[str] = []
+    nodes = kwargs.get("nodes")
+    if nodes is not None and nodes > 1:
+        lines.append(f"#BSUB -nnodes {nodes}")
+    cpus_per_task = kwargs.get("cpus_per_task")
+    if cpus_per_task is not None:
+        lines.append(f"#BSUB -n {cpus_per_task}")
+    gpus_per_node = kwargs.get("gpus_per_node")
+    if gpus_per_node is not None:
+        lines.append(f'#BSUB -gpu "num={gpus_per_node}"')
+    mem = kwargs.get("mem")
+    if mem is not None:
+        lines.append(f"#BSUB -M {mem}")
+    account = kwargs.get("account")
+    if account is not None:
+        lines.append(f"#BSUB -P {account}")
+    constraint = kwargs.get("constraint")
+    if constraint is not None:
+        lines.append(f'#BSUB -R "{constraint}"')
+    exclude = kwargs.get("exclude")
+    if exclude is not None:
+        lines.append(f"#BSUB -R \"select[hname!='{exclude}']\"")
+    comment = kwargs.get("comment")
+    if comment is not None:
+        lines.append(f'#BSUB -Jd "{comment}"')
+    return lines
+
+
+def _bsub_warning_directives(signal_delay_s: int) -> tp.List[str]:
+    """Generate warning signal BSUB directives.
+
+    LSF uses -wa for warning action and -wt for warning time.
+    Many LSF installations expect -wt in minutes (not seconds).
+    Use ceil(minutes) so that e.g. 90s becomes 2 minutes.
+    """
+    warn_min = max(1, (signal_delay_s + 59) // 60)
+    return [f"#BSUB -wt '{warn_min}'", "#BSUB -wa 'USR2'"]
+
+
+def _bsub_additional_parameters_directives(
+    additional_parameters: tp.Optional[tp.Dict[str, tp.Any]]
+) -> tp.List[str]:
+    """Generate directives from additional_parameters escape hatch."""
+    if additional_parameters is None:
+        return []
+    lines: tp.List[str] = []
+    for key, value in additional_parameters.items():
+        if isinstance(value, bool) and value:
+            lines.append("#BSUB -" + key)
+        elif not isinstance(value, bool):
+            lines.append(f"#BSUB -{key} {shlex.quote(str(value))}")
+    return lines
+
+
+def _bsub_env_setup_lines() -> tp.List[str]:
+    """Generate environment setup lines including array job handling."""
+    return [
+        "",
+        "# Environment setup",
+        "export SUBMITIT_EXECUTOR=lsf",
+        "export SUBMITIT_LSF_NTASKS=1",
+        "export SUBMITIT_LSF_NNODES=1",
+        "export SUBMITIT_LSF_NODEID=0",
+        "export SUBMITIT_LSF_GLOBAL_RANK=0",
+        "export SUBMITIT_LSF_LOCAL_RANK=0",
+        "",
+        "# Handle array jobs",
+        # LSF sets LSB_JOBINDEX=0 for non-array jobs.
+        'if [ "$LSB_JOBINDEX" != "0" ] && [ -n "$LSB_JOBINDEX" ]; then',
+        '    export SUBMITIT_LSF_ARRAY_JOB_ID="$LSB_JOBID"',
+        '    export SUBMITIT_LSF_ARRAY_TASK_ID="$LSB_JOBINDEX"',
+        "fi",
+    ]
+
+
+# pylint: disable=too-many-arguments,unused-argument,too-many-locals
 def _make_bsub_string(
     command: str,
     folder: tp.Union[str, Path],
@@ -479,153 +586,61 @@ def _make_bsub_string(
     ValueError
         In case an erroneous keyword argument is added
     """
-    nonlsf = [
-        "nonlsf",
-        "folder",
-        "command",
-        "map_count",
-        "array_parallelism",
-        "additional_parameters",
-        "setup",
-        "teardown",
-        "signal_delay_s",
-        "stderr_to_stdout",
-    ]
-    parameters = {k: v for k, v in locals().items() if v is not None and k not in nonlsf}
-
     # Build the bsub script
     paths = utils.JobPaths(folder=folder)
-    stdout = str(paths.stdout)
-    stderr = str(paths.stderr)
-
-    # Convert submitit path placeholders to LSF placeholders
-    # submitit uses %j for job id and %t for task id
-    # LSF uses %J for job id and %I for array index
-    stdout = stdout.replace("%j", "%J").replace("%t", "0")
-    stderr = stderr.replace("%j", "%J").replace("%t", "0")
+    stdout = str(paths.stdout).replace("%j", "%J").replace("%t", "0")
+    stderr = str(paths.stderr).replace("%j", "%J").replace("%t", "0")
 
     lines = ["#!/bin/bash", "", "# BSUB directives"]
 
-    # Job name
-    if "job_name" in parameters:
-        job_name_val = parameters.pop("job_name")
-        if map_count is not None:
-            # Array job: use LSF array syntax (1-based indexing)
-            array_spec = f"[1-{map_count}]"
-            if array_parallelism < map_count:
-                array_spec = f"[1-{map_count}]%{array_parallelism}"
-            lines.append(f'#BSUB -J "{job_name_val}{array_spec}"')
-            # For arrays, include %I in output paths
-            stdout = stdout.replace("%J", "%J_%I")
-            stderr = stderr.replace("%J", "%J_%I")
-        else:
-            lines.append(f'#BSUB -J "{job_name_val}"')
+    # Job name and array handling
+    job_name_line, is_array = _bsub_job_name_directive(job_name, map_count, array_parallelism)
+    lines.append(job_name_line)
+    if is_array:
+        stdout = stdout.replace("%J", "%J_%I")
+        stderr = stderr.replace("%J", "%J_%I")
 
     # Queue
-    if "queue" in parameters:
-        lines.append(f'#BSUB -q {parameters.pop("queue")}')
+    if queue is not None:
+        lines.append(f"#BSUB -q {queue}")
 
-    # Time limit (LSF uses -W for wall time in minutes or HH:MM format)
-    if "time" in parameters:
-        time_min = parameters.pop("time")
-        hours = time_min // 60
-        mins = time_min % 60
-        lines.append(f"#BSUB -W {hours}:{mins:02d}")
+    # Time limit
+    lines.append(_bsub_time_directive(time))
 
-    # Nodes
-    if "nodes" in parameters:
-        n = parameters.pop("nodes")
-        if n > 1:
-            lines.append(f"#BSUB -nnodes {n}")
-
-    # CPUs per task
-    if "cpus_per_task" in parameters:
-        lines.append(f'#BSUB -n {parameters.pop("cpus_per_task")}')
-
-    # GPUs per node
-    if "gpus_per_node" in parameters:
-        gpu_count = parameters.pop("gpus_per_node")
-        # LSF GPU syntax varies by installation, common format:
-        lines.append(f'#BSUB -gpu "num={gpu_count}"')
-
-    # Memory
-    if "mem" in parameters:
-        lines.append(f'#BSUB -M {parameters.pop("mem")}')
-
-    # Account/project
-    if "account" in parameters:
-        lines.append(f'#BSUB -P {parameters.pop("account")}')
-
-    # Constraint (LSF uses -R for resource requirements)
-    if "constraint" in parameters:
-        lines.append(f'#BSUB -R "{parameters.pop("constraint")}"')
-
-    # Exclude hosts
-    if "exclude" in parameters:
-        lines.append(f'#BSUB -R "select[hname!=\'{parameters.pop("exclude")}\']"')
-
-    # Comment
-    if "comment" in parameters:
-        lines.append(f'#BSUB -Jd "{parameters.pop("comment")}"')
+    # Resource directives
+    lines.extend(
+        _bsub_resource_directives(
+            nodes=nodes,
+            cpus_per_task=cpus_per_task,
+            gpus_per_node=gpus_per_node,
+            mem=mem,
+            account=account,
+            constraint=constraint,
+            exclude=exclude,
+            comment=comment,
+        )
+    )
 
     # Output files
     lines.append(f"#BSUB -o {shlex.quote(stdout)}")
     if not stderr_to_stdout:
         lines.append(f"#BSUB -e {shlex.quote(stderr)}")
 
-    # Signal handling for checkpointing
-    # LSF uses -wa for warning action and -wt for warning time
-    # Many LSF installations expect -wt in minutes (and don't accept a seconds suffix like '90s').
-    # Use ceil(minutes) so that e.g. 90s becomes 2 minutes.
-    warn_min = max(1, (signal_delay_s + 59) // 60)
-    lines.append("#BSUB -wt '" + str(warn_min) + "'")
-    lines.append("#BSUB -wa 'USR2'")
+    # Warning signal directives
+    lines.extend(_bsub_warning_directives(signal_delay_s))
 
     # Additional parameters (escape hatch)
-    if additional_parameters is not None:
-        for key, value in additional_parameters.items():
-            if isinstance(value, bool):
-                if value:
-                    lines.append("#BSUB -" + key)
-            else:
-                lines.append(f"#BSUB -{key} {shlex.quote(str(value))}")
-
-    # Handle remaining parameters
-    for key in list(parameters.keys()):
-        if key == "ntasks_per_node":
-            # LSF doesn't have a direct equivalent; handled via -n
-            parameters.pop(key)
-            continue
+    lines.extend(_bsub_additional_parameters_directives(additional_parameters))
 
     # Environment setup
-    lines += [
-        "",
-        "# Environment setup",
-        "export SUBMITIT_EXECUTOR=lsf",
-        "export SUBMITIT_LSF_NTASKS=1",
-        "export SUBMITIT_LSF_NNODES=1",
-        "export SUBMITIT_LSF_NODEID=0",
-        "export SUBMITIT_LSF_GLOBAL_RANK=0",
-        "export SUBMITIT_LSF_LOCAL_RANK=0",
-        "",
-        "# Handle array jobs",
-        # LSF sets LSB_JOBINDEX=0 for non-array jobs.
-        'if [ "$LSB_JOBINDEX" != "0" ] && [ -n "$LSB_JOBINDEX" ]; then',
-        '    export SUBMITIT_LSF_ARRAY_JOB_ID="$LSB_JOBID"',
-        '    export SUBMITIT_LSF_ARRAY_TASK_ID="$LSB_JOBINDEX"',
-        "fi",
-    ]
+    lines.extend(_bsub_env_setup_lines())
 
     # User setup commands
     if setup is not None:
         lines += ["", "# User setup"] + setup
 
     # Main command
-    lines += [
-        "",
-        "# Main command",
-        command,
-    ]
+    lines += ["", "# Main command", command]
 
     # User teardown commands
     if teardown is not None:

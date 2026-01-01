@@ -64,7 +64,6 @@ skip_gitignore = true
   # * no-member has a lot of false positive, mypy does it better
   disable = """
       broad-except,
-      duplicate-code,
       fixme,
       invalid-name,
       logging-fstring-interpolation,

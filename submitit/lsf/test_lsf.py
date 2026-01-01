@@ -1,3 +1,6 @@
+# pylint: disable=duplicate-code
+# LSF tests intentionally mirror Slurm test patterns for consistency.
+
 import contextlib
 import os
 import re
@@ -57,14 +60,14 @@ class MockedLsfSubprocess:
         else:
             raise ValueError(f'Unknown command to mock "{command}".')
 
-    def bjobs(self, args: tp.Sequence[str]) -> str:  # pylint: disable=unused-argument
+    def bjobs(self, _: tp.Sequence[str]) -> str:
         # Return status for all tracked jobs in format: "JOBID JOBINDEX STAT"
         lines = []
         for (job_id, job_index), state in self.job_bjobs.items():
             lines.append(f"{job_id} {job_index} {state}")
         return "\n".join(lines)
 
-    def bsub(self, args: tp.Sequence[str]) -> str:  # pylint: disable=unused-argument
+    def bsub(self, _: tp.Sequence[str]) -> str:
         """Create a "RUN" job from command line args."""
         return self._create_job()
 
@@ -162,6 +165,27 @@ def test_job_environment() -> None:
         mock.set_job_state("12", "RUN")
         with mock.job_context("12"):
             assert job_environment.JobEnvironment().cluster == "lsf"
+
+
+def test_interrupt_preemption_vs_timeout(tmp_path: Path) -> None:
+    """Test that _interrupt sends correct signals for preemption vs timeout."""
+    with mocked_lsf() as mock:
+        mock.set_job_state("12", "RUN")
+        job: lsf.LsfJob[None] = lsf.LsfJob(tmp_path, "12")
+
+        # Test preemption (timeout=False): should send SIGTERM then USR2
+        with patch("submitit.lsf.lsf.subprocess.check_call") as mock_call:
+            job._interrupt(timeout=False)
+            assert mock_call.call_count == 2
+            calls = mock_call.call_args_list
+            assert calls[0][0][0] == ["bkill", "-s", "SIGTERM", "12"]
+            assert calls[1][0][0] == ["bkill", "-s", lsf.LsfJobEnvironment.USR_SIG, "12"]
+
+        # Test timeout (timeout=True): should send only USR2
+        with patch("submitit.lsf.lsf.subprocess.check_call") as mock_call:
+            job._interrupt(timeout=True)
+            assert mock_call.call_count == 1
+            assert mock_call.call_args[0][0] == ["bkill", "-s", lsf.LsfJobEnvironment.USR_SIG, "12"]
 
 
 def test_lsf_job_mocked(tmp_path: Path) -> None:
@@ -344,6 +368,60 @@ def test_make_bsub_string_gpu() -> None:
 def test_make_bsub_stderr() -> None:
     string = lsf._make_bsub_string(command="blublu", folder="/tmp", stderr_to_stdout=True)
     assert "#BSUB -e" not in string
+
+
+def test_make_bsub_array_job_name() -> None:
+    """Test that array job names use 1-based indexing [1-N] and parallelism limit."""
+    # Array job without parallelism limit
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp", job_name="test_job", map_count=5)
+    assert '#BSUB -J "test_job[1-5]"' in string
+    # Output should include %I for array index
+    assert "%J_%I" in string
+
+    # Array job with parallelism limit (array_parallelism < map_count)
+    string = lsf._make_bsub_string(
+        command="cmd", folder="/tmp", job_name="test_job", map_count=10, array_parallelism=3
+    )
+    assert '#BSUB -J "test_job[1-10]%3"' in string
+
+
+def test_make_bsub_warning_time_minutes() -> None:
+    """Test that -wt uses minutes with ceiling (e.g., 90s -> 2 min)."""
+    # 90 seconds should become 2 minutes (ceil(90/60) = 2)
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp", signal_delay_s=90)
+    assert "#BSUB -wt '2'" in string
+
+    # 60 seconds should become 1 minute
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp", signal_delay_s=60)
+    assert "#BSUB -wt '1'" in string
+
+    # 30 seconds should still become 1 minute (minimum)
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp", signal_delay_s=30)
+    assert "#BSUB -wt '1'" in string
+
+
+def test_make_bsub_lsb_jobindex_handling() -> None:
+    """Test that LSB_JOBINDEX=0 handling is present for array job detection."""
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp")
+    # LSF sets LSB_JOBINDEX=0 for non-array jobs, so we check for both conditions
+    assert 'if [ "$LSB_JOBINDEX" != "0" ] && [ -n "$LSB_JOBINDEX" ]; then' in string
+    assert 'export SUBMITIT_LSF_ARRAY_JOB_ID="$LSB_JOBID"' in string
+    assert 'export SUBMITIT_LSF_ARRAY_TASK_ID="$LSB_JOBINDEX"' in string
+
+
+def test_make_bsub_additional_parameters() -> None:
+    """Test additional_parameters escape hatch: bool True and string values."""
+    # Bool True produces flag without value
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp", additional_parameters={"I": True})
+    assert "#BSUB -I" in string
+
+    # Bool False should not produce a line
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp", additional_parameters={"I": False})
+    assert "#BSUB -I" not in string
+
+    # String values are shell-quoted
+    string = lsf._make_bsub_string(command="cmd", folder="/tmp", additional_parameters={"m": "host1 host2"})
+    assert "#BSUB -m 'host1 host2'" in string
 
 
 def test_update_parameters(tmp_path: Path) -> None:
