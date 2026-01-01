@@ -15,6 +15,8 @@ from .local.debug import DebugExecutor as DebugExecutor
 from .local.debug import DebugJob as DebugJob
 from .local.local import LocalExecutor as LocalExecutor
 from .local.local import LocalJob as LocalJob
+from .lsf.lsf import LsfExecutor as LsfExecutor
+from .lsf.lsf import LsfJob as LsfJob
 from .slurm.slurm import SlurmExecutor as SlurmExecutor
 from .slurm.slurm import SlurmJob as SlurmJob
 

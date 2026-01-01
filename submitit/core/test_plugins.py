@@ -33,16 +33,18 @@ def test_executors(ex: tp.Type[core.Executor]) -> None:
 
 def test_finds_default_environments() -> None:
     envs = plugins.get_job_environments()
-    assert len(envs) >= 3
+    assert len(envs) >= 4
     assert "slurm" in envs
+    assert "lsf" in envs
     assert "local" in envs
     assert "debug" in envs
 
 
 def test_finds_default_executors() -> None:
     ex = plugins.get_executors()
-    assert len(ex) >= 3
+    assert len(ex) >= 4
     assert "slurm" in ex
+    assert "lsf" in ex
     assert "local" in ex
     assert "debug" in ex
 
@@ -128,7 +130,7 @@ class GoodJobEnvironment:
 
     executors = plugins.get_executors().keys()
     # Only the plugins declared with plugin_creator are visible.
-    assert set(executors) == {"good", "slurm", "local", "debug"}
+    assert set(executors) == {"good", "slurm", "lsf", "local", "debug"}
 
 
 def test_skip_bad_plugin(caplog, plugin_creator: PluginCreator) -> None:
@@ -152,7 +154,7 @@ class BadEnvironment:
     )
 
     executors = plugins.get_executors().keys()
-    assert {"slurm", "local", "debug"} == set(executors)
+    assert {"slurm", "lsf", "local", "debug"} == set(executors)
     assert "bad" not in executors
     expected = [
         (logging.ERROR, r"'submitit_bad'.*no attribute 'NonExisitingExecutor'"),

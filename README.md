@@ -6,10 +6,10 @@
 
 ## What is submitit?
 
-Submitit is a lightweight tool for submitting Python functions for computation within a Slurm cluster.
-It basically wraps submission and provide access to results, logs and more.
-[Slurm](https://slurm.schedmd.com/quickstart.html) is an open source, fault-tolerant, and highly scalable cluster management and job scheduling system for large and small Linux clusters.
-Submitit allows to switch seamlessly between executing on Slurm or locally.
+Submitit is a lightweight tool for submitting Python functions for computation within a Slurm or LSF cluster.
+It basically wraps submission and provides access to results, logs and more.
+[Slurm](https://slurm.schedmd.com/quickstart.html) and [LSF](https://www.ibm.com/docs/en/spectrum-lsf) are popular cluster management and job scheduling systems for Linux clusters.
+Submitit allows to switch seamlessly between executing on Slurm, LSF, or locally.
 
 ### An example is worth a thousand words: performing an addition
 
@@ -39,8 +39,8 @@ By default stdout is silenced in `CommandFunction`, but it can be unsilenced wit
 
 **Find more examples [here](docs/examples.md)!!!**
 
-Submitit is a Python 3.8+ toolbox for submitting jobs to Slurm.
-It aims at running python function from python code.
+Submitit is a Python 3.8+ toolbox for submitting jobs to Slurm or LSF.
+It aims at running python functions from python code.
 
 
 ## Install
@@ -64,24 +64,25 @@ You can try running the [MNIST example](docs/mnist.py) to check that everything 
 
 ## Documentation
 
-See the following pages for more detailled information:
+See the following pages for more detailed information:
 
 - [Examples](docs/examples.md): for a bunch of examples dealing with errors, concurrency, multi-tasking etc...
 - [Structure and main objects](docs/structure.md): to get a better understanding of how `submitit` works, which files are created for each job, and the main objects you will interact with.
 - [Checkpointing](docs/checkpointing.md): to understand how you can configure your job to get checkpointed when preempted and/or timed-out.
+- [LSF support](docs/lsf.md): for information specific to running on LSF clusters.
 - [Tips and caveats](docs/tips.md): for a bunch of information that can be handy when working with `submitit`.
 - [Hyperparameter search with nevergrad](docs/nevergrad.md): basic example of `nevergrad` usage and how it interfaces with `submitit`.
 
 
 ### Goals
 
-The aim of this Python3 package is to be able to launch jobs on Slurm painlessly from *inside Python*, using the same submission and job patterns than the standard library package `concurrent.futures`:
+The aim of this Python3 package is to be able to launch jobs on Slurm or LSF painlessly from *inside Python*, using the same submission and job patterns as the standard library package `concurrent.futures`:
 
 Here are a few benefits of using this lightweight package:
  - submit any function, even lambda and script-defined functions.
  - raises an error with stack trace if the job failed.
- - requeue preempted jobs (Slurm only)
- - swap between `submitit` executor and one of `concurrent.futures` executors in a line, so that it is easy to run your code either on slurm, or locally with multithreading for instance.
+ - requeue preempted jobs (Slurm and LSF)
+ - swap between `submitit` executor and one of `concurrent.futures` executors in a line, so that it is easy to run your code either on Slurm, LSF, or locally with multithreading for instance.
  - checkpoints stateful callables when preempted or timed-out and requeue from current state (advanced feature).
  - easy access to task local/global rank for multi-nodes/tasks jobs.
  - same code can work for different clusters thanks to a plugin system.

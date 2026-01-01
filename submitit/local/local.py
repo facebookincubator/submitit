@@ -268,7 +268,11 @@ def start_controller(
     proc_cmd: tp.Any = [sys.executable, "-m", "submitit.local._local", str(folder)]
     need_shell = bool(setup)
     if need_shell:
-        proc_cmd = " && ".join(list(setup) + [shlex.join(proc_cmd)])
+        # When `shell=True`, some shells may `exec` the last process. This breaks the PID linkage
+        # between the `LocalJob` (which uses `process.pid`) and the controller/tasks (which use
+        # the parent PID to name files). Appending a trailing shell command prevents `exec`,
+        # keeping the shell process alive as the parent of the controller.
+        proc_cmd = " && ".join(list(setup) + [shlex.join(proc_cmd)]) + "; exit $?"
     process = subprocess.Popen(proc_cmd, shell=need_shell, env=env)
     return process
 
