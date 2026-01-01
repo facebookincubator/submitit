@@ -156,6 +156,43 @@ def test_lsf_map_array_cpu(test_folder: Path) -> None:
     assert results == [5, 7, 9]
 
 
+def _wait_for_job_cancelled(job: submitit.Job, max_wait_s: int = 120) -> str:
+    """Wait for a job to be cancelled/exit, polling bjobs directly.
+
+    Returns the final state from bjobs (or 'GONE' if job no longer exists).
+    """
+    job_id = job.job_id.split("_")[0]  # Get main job ID for arrays
+    start = time.time()
+    while time.time() - start < max_wait_s:
+        result = subprocess.run(
+            ["bjobs", "-o", "JOBID JOBINDEX STAT", "-noheader", job_id],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        output = result.stdout.strip()
+        if not output:
+            # Job no longer exists in bjobs
+            return "GONE"
+        # Check if the job is no longer RUN/PEND
+        lines = output.splitlines()
+        # Look for the specific job (in case of arrays)
+        for line in lines:
+            parts = line.split()
+            if len(parts) >= 3:
+                stat = parts[2]
+                if stat not in ("RUN", "PEND", "PSUSP", "USUSP", "SSUSP"):
+                    return stat
+            elif len(parts) >= 2:
+                # Non-array: JOBID STAT
+                stat = parts[1]
+                if stat not in ("RUN", "PEND", "PSUSP", "USUSP", "SSUSP"):
+                    return stat
+        time.sleep(3)
+    # Timeout - return current bjobs state
+    return "TIMEOUT"
+
+
 def test_lsf_cancel_cpu(test_folder: Path) -> None:
     """Test job cancellation."""
     if shutil.which("bsub") is None:
@@ -181,11 +218,10 @@ def test_lsf_cancel_cpu(test_folder: Path) -> None:
 
     # Cancel the job
     job.cancel()
-    time.sleep(5)
 
-    # Verify it's no longer running
-    final_state = job.state
-    assert final_state != "RUNNING", f"Job still running after cancel: {final_state}"
+    # Poll bjobs directly (not job.state) to verify cancellation
+    final_state = _wait_for_job_cancelled(job, max_wait_s=120)
+    assert final_state not in ("RUN", "PEND", "TIMEOUT"), f"Job not cancelled properly: {final_state}"
 
 
 @pytest.mark.skipif(
@@ -244,11 +280,9 @@ def test_lsf_checkpoint_requeue(test_folder: Path) -> None:
             # args[0] is max_count when called
             return submitit.helpers.DelayedSubmission(self, *args, **kwargs)
 
-    executor = submitit.AutoExecutor(folder=test_folder, cluster="lsf")
-    params: tp.Dict[str, tp.Any] = {
-        "timeout_min": _get_timeout(),
-        "lsf_max_num_timeout": 2,
-    }
+    # lsf_max_num_timeout is a constructor parameter, not an update_parameters parameter
+    executor = submitit.AutoExecutor(folder=test_folder, cluster="lsf", lsf_max_num_timeout=2)
+    params: tp.Dict[str, tp.Any] = {"timeout_min": _get_timeout()}
     if _get_queue():
         params["lsf_queue"] = _get_queue()
     executor.update_parameters(**params)
