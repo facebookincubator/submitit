@@ -50,6 +50,7 @@ class LsfInfoWatcher(core.InfoWatcher):
             return None
         # Use bjobs with specific output format for easier parsing
         # -o specifies output format, -noheader removes header line
+        # JOBINDEX is needed to distinguish array job elements
         command = ["bjobs", "-o", "JOBID JOBINDEX STAT", "-noheader"]
         for jid in to_check:
             command.append(str(jid))
@@ -70,9 +71,9 @@ class LsfInfoWatcher(core.InfoWatcher):
         return info.get("State") or "UNKNOWN"
 
     def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
-        """Reads the output of bjobs -o 'JOBID JOBINDEX STAT' -noheader.
+        """Reads the output of bjobs and returns a dictionary containing main information.
 
-        Format:
+        Preferred format from: bjobs -o "JOBID JOBINDEX STAT" -noheader
         - Non-array job: "301828 0 DONE" (JOBINDEX=0)
         - Array job element: "301970 1 RUN" (1-based index)
         """
@@ -89,7 +90,7 @@ class LsfInfoWatcher(core.InfoWatcher):
                 continue
             parts = line.split()
 
-            # Handle 3-column format: JOBID JOBINDEX STAT
+            # Preferred 3-column format: JOBID JOBINDEX STAT
             if len(parts) >= 3:
                 job_id_raw = parts[0]
                 job_index = parts[1]
@@ -102,14 +103,28 @@ class LsfInfoWatcher(core.InfoWatcher):
                 else:
                     submitit_job_id = f"{job_id_raw}_{job_index}"
                     all_stats[submitit_job_id] = {"JobID": f"{job_id_raw}[{job_index}]", "State": state}
+                    # Also store under the main ID for queries that don't specify index
                     if job_id_raw not in all_stats:
                         all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
-            # Fallback for 2-column format: JOBID STAT
-            elif len(parts) == 2:
+                continue
+
+            # Fallback 2-column format: JOBID STAT (legacy or bracket format)
+            if len(parts) == 2:
                 job_id_raw = parts[0]
                 state_raw = parts[1]
                 state = self._normalize_state(state_raw)
-                all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
+
+                if "[" in job_id_raw:
+                    match = re.match(r"(\d+)\[(\d+)\]", job_id_raw)
+                    if match:
+                        main_id = match.group(1)
+                        array_idx = match.group(2)
+                        submitit_job_id = f"{main_id}_{array_idx}"
+                        all_stats[submitit_job_id] = {"JobID": job_id_raw, "State": state}
+                        if main_id not in all_stats:
+                            all_stats[main_id] = {"JobID": job_id_raw, "State": state}
+                else:
+                    all_stats[job_id_raw] = {"JobID": job_id_raw, "State": state}
 
         return all_stats
 
@@ -324,6 +339,7 @@ class LsfExecutor(core.PicklingExecutor):
         first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
         tasks_ids = list(range(first_job.num_tasks))
         jobs: tp.List[core.Job[tp.Any]] = [
+            # LSF arrays are 1-based, so indices go from 1 to n
             LsfJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(1, n + 1)
         ]
         for job, pickle_path in zip(jobs, pickle_paths):
@@ -488,7 +504,7 @@ def _make_bsub_string(
     if "job_name" in parameters:
         job_name_val = parameters.pop("job_name")
         if map_count is not None:
-            # Array job: use LSF array syntax
+            # Array job: use LSF array syntax (1-based indexing)
             array_spec = f"[1-{map_count}]"
             if array_parallelism < map_count:
                 array_spec = f"[1-{map_count}]%{array_parallelism}"
@@ -553,7 +569,10 @@ def _make_bsub_string(
 
     # Signal handling for checkpointing
     # LSF uses -wa for warning action and -wt for warning time
-    lines.append(f"#BSUB -wt '{signal_delay_s // 60}'")
+    # Many LSF installations expect -wt in minutes (and don't accept a seconds suffix like '90s').
+    # Use ceil(minutes) so that e.g. 90s becomes 2 minutes.
+    warn_min = max(1, (signal_delay_s + 59) // 60)
+    lines.append(f"#BSUB -wt '{warn_min}'")
     lines.append(f"#BSUB -wa 'USR2'")
 
     # Additional parameters (escape hatch)
@@ -584,6 +603,7 @@ def _make_bsub_string(
         "export SUBMITIT_LSF_LOCAL_RANK=0",
         "",
         "# Handle array jobs",
+        # LSF sets LSB_JOBINDEX=0 for non-array jobs.
         'if [ "$LSB_JOBINDEX" != "0" ] && [ -n "$LSB_JOBINDEX" ]; then',
         '    export SUBMITIT_LSF_ARRAY_JOB_ID="$LSB_JOBID"',
         '    export SUBMITIT_LSF_ARRAY_TASK_ID="$LSB_JOBINDEX"',

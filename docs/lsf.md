@@ -92,7 +92,7 @@ Submitit supports checkpointing on LSF, which allows jobs to save their state be
 For checkpointing to work, your LSF cluster must be configured to send a warning signal before killing jobs. Submitit uses `SIGUSR2` by default. This is configured in the submission script via:
 
 ```
-#BSUB -wt '90s'    # Warning time: 90 seconds before kill
+#BSUB -wt '2'      # Warning time (minutes): 2 minutes before kill (some LSF versions don't accept a '90s' seconds suffix)
 #BSUB -wa 'USR2'   # Warning action: send SIGUSR2
 ```
 
