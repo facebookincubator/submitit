@@ -10,6 +10,7 @@ import pickle
 import time
 from pathlib import Path
 
+import clusterscope
 import numpy as np
 from sklearn.datasets import fetch_openml
 from sklearn.linear_model import LogisticRegression
@@ -125,7 +126,14 @@ def main():
     # Specify the job requirements.
     # Reserving only as much resource as you need ensure the cluster resource are
     # efficiently allocated.
-    ex.update_parameters(mem_gb=1, cpus_per_task=4, timeout_min=5)
+    resources = {
+        "cpus_per_task": 4,
+        "mem_gb": 1,
+    }
+    if ex.slurm_partition:
+        # clusterscope assigns the proportionate amount of resources based on gpus/cpus being requested.
+        resources = clusterscope.job_gen_task_slurm(partition=ex.slurm_partition, cpus_per_task=4)
+    ex.update_parameters(mem_gb=resources["mem_gb"], cpus_per_task=resources["cpus_per_task"], timeout_min=5)
     job = ex.submit(trainer, 5000, model_path=model_path)
 
     print(f"Scheduled {job}.")
