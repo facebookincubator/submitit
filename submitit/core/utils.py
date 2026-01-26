@@ -51,8 +51,8 @@ class JobPaths:
         self, folder: tp.Union[Path, str], job_id: tp.Optional[str] = None, task_id: tp.Optional[int] = None
     ) -> None:
         self._folder = Path(folder).expanduser().absolute()
-        self.job_id = job_id
-        self.task_id = task_id or 0
+        self.job_id: tp.Optional[str] = job_id
+        self.task_id: int = task_id or 0
 
     @property
     def folder(self) -> Path:
@@ -239,8 +239,8 @@ def cloudpickle_dump(obj: tp.Any, filename: tp.Union[str, Path]) -> None:
 
 # pylint: disable=too-many-locals
 def copy_process_streams(
-    process: subprocess.Popen, stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
-):
+    process: subprocess.Popen[bytes], stdout: io.StringIO, stderr: io.StringIO, verbose: bool = False
+) -> None:
     """
     Reads the given process stdout/stderr and write them to StringIO objects.
     Make sure that there is no deadlock because of pipe congestion.
@@ -315,7 +315,7 @@ class CommandFunction:
             raise TypeError("The command must be provided as a list")
         self.command = command
         self.verbose = verbose
-        self.cwd = None if cwd is None else str(cwd)
+        self.cwd: tp.Optional[str] = None if cwd is None else str(cwd)
         self.env = env
 
     def __call__(self, *args: tp.Any, **kwargs: tp.Any) -> str:

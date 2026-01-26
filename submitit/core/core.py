@@ -167,9 +167,9 @@ class Job(tp.Generic[R]):
         If None, the job has only one task (with id = 0)
     """
 
-    _cancel_command = "dummy"
-    _results_timeout_s = 15
-    watcher = InfoWatcher()
+    _cancel_command: str = "dummy"
+    _results_timeout_s: int = 15
+    watcher: InfoWatcher = InfoWatcher()
 
     def __init__(self, folder: tp.Union[Path, str], job_id: str, tasks: tp.Sequence[int] = (0,)) -> None:
         self._job_id = job_id
@@ -569,7 +569,7 @@ class DelayedJob(Job[R]):
 
 class AsyncJobProxy(tp.Generic[R]):
     def __init__(self, job: Job[R]):
-        self.job = job
+        self.job: Job[R] = job
 
     async def wait(self, poll_interval: tp.Union[int, float] = 1) -> None:
         """same as wait() but with asyncio sleep."""
@@ -601,7 +601,7 @@ class AsyncJobProxy(tp.Generic[R]):
         # results are ready now
         return self.job.results()
 
-    def results_as_completed(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future]:
+    def results_as_completed(self, poll_interval: tp.Union[int, float] = 1) -> tp.Iterator[asyncio.Future[R]]:
         """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
         of the tasks anymore as the earliest task coming back might not be the first one you sent.
 
@@ -660,8 +660,8 @@ class Executor(abc.ABC):
     job_class: tp.Type[Job[tp.Any]] = Job
 
     def __init__(self, folder: tp.Union[str, Path], parameters: tp.Optional[tp.Dict[str, tp.Any]] = None):
-        self.folder = Path(folder).expanduser().absolute()
-        self.parameters = {} if parameters is None else parameters
+        self.folder: Path = Path(folder).expanduser().absolute()
+        self.parameters: tp.Dict[str, tp.Any] = {} if parameters is None else parameters
         # storage for the batch context manager, for batch submissions:
         self._delayed_batch: tp.Optional[tp.List[tp.Tuple[Job[tp.Any], utils.DelayedSubmission]]] = None
         self._allow_implicit_submissions = False

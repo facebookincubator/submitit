@@ -144,7 +144,7 @@ class LocalExecutor(core.PicklingExecutor):
     - use update_parameters to specify custom parameters (n_gpus etc...).
     """
 
-    job_class = LocalJob
+    job_class: type[LocalJob[tp.Any]] = LocalJob
 
     def __init__(
         self,
@@ -158,9 +158,9 @@ class LocalExecutor(core.PicklingExecutor):
             max_pickle_size_gb=max_pickle_size_gb,
             max_num_timeout=max_num_timeout,
         )
-        self.python = shlex.quote(sys.executable) if python is None else python
+        self.python: str = shlex.quote(sys.executable) if python is None else python
         # preliminary check
-        indep_folder = utils.JobPaths.get_first_id_independent_folder(self.folder)
+        indep_folder: Path = utils.JobPaths.get_first_id_independent_folder(self.folder)
         indep_folder.mkdir(parents=True, exist_ok=True)
 
     @classmethod
@@ -284,17 +284,17 @@ class Controller:  # pragma: no cover
     # pylint: disable=too-many-instance-attributes
 
     def __init__(self, folder: Path):
-        self.ntasks = int(os.environ["SUBMITIT_LOCAL_NTASKS"])
-        self.command = shlex.split(os.environ["SUBMITIT_LOCAL_COMMAND"])
-        self.timeout_s = int(os.environ["SUBMITIT_LOCAL_TIMEOUT_S"])
-        self.signal_delay_s = int(os.environ["SUBMITIT_LOCAL_SIGNAL_DELAY_S"])
-        self.stderr_to_stdout = bool(os.environ["SUBMITIT_STDERR_TO_STDOUT"])
-        self.tasks: tp.List[subprocess.Popen] = []  # type: ignore
+        self.ntasks: int = int(os.environ["SUBMITIT_LOCAL_NTASKS"])
+        self.command: list[str] = shlex.split(os.environ["SUBMITIT_LOCAL_COMMAND"])
+        self.timeout_s: int = int(os.environ["SUBMITIT_LOCAL_TIMEOUT_S"])
+        self.signal_delay_s: int = int(os.environ["SUBMITIT_LOCAL_SIGNAL_DELAY_S"])
+        self.stderr_to_stdout: bool = bool(os.environ["SUBMITIT_STDERR_TO_STDOUT"])
+        self.tasks: tp.List[subprocess.Popen[str]] = []  # type: ignore
         self.stdouts: tp.List[tp.IO[tp.Any]] = []
         self.stderrs: tp.List[tp.IO[tp.Any]] = []
-        with_shell = bool(os.environ["SUBMITIT_LOCAL_WITH_SHELL"])
-        self.pid = str(os.getppid() if with_shell else os.getpid())
-        self.folder = Path(folder)
+        with_shell: bool = bool(os.environ["SUBMITIT_LOCAL_WITH_SHELL"])
+        self.pid: str = str(os.getppid() if with_shell else os.getpid())
+        self.folder: Path = Path(folder)
         signal.signal(signal.SIGTERM, self._forward_signal)  # type: ignore
 
     # pylint:disable=unused-argument

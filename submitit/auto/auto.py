@@ -62,7 +62,7 @@ class AutoExecutor(Executor):
     _ctor_deprecated_args = {"max_num_timeout": "slurm_max_num_timeout", "conda_file": "chronos_conda_file"}
 
     def __init__(self, folder: Union[str, Path], cluster: Optional[str] = None, **kwargs: Any) -> None:
-        self.cluster = cluster or self.which()
+        self.cluster: str = cluster or self.which()
 
         executors = plugins.get_executors()
         if self.cluster not in executors:
@@ -77,10 +77,10 @@ class AutoExecutor(Executor):
             assert (
                 prefix in executors
             ), f"{err} '{name}', and '{prefix}' executor is also unknown. {err_ex_list}"
-        self._executor = flexible_init(executors[self.cluster], folder, **kwargs)
+        self._executor: Executor = flexible_init(executors[self.cluster], folder, **kwargs)
 
         valid = self._valid_parameters()
-        self._deprecated_args = {
+        self._deprecated_args: tp.Mapping[str, str] = {
             arg: f"{ex_name}_{arg}"
             for ex_name, ex in executors.items()
             for arg in ex._valid_parameters()

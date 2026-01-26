@@ -40,14 +40,14 @@ class DebugJobEnvironment(JobEnvironment):
 
 
 class DebugJob(Job[R]):
-    watcher = DebugInfoWatcher()
+    watcher: InfoWatcher = DebugInfoWatcher()
 
     def __init__(self, folder: Path, submission: DelayedSubmission) -> None:
         job_id = f"DEBUG_{id(submission)}"
         super().__init__(folder=folder, job_id=job_id)
-        self._submission = submission
-        self.cancelled = False
-        self.environ = dict(os.environ)
+        self._submission: DelayedSubmission = submission
+        self.cancelled: bool = False
+        self.environ: tp.Mapping[str, str] = dict(os.environ)
         self.environ["SUBMITIT_DEBUG_JOB_ID"] = self.job_id
 
     def submission(self) -> DelayedSubmission:
@@ -143,7 +143,7 @@ class DebugJob(Job[R]):
 
 
 class DebugExecutor(Executor):
-    job_class = DebugJob
+    job_class: type[Job[tp.Any]] = DebugJob
 
     def __init__(self, folder: Union[str, Path]):
         super().__init__(folder)

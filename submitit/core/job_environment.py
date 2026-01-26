@@ -32,7 +32,7 @@ class JobEnvironment:
     # preemption signal uses USR2 as default, but this behavior
     # can be overiden (eg: export SUBMITIT_PREEMPT_SIGNAL=USR2)
     # CAUTION: NCCL may catch USR1 so it should be avoided
-    USR_SIG = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
+    USR_SIG: str = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
     _env: tp.ClassVar[tp.Dict[str, str]] = {}
 
     def __new__(cls, *args: tp.Any) -> "JobEnvironment":
@@ -44,7 +44,7 @@ class JobEnvironment:
         return plugins.get_job_environment()
 
     def __init__(self) -> None:
-        self.cluster = self.name()
+        self.cluster: str = self.name()
 
     @classmethod
     def name(cls) -> str:

@@ -80,3 +80,8 @@ jobs:
       run: |
         source activate ./ci_env
         make use_venv=0 format
+
+    - name: Test type completeness
+      run: |
+        source activate ./ci_env
+        make use_venv=0 test_type_completeness

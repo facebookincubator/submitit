@@ -41,7 +41,7 @@ class Checkpointable:
     """
 
     # pylint: disable=unused-argument
-    def __new__(cls, *args, **kwargs):
+    def __new__(cls, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:
         instance = super().__new__(cls)
         assert callable(
             instance
@@ -143,7 +143,7 @@ def as_completed(
         time.sleep(poll_frequency)
 
 
-def run_cmd(str_args, **kwargs):
+def run_cmd(str_args: str | tp.List[str], **kwargs: tp.Any) -> str:
     return subprocess.check_output(str_args, **kwargs).decode("utf-8").strip()
 
 
@@ -182,9 +182,9 @@ class RsyncSnapshot:
         include: tp.Sequence[str] = (),
     ):
         self.available(throw=True)
-        self.snapshot_dir = Path(snapshot_dir)
-        self.root_dir = root_dir or run_cmd(["git", "rev-parse", "--show-toplevel"])
-        self.original_dir = Path.cwd()
+        self.snapshot_dir: Path = Path(snapshot_dir)
+        self.root_dir: tp.Union[Path, str] = root_dir or run_cmd(["git", "rev-parse", "--show-toplevel"])
+        self.original_dir: Path = Path.cwd()
         self.with_submodules = with_submodules
         self.exclude = exclude
         self.include = include
@@ -219,7 +219,7 @@ class RsyncSnapshot:
             run_cmd(["rsync", "-a", "--files-from", tfile.name, root_dir, str(self.snapshot_dir)] + exclude)
         os.chdir(self.snapshot_dir)
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: tp.Any) -> None:
         os.chdir(self.original_dir)
 
 
@@ -245,7 +245,7 @@ def monitor_jobs(
     jobs: tp.Sequence[core.Job[core.R]],
     poll_frequency: float = 30,
     test_mode: bool = False,
-    custom_logging: tp.Callable = _default_custom_logging,
+    custom_logging: tp.Callable[[float, int, tp.Dict[str, tp.Set[int]]], None] = _default_custom_logging,
 ) -> None:
     """Continuously monitors given jobs until they are all done or failed.
 
@@ -342,12 +342,12 @@ class TorchDistributedEnvironment:  # pragma: no cover
         >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
         """
         self._job_env = JobEnvironment()
-        self.master_addr = self._job_env.hostnames[0]
-        self.master_port = self._get_master_port()
-        self.rank = self._job_env.global_rank
-        self.world_size = self._job_env.num_tasks
-        self.local_rank = self._job_env.local_rank
-        self.local_world_size = self._job_env.num_tasks // self._job_env.num_nodes
+        self.master_addr: str = self._job_env.hostnames[0]
+        self.master_port: int = self._get_master_port()
+        self.rank: int = self._job_env.global_rank
+        self.world_size: int = self._job_env.num_tasks
+        self.local_rank: int = self._job_env.local_rank
+        self.local_world_size: int = self._job_env.num_tasks // self._job_env.num_nodes
 
     def _get_master_port(self) -> int:
         # MIN_MASTER_PORT, MAX_MASTER_PORT = (1023, 65535)

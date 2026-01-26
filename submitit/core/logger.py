@@ -6,17 +6,17 @@
 
 import logging.config
 import os
-from typing import Union
+import typing as tp
 
 # provide a way to change level through SUBMITIT_LOG_LEVEL environment variable:
 # level "CRITICAL" (50) or more (eg.: "100") will deactivate submitit logger
 # "NOCONFIG" will avoid configuration
-LOG_VARNAME = "SUBMITIT_LOG_LEVEL"
-level_str = os.environ.get(LOG_VARNAME, "INFO").upper()
-level: Union[int, str] = level_str if not level_str.isdigit() else int(level_str)
+LOG_VARNAME: str = "SUBMITIT_LOG_LEVEL"
+level_str: str = os.environ.get(LOG_VARNAME, "INFO").upper()
+level: tp.Union[int, str] = level_str if not level_str.isdigit() else int(level_str)
 
 
-CONFIG = {
+CONFIG: tp.Dict[str, tp.Any] = {
     "version": 1,
     "disable_existing_loggers": False,
     "formatters": {"submitit_basic": {"format": "%(name)s %(levelname)s (%(asctime)s) - %(message)s"}},

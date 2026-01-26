@@ -19,6 +19,9 @@ from pathlib import Path
 
 from ..core import core, job_environment, logger, utils
 
+if tp.TYPE_CHECKING:
+    from submitit.core.core import Job, InfoWatcher
+
 
 def read_job_id(job_id: str) -> tp.List[tp.Tuple[str, ...]]:
     """Reads formated job id and returns a tuple with format:
@@ -101,7 +104,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
 
 class SlurmJob(core.Job[core.R]):
     _cancel_command = "scancel"
-    watcher = SlurmInfoWatcher(delay_s=600)
+    watcher: InfoWatcher = SlurmInfoWatcher(delay_s=600)
 
     def _interrupt(self, timeout: bool = False) -> None:
         """Sends preemption or timeout signal to the job (for testing purpose)
@@ -238,7 +241,7 @@ class SlurmExecutor(core.PicklingExecutor):
       input erroneous parameters, an error will print all parameters available for you.
     """
 
-    job_class = SlurmJob
+    job_class: type[Job[tp.Any]] = SlurmJob
 
     def __init__(
         self,
@@ -252,7 +255,7 @@ class SlurmExecutor(core.PicklingExecutor):
             max_num_timeout=max_num_timeout,
             max_pickle_size_gb=max_pickle_size_gb,
         )
-        self.python = shlex.quote(sys.executable) if python is None else python
+        self.python: str = shlex.quote(sys.executable) if python is None else python
         if not self.affinity() > 0:
             raise RuntimeError('Could not detect "srun", are you indeed on a slurm cluster?')
 

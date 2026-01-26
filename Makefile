@@ -28,6 +28,13 @@ test_coverage:
 		--junitxml=test_results/pytest/results.xml \
 		$(CODE)
 
+test_type_completeness:
+	$(BIN)python \
+		test_type_completeness.py \
+		--exclude-like '*.test_*.*' '*.conftest.*' \
+		--verifytypes \
+		$(CODE)
+
 format:
 	$(BIN)python -m pre_commit
 	$(BIN)isort $(CODE_AND_DOCS)
