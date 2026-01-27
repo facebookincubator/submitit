@@ -84,4 +84,5 @@ jobs:
     - name: Test type completeness
       run: |
         source activate ./ci_env
+        pip show pyright
         make use_venv=0 test_type_completeness

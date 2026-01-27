@@ -38,6 +38,7 @@ classifiers=[
         # Linters
         "mypy>=1.4.1",
         "pylint>=3.0.0",
+        "pyright>=1.1.408",
         # Release
         "flit>=3.5.1"
     ]
