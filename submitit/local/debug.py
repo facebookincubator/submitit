@@ -93,7 +93,7 @@ class DebugJob(Job[R]):
             # Try to mimic `breakpoint()` behavior
             # pylint: disable=import-outside-toplevel
             if os.environ.get("PYTHONBREAKPOINT", "").startswith("ipdb"):
-                import ipdb  # pylint: disable=import-error
+                import ipdb  # pylint: disable=import-error  # pyrefly: ignore[missing-import]
 
                 ipdb.post_mortem()
             else:
@@ -149,6 +149,6 @@ class DebugExecutor(Executor):
         super().__init__(folder)
 
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[DelayedSubmission]
+        self, delayed_submissions: tp.Sequence[DelayedSubmission]
     ) -> tp.List[Job[tp.Any]]:
         return [DebugJob(self.folder, ds) for ds in delayed_submissions]

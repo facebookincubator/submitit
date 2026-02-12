@@ -42,12 +42,16 @@ mypy:
 	$(BIN)mypy --version
 	$(BIN)mypy --junit-xml=test_results/pytest/results.xml $(CODE)
 
+pyrefly:
+	$(BIN)pyrefly --version
+	$(BIN)pyrefly check $(CODE)
+
 pylint:
 	$(BIN)pylint --version
 	$(BIN)pylint $(CODE)
 
 
-lint: mypy pylint
+lint: mypy pyrefly pylint
 
 venv: venv/pyproject.toml
 

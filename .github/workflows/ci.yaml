@@ -68,7 +68,7 @@ jobs:
     - name: Test lint
       run: |
         source activate ./ci_env
-        pip show mypy
+        pip show mypy pyrefly
         make use_venv=0 lint
 
     - name: Test coverage

@@ -113,7 +113,8 @@ class InfoWatcher:
             return
         last_check_delta = _time.time() - self._last_status_check
         last_job_delta = _time.time() - self._start_time
-        refresh_delay = min(self._delay_s, max(2, last_job_delta / 2))
+        # https://github.com/facebook/pyrefly/issues/2393
+        refresh_delay = min(self._delay_s, max(2., last_job_delta / 2))  # pyrefly: ignore[no-matching-overload]
         if mode == "force":
             refresh_delay = 0.001
 
@@ -285,7 +286,7 @@ class Job(tp.Generic[R]):
         self.wait()
 
         if self._sub_jobs:
-            return [tp.cast(R, sub_job.result()) for sub_job in self._sub_jobs]
+            return [sub_job.result() for sub_job in self._sub_jobs]
 
         outcome, result = self._get_outcome_and_result()
         if outcome == "error":
@@ -739,7 +740,7 @@ class Executor(abc.ABC):
 
     @abc.abstractmethod
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[utils.DelayedSubmission]
+        self, delayed_submissions: tp.Sequence[utils.DelayedSubmission]
     ) -> tp.List[Job[tp.Any]]: ...
 
     def map_array(self, fn: tp.Callable[..., R], *iterable: tp.Iterable[tp.Any]) -> tp.List[Job[R]]:
@@ -871,7 +872,7 @@ class PicklingExecutor(Executor):
         self._last_job_submitted = 0.0
 
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[utils.DelayedSubmission]
+        self, delayed_submissions: tp.Sequence[utils.DelayedSubmission]
     ) -> tp.List[Job[tp.Any]]:
         """Submits a task to the cluster.
 

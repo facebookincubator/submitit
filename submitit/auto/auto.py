@@ -213,7 +213,7 @@ class AutoExecutor(Executor):
         self._executor._internal_update_parameters(**parameters)
 
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[DelayedSubmission]
+        self, delayed_submissions: tp.Sequence[DelayedSubmission]
     ) -> tp.List[Job[tp.Any]]:
         return self._executor._internal_process_submissions(delayed_submissions)
 

@@ -319,7 +319,7 @@ class SlurmExecutor(core.PicklingExecutor):
         super()._internal_update_parameters(**kwargs)
 
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[utils.DelayedSubmission]
+        self, delayed_submissions: tp.Sequence[utils.DelayedSubmission]
     ) -> tp.List[core.Job[tp.Any]]:
         if len(delayed_submissions) == 1:
             return super()._internal_process_submissions(delayed_submissions)

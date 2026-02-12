@@ -23,7 +23,7 @@ LOCAL_REQUEUE_RETURN_CODE = 144
 
 # global variable storing unfinished processes of pickled jobs
 # in case we need to reload them later
-_PROCESSES: tp.Dict[str, "subprocess.Popen['bytes']"] = {}
+_PROCESSES: tp.Dict[str, "subprocess.Popen[bytes]"] = {}
 
 
 class LocalJob(core.Job[R]):
@@ -32,12 +32,12 @@ class LocalJob(core.Job[R]):
         folder: tp.Union[Path, str],
         job_id: str,
         tasks: tp.Sequence[int] = (0,),
-        process: tp.Optional["subprocess.Popen['bytes']"] = None,
+        process: tp.Optional["subprocess.Popen[bytes]"] = None,
     ) -> None:
         super().__init__(folder, job_id, tasks)
         self._cancel_at_deletion = False
         # downcast sub-jobs to get proper typing
-        self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
+        self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs  # pyrefly: ignore[bad-override]
         # set process (to self and subjobs)
         self._process = process
         for sjob in self._sub_jobs:
@@ -248,7 +248,7 @@ def start_controller(
     signal_delay_s: int = 30,
     stderr_to_stdout: bool = False,
     setup: tp.Sequence[str] = (),
-) -> "subprocess.Popen['bytes']":
+) -> "subprocess.Popen[bytes]":
     """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
     env.update(

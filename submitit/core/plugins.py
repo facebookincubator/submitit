@@ -28,7 +28,7 @@ def _iter_submitit_entrypoints():
 
     # importlib_metadata backport newer signature: entry_points("submitit")
     try:
-        return metadata.entry_points()["submitit"]
+        return metadata.entry_points()["submitit"]  # pyrefly: ignore[bad-index]
     except TypeError:
         pass  # older API; fall through
 
