@@ -89,9 +89,9 @@ class SlurmInfoWatcher(core.InfoWatcher):
                 )
                 continue
             for split_job_id in multi_split_job_id:
-                all_stats["_".join(split_job_id[:2])] = (
-                    stats  # this works for simple jobs, or job array unique instance
-                )
+                all_stats[
+                    "_".join(split_job_id[:2])
+                ] = stats  # this works for simple jobs, or job array unique instance
                 # then, deal with ranges:
                 if len(split_job_id) >= 3:
                     for index in range(int(split_job_id[1]), int(split_job_id[2]) + 1):

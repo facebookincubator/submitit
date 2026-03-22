@@ -29,8 +29,8 @@ def _iter_submitit_entrypoints():
     # importlib_metadata backport newer signature: entry_points("submitit")
     try:
         return metadata.entry_points()["submitit"]
-    except TypeError:
-        pass  # older API; fall through
+    except (TypeError, KeyError):
+        pass  # older API or no plugins; fall through
 
     # 3.8/3.9 legacy: mapping {group: [EntryPoint, ...]}
     if hasattr(eps, "get"):
@@ -44,10 +44,21 @@ def _iter_submitit_entrypoints():
 def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
     # pylint: disable=cyclic-import,import-outside-toplevel
     from ..local import debug, local
+    from ..lsf import lsf
     from ..slurm import slurm
 
-    executors: List[Type["Executor"]] = [slurm.SlurmExecutor, local.LocalExecutor, debug.DebugExecutor]
-    job_envs = [slurm.SlurmJobEnvironment(), local.LocalJobEnvironment(), debug.DebugJobEnvironment()]
+    executors: List[Type["Executor"]] = [
+        slurm.SlurmExecutor,
+        lsf.LsfExecutor,
+        local.LocalExecutor,
+        debug.DebugExecutor,
+    ]
+    job_envs = [
+        slurm.SlurmJobEnvironment(),
+        lsf.LsfJobEnvironment(),
+        local.LocalJobEnvironment(),
+        debug.DebugJobEnvironment(),
+    ]
     for entry_point in _iter_submitit_entrypoints():
         if entry_point.name not in ("executor", "job_environment"):
             logger.warning(f"{entry_point.name} = {entry_point.value}")
