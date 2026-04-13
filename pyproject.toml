@@ -114,7 +114,5 @@ skip_gitignore = true
 
 [tool.codespell]
 # Ref: https://github.com/codespell-project/codespell#using-a-config-file
-skip = '.git,.gitignore,.gitattributes'
+skip = '.git,.gitignore,.gitattributes,.git-meta'
 check-hidden = true
-# ignore-regex = ''
-# ignore-words-list = ''
