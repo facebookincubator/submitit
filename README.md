@@ -64,7 +64,7 @@ You can try running the [MNIST example](docs/mnist.py) to check that everything 
 
 ## Documentation
 
-See the following pages for more detailled information:
+See the following pages for more detailed information:
 
 - [Examples](docs/examples.md): for a bunch of examples dealing with errors, concurrency, multi-tasking etc...
 - [Structure and main objects](docs/structure.md): to get a better understanding of how `submitit` works, which files are created for each job, and the main objects you will interact with.

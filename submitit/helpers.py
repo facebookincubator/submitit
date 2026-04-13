@@ -164,7 +164,7 @@ class RsyncSnapshot:
         An optional list of patterns to exclude from the snapshot
     include: Sequence[str]
         A list of relative file names to include from the snapshot.
-        Useful for .so or other build artifacts that are genarally not tracked by git.
+        Useful for .so or other build artifacts that are generally not tracked by git.
 
     Note
     ----
@@ -295,7 +295,7 @@ def monitor_jobs(
 @contextlib.contextmanager
 def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
     """Removes slurm and submitit related environment variables so as to avoid interferences
-    when submiting a new job from a job.
+    when submitting a new job from a job.
 
     Parameters
     ----------

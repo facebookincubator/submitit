@@ -8,7 +8,7 @@ with the provided arguments, and pickle the output of the function into a new fi
 will be able to recover it. The computation in the cluster will use the current conda environment, so make sure everything you need is installed (including `submitit`).
 
 If the computation failed and we are able to catch the error, then the trace will be dumped and available to you through the Job instance as well.
-However, if it could not be catched, you will be notified as well, but will probably need to look into the logs to understand what happened.
+However, if it could not be caught, you will be notified as well, but will probably need to look into the logs to understand what happened.
 
 For each job, you will therefore usually end up with a task file `<job_id>_submitted.pkl`, an output file `<job_id>_result.pkl`,
 a batch file `batchfile_<uuid>.sh`, a stdout log file `<job_id>_<task_id>_log.out` and a stderr log file `<job_id>_<task_id>_log.err`, where the uuid

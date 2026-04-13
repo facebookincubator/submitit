@@ -78,8 +78,8 @@ def preemption():
 
     wait_job_is_running(job)
     node = job.get_info()["NodeList"]
-    log.info(f"{job} ({job.state}) is runnning on {node} !")
-    # Schedule another pascal job on the same node, whith high priority
+    log.info(f"{job} ({job.state}) is running on {node} !")
+    # Schedule another pascal job on the same node, with high priority
     priority_job = pascal_job("devlab", timeout_min=15, node=node)
     log.info(f"Schedule {priority_job} ({job.state}) on {node} with high priority.")
     wait_job_is_running(priority_job)

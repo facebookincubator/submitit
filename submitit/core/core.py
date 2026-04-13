@@ -26,7 +26,7 @@ R = tp.TypeVar("R", covariant=True)
 class InfoWatcher:
     """An instance of this class is shared by all jobs, and is in charge of calling slurm to check status for
     all jobs at once (so as not to overload it). It is also in charge of dealing with errors.
-    Cluster is called at 0s, 2s, 4s, 8s etc... in the begginning of jobs, then at least every delay_s (default: 60)
+    Cluster is called at 0s, 2s, 4s, 8s etc... in the beginning of jobs, then at least every delay_s (default: 60)
 
     Parameters
     ----------
@@ -420,7 +420,7 @@ class Job(tp.Generic[R]):
         ----
         This function is not foolproof, and may say that the job is not terminated even
         if it is when the job failed (no result file, but job not running) because
-        we avoid calling sacct/cinfo everytime done is called
+        we avoid calling sacct/cinfo every time done is called
         """
         # TODO: keep state info once job is finished?
         if self._sub_jobs:
@@ -448,7 +448,7 @@ class Job(tp.Generic[R]):
         return self.watcher.get_state(self.job_id, mode="standard")
 
     def get_info(self, mode: str = "force") -> tp.Dict[str, str]:
-        """Returns informations about the job as a dict (sacct call)"""
+        """Returns information about the job as a dict (sacct call)"""
         return self.watcher.get_info(self.job_id, mode=mode)
 
     def _get_logs_string(self, name: str) -> tp.Optional[str]:
@@ -549,7 +549,7 @@ class DelayedJob(Job[R]):
         # without passing `executor.batch(allow_implicit_submission=True)`
         if not ex._allow_implicit_submissions:
             raise AttributeError(
-                "Accesssing job attributes is forbidden within 'with executor.batch()' context"
+                "Accessing job attributes is forbidden within 'with executor.batch()' context"
             )
         ex._submit_delayed_batch()
         # Ensure that _promote did get called, otherwise getattr will trigger a stack overflow
@@ -578,7 +578,7 @@ class AsyncJobProxy(tp.Generic[R]):
 
     async def result(self, poll_interval: tp.Union[int, float] = 1) -> R:
         """asyncio version of the result() method.
-        Wait asynchornously for the result to be available by polling the self.done() method.
+        Wait asynchronously for the result to be available by polling the self.done() method.
         Parameters
         ----------
         poll_interval: int or float
@@ -590,7 +590,7 @@ class AsyncJobProxy(tp.Generic[R]):
     async def results(self, poll_interval: tp.Union[int, float] = 1) -> tp.List[R]:
         """asyncio version of the results() method.
 
-        Waits asynchornously for ALL the results to be available by polling the self.done() method.
+        Waits asynchronously for ALL the results to be available by polling the self.done() method.
 
         Parameters
         ----------
@@ -771,7 +771,7 @@ class Executor(abc.ABC):
         return self._internal_process_submissions(submissions)
 
     def submit_array(self, fns: tp.Sequence[tp.Callable[[], R]]) -> tp.List[Job[R]]:
-        """Submit a list of job. This is useful when submiting different Checkpointable functions.
+        """Submit a list of job. This is useful when submitting different Checkpointable functions.
         Be mindful that all those functions will be run with the same requirements
         (cpus, gpus, timeout, ...). So try to make group of similar function calls.
 
@@ -802,7 +802,7 @@ class Executor(abc.ABC):
         return self._internal_process_submissions(submissions)
 
     def update_parameters(self, **kwargs: tp.Any) -> None:
-        """Update submision parameters."""
+        """Update submission parameters."""
         if self._delayed_batch is not None:
             raise RuntimeError(
                 'Changing parameters within batch context "with executor.batch():" is not allowed'

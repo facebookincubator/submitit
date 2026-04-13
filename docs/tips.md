@@ -13,7 +13,7 @@
  which could be handy.
  - Do not hesitate to create your own `Executor` class: this can be useful to control more precisely how your job are submitted.
  In about 10 lines of code, you can for instance have an executor which creates a new logging folder for each submitted jobs etc...
- - Some non-picklable objects like locks cannot be submited. This may cause issue if they are used as default arguments of a function.
+ - Some non-picklable objects like locks cannot be submitted. This may cause issue if they are used as default arguments of a function.
 
 ## Specific to Slurm
  - While all jobs are requeued after preemption, only Checkpointable classes are requeued after a timeout (since a stateless function is expected to timeout again if it is requeued)

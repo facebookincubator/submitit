@@ -58,7 +58,7 @@ class NetworkTraining:
         ...
 
     def checkpoint(self, checkpointpath: str) -> submitit.helpers.DelayedSubmission:
-        # the checkpoint method is called asynchroneously when the slurm manager
+        # the checkpoint method is called asynchronously when the slurm manager
         # sends a preemption signal, with the same arguments as the __call__ method
         # "self" is your callable, at its current state.
         # "self" therefore holds the current version of the model:

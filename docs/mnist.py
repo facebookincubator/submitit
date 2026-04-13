@@ -23,7 +23,7 @@ import submitit
 class MnistTrainer(submitit.helpers.Checkpointable):
     """
     This shows how to rewrite a monolith function so that it can handle preemption nicely,
-    and not restart from scratch everytime it's preempted.
+    and not restart from scratch every time it's preempted.
     """
 
     def __init__(self, clf):
