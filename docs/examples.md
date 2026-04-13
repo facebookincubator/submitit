@@ -1,6 +1,6 @@
 # Examples
 
-## Explained example - Initial "add" exemple with a few more comments:
+## Explained example - Initial "add" example with a few more comments:
 ```python
 import submitit
 
@@ -51,7 +51,7 @@ jobs = executor.map_array(add, a, b)  # just a list of jobs
 In comparison to standard jobs, job arrays have IDs like formatted as `<array job id>_<array task id>` (Eg: `17390420_15`) where the job id is
 common to all the submitted jobs, and the task id goes from 0 to the `N - 1` where `N` is the number of submitted jobs.
 
-**Note**:  `map_array` has no equivalent in `concurent.futures` (`map` is similar but has a different return type)
+**Note**:  `map_array` has no equivalent in `concurrent.futures` (`map` is similar but has a different return type)
 
 **Warning**: when running `map_array`, `submitit` will create one pickle per job.
 If you have big object in your functions (like a full pytorch model) you should serialize it once

@@ -111,3 +111,8 @@ skip_gitignore = true
 [[tool.mypy.overrides]]
   module = ['cloudpickle', 'ipdb', 'pytest', 'setuptools']
   ignore_missing_imports = true
+
+[tool.codespell]
+# Ref: https://github.com/codespell-project/codespell#using-a-config-file
+skip = '.git,.gitignore,.gitattributes,.git-meta'
+check-hidden = true

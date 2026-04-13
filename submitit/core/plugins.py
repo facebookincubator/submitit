@@ -99,7 +99,7 @@ def get_job_environment() -> "JobEnvironment":
         if env.activated():
             return env
     raise RuntimeError(
-        f"Could not figure out which environment the job is runnning in. Known environments: {', '.join(envs.keys())}."
+        f"Could not figure out which environment the job is running in. Known environments: {', '.join(envs.keys())}."
     )
 
 

@@ -33,7 +33,7 @@ def environment_variables(**kwargs: tp.Any) -> tp.Iterator[None]:
 
 
 class UncompletedJobError(RuntimeError):
-    """Job is uncomplete: either unfinished or failed"""
+    """Job is incomplete: either unfinished or failed"""
 
 
 class FailedJobError(UncompletedJobError):
@@ -116,7 +116,7 @@ class JobPaths:
 class DelayedSubmission:
     """Object for specifying the function/callable call to submit and process later.
     This is only syntactic sugar to make sure everything is well formatted:
-    If what you want to compute later is func(*args, **kwargs), just instanciate:
+    If what you want to compute later is func(*args, **kwargs), just instantiate:
     DelayedSubmission(func, *args, **kwargs).
     It also provides convenient tools for dumping and loading.
     """
@@ -319,7 +319,7 @@ class CommandFunction:
         self.env = env
 
     def __call__(self, *args: tp.Any, **kwargs: tp.Any) -> str:
-        """Call the cammand line with addidional arguments
+        """Call the command line with addidional arguments
         The keyword arguments will be sent as --{key}={val}
         The logs bufferized. They will be printed if the job fails, or sent as output of the function
         Errors are provided with the internal stderr.
