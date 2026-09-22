@@ -164,3 +164,20 @@ class BadEnvironment:
         assert record.name == "submitit"
         assert record.levelno == ex_record[0]
         assert re.search(ex_record[1], record.getMessage())
+
+
+@pytest.mark.parametrize("entry_points", [{}, {"unrelated": []}])
+def test_legacy_discovery_without_plugins(monkeypatch, entry_points) -> None:
+    monkeypatch.setattr(plugins.metadata, "entry_points", lambda: entry_points)
+    _clear_plugin_cache()
+    try:
+        assert set(plugins.get_executors()) == {"slurm", "local", "debug"}
+        assert not list(plugins._iter_submitit_entrypoints())
+    finally:
+        _clear_plugin_cache()
+
+
+def test_legacy_discovery_with_plugins(monkeypatch) -> None:
+    entry_point = plugins.metadata.EntryPoint("executor", "example:Executor", "submitit")
+    monkeypatch.setattr(plugins.metadata, "entry_points", lambda: {"submitit": [entry_point]})
+    assert list(plugins._iter_submitit_entrypoints()) == [entry_point]

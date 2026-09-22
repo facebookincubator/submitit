@@ -29,8 +29,8 @@ def _iter_submitit_entrypoints():
     # importlib_metadata backport newer signature: entry_points("submitit")
     try:
         return metadata.entry_points()["submitit"]
-    except TypeError:
-        pass  # older API; fall through
+    except (TypeError, KeyError):
+        pass  # older API or absent group; fall through
 
     # 3.8/3.9 legacy: mapping {group: [EntryPoint, ...]}
     if hasattr(eps, "get"):
