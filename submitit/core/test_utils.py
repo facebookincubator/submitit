@@ -49,6 +49,31 @@ def test_delayed(tmp_path: Path) -> None:
     assert delayed2.done()
 
 
+@pytest.mark.parametrize(  # type: ignore
+    "timeout,expected",
+    [
+        (90, 90),
+        (1.5, 1.5),
+        ("30", 30),
+        ("30:30", 30.5),
+        ("48:00:00", 48 * 60),
+        ("2-12", 2 * 24 * 60 + 12 * 60),
+        ("1-02:30", 24 * 60 + 2 * 60 + 30),
+        ("1-00:00:30", 24 * 60 + 0.5),
+        ("UNLIMITED", float("inf")),
+    ],
+)
+def test_timeout_to_minutes(timeout, expected) -> None:
+    assert utils.timeout_to_minutes(timeout) == expected
+
+
+def test_set_timeout_with_slurm_time_string() -> None:
+    delayed = utils.DelayedSubmission(_three_time, 4)
+    delayed.set_timeout("48:00:00", 3)
+    assert delayed._timeout_min == 48 * 60
+    assert delayed._timeout_countdown == 3
+
+
 def test_environment_variable_context() -> None:
     name = "ENV_VAR_TEST"
     assert name not in os.environ
