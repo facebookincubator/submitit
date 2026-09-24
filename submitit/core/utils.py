@@ -113,6 +113,33 @@ class JobPaths:
         return f"{self.__class__.__name__}({self.folder})"
 
 
+def timeout_to_minutes(timeout: tp.Union[int, float, str]) -> float:
+    """Converts a timeout to minutes, accepting Slurm time strings
+    ("M", "M:S", "H:M:S", "D-H", "D-H:M", "D-H:M:S", "UNLIMITED")
+    as well as numbers of minutes.
+    """
+    if not isinstance(timeout, str):
+        return timeout
+    value = timeout.strip()
+    if value.upper() in ("UNLIMITED", "INFINITE"):
+        return float("inf")
+    days, sep, rest = value.partition("-")
+    if not sep:
+        days, rest = "0", value
+    parts = [int(p) for p in rest.split(":")]
+    if sep:  # D-H, D-H:M, D-H:M:S
+        hours, minutes, seconds = (parts + [0, 0])[:3]
+    elif len(parts) == 1:  # M
+        hours, minutes, seconds = 0, parts[0], 0
+    elif len(parts) == 2:  # M:S
+        hours, minutes, seconds = 0, parts[0], parts[1]
+    elif len(parts) == 3:  # H:M:S
+        hours, minutes, seconds = parts
+    else:
+        raise ValueError(f"Invalid Slurm time format: {timeout!r}")
+    return int(days) * 24 * 60 + hours * 60 + minutes + seconds / 60
+
+
 class DelayedSubmission:
     """Object for specifying the function/callable call to submit and process later.
     This is only syntactic sugar to make sure everything is well formatted:
@@ -127,7 +154,7 @@ class DelayedSubmission:
         self.kwargs = kwargs
         self._result: tp.Any = None
         self._done = False
-        self._timeout_min: int = 0
+        self._timeout_min: float = 0
         self._timeout_countdown: int = 0  # controlled in submission and execution
 
     def result(self) -> tp.Any:
@@ -144,8 +171,8 @@ class DelayedSubmission:
     def dump(self, filepath: tp.Union[str, Path]) -> None:
         cloudpickle_dump(self, filepath)
 
-    def set_timeout(self, timeout_min: int, max_num_timeout: int) -> None:
-        self._timeout_min = timeout_min
+    def set_timeout(self, timeout_min: tp.Union[int, float, str], max_num_timeout: int) -> None:
+        self._timeout_min = timeout_to_minutes(timeout_min)
         self._timeout_countdown = max_num_timeout
 
     @classmethod
