@@ -44,10 +44,11 @@ def _iter_submitit_entrypoints():
 def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
     # pylint: disable=cyclic-import,import-outside-toplevel
     from ..local import debug, local
+    from ..oar import oar
     from ..slurm import slurm
 
-    executors: List[Type["Executor"]] = [slurm.SlurmExecutor, local.LocalExecutor, debug.DebugExecutor]
-    job_envs = [slurm.SlurmJobEnvironment(), local.LocalJobEnvironment(), debug.DebugJobEnvironment()]
+    executors: List[Type["Executor"]] = [slurm.SlurmExecutor, local.LocalExecutor, debug.DebugExecutor, oar.OarExecutor]
+    job_envs = [slurm.SlurmJobEnvironment(), local.LocalJobEnvironment(), debug.DebugJobEnvironment(), oar.OarJobEnvironment()]
     for entry_point in _iter_submitit_entrypoints():
         if entry_point.name not in ("executor", "job_environment"):
             logger.warning(f"{entry_point.name} = {entry_point.value}")
