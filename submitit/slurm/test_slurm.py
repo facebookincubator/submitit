@@ -130,7 +130,7 @@ def test_slurm_error_mocked(tmp_path: Path) -> None:
 
 
 @contextlib.contextmanager
-def mock_requeue(called_with: int = None, not_called: bool = False):
+def mock_requeue(called_with: tp.Optional[int] = None, not_called: bool = False):
     assert not_called or called_with is not None
     requeue = patch("submitit.slurm.slurm.SlurmJobEnvironment._requeue", return_value=None)
     with requeue as _patch:
@@ -244,7 +244,7 @@ def test_make_sbatch_string() -> None:
         folder="/tmp",
         partition="learnfair",
         exclusive=True,
-        additional_parameters=dict(blublu=12),
+        additional_parameters={"blublu": 12},
         srun_args=["-vv", "--cpu-bind", "none"],
     )
     assert "partition" in string
@@ -517,3 +517,17 @@ def test_slurm_job_no_stderr(tmp_path: Path) -> None:
         # job.paths.stdout.unlink()
         with pytest.raises(utils.UncompletedJobError, match="No output/error stream produced !"):
             job._get_outcome_and_result()
+
+
+def test_slurm_through_auto_with_setup_and_teardown(tmp_path: Path) -> None:
+    with mocked_slurm():
+        executor = submitit.AutoExecutor(folder=tmp_path)
+        executor.update_parameters(
+            slurm_additional_parameters={"mem_per_gpu": 12},
+            slurm_setup=["This is a setup command"],
+            slurm_teardown=["This is a teardown command"],
+        )
+        job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
+    text = job.paths.submission_file.read_text()
+    assert "This is a setup command" in text
+    assert "This is a teardown command" in text

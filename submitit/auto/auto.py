@@ -25,7 +25,7 @@ def _convert_deprecated_args(kwargs: tp.Dict[str, Any], deprecated_args: tp.Mapp
 
 class AutoExecutor(Executor):
     """Automatic job executor
-    This class is used to hold the parameters to run a job either on the cluster
+    This class is used to hold the parameters to run a job on the cluster
     corresponding to the environment.
     It can also be used to run job locally or in debug mode.
     In practice, it will create a bash file in the specified directory for each job,
@@ -205,7 +205,7 @@ class AutoExecutor(Executor):
         )
         parameters = self._executor._convert_parameters({k: kwargs[k] for k in kwargs if k in generics})
         # update parameters in the core executor
-        for (ex, arg) in specific:
+        for ex, arg in specific:
             # update cluster specific non-generic arguments
             if arg not in generics and ex == self.cluster:
                 parameters[arg] = kwargs[f"{ex}_{arg}"]

@@ -4,12 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import importlib
 import logging
 import re
+import typing as tp
 from pathlib import Path
-from typing import Any, Iterator
 
-import pkg_resources
 import pytest
 
 from . import core, plugins
@@ -25,7 +25,7 @@ def test_env(env: JobEnvironment) -> None:
 
 
 @pytest.mark.parametrize("ex", plugins.get_executors().values())
-def test_executors(ex: core.Executor) -> None:
+def test_executors(ex: tp.Type[core.Executor]) -> None:
     assert isinstance(ex, type)
     assert issubclass(ex, core.Executor)
     assert ex.affinity() >= -1
@@ -82,23 +82,29 @@ class PluginCreator:
         self.monkeypatch = monkeypatch
 
     def add_plugin(self, name: str, entry_points: str, init: str):
-        plugin = self.tmp_path / name
-        plugin.mkdir(mode=0o777)
-        plugin_egg = plugin.with_suffix(".egg-info")
-        plugin_egg.mkdir(mode=0o777)
+        # Extract version from init string if available
+        version = "0.0.0"  # default fallback - this bit doesn't matter for testing
+        version_match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', init)
+        if version_match:
+            version = version_match.group(1)
 
-        (plugin_egg / "entry_points.txt").write_text(entry_points)
-        (plugin / "__init__.py").write_text(init)
+        pkg_dir = self.tmp_path / name
+        pkg_dir.mkdir(mode=0o777)
+        (pkg_dir / "__init__.py").write_text(init)
 
-        # also fix pkg_resources since it already has loaded old packages in other tests.
-        working_set = pkg_resources.WorkingSet([str(self.tmp_path)])
-        self.monkeypatch.setattr(pkg_resources, "iter_entry_points", working_set.iter_entry_points)
+        dist = self.tmp_path / f"{name}-{version}.dist-info"
+        dist.mkdir(mode=0o777)
+        (dist / "METADATA").write_text(f"Name: {name}\nVersion: {version}\n")
+        (dist / "entry_points.txt").write_text(entry_points)
+
+        # Make sure Python and metadata see the new files
+        importlib.invalidate_caches()
 
     def __enter__(self) -> None:
         _clear_plugin_cache()
         self.monkeypatch.syspath_prepend(self.tmp_path)
 
-    def __exit__(self, *exception: Any) -> None:
+    def __exit__(self, *exception: tp.Any) -> None:
         _clear_plugin_cache()
 
 
@@ -108,7 +114,7 @@ def _clear_plugin_cache() -> None:
 
 
 @pytest.fixture(name="plugin_creator")
-def _plugin_creator(tmp_path: Path, monkeypatch) -> Iterator[PluginCreator]:
+def _plugin_creator(tmp_path: Path, monkeypatch) -> tp.Iterator[PluginCreator]:
     creator = PluginCreator(tmp_path, monkeypatch)
     with creator:
         yield creator

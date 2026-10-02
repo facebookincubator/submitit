@@ -93,9 +93,13 @@ class JobPaths:
             replaced_path = replaced_path.replace("%a", array_index[0])
         return Path(replaced_path.replace("%A", array_id))
 
-    def move_temporary_file(self, tmp_path: tp.Union[Path, str], name: str) -> None:
+    def move_temporary_file(
+        self, tmp_path: tp.Union[Path, str], name: str, keep_as_symlink: bool = False
+    ) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         Path(tmp_path).rename(getattr(self, name))
+        if keep_as_symlink:
+            Path(tmp_path).symlink_to(getattr(self, name))
 
     @staticmethod
     def get_first_id_independent_folder(folder: tp.Union[Path, str]) -> Path:
@@ -244,10 +248,11 @@ def copy_process_streams(
     """
 
     def raw(stream: tp.Optional[tp.IO[bytes]]) -> tp.IO[bytes]:
-        assert stream is not None
+        if stream is None:
+            raise RuntimeError("Stream should not be None")
         if isinstance(stream, io.BufferedIOBase):
-            stream = stream.raw
-        return stream
+            stream = stream.raw  # type: ignore
+        return stream  # type: ignore
 
     p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
     stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.IO[str]]] = {

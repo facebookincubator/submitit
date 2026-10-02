@@ -6,6 +6,7 @@
 
 import functools
 import os
+import pickle
 import re
 import signal
 import sys
@@ -13,6 +14,8 @@ import time
 from pathlib import Path
 
 import pytest
+
+from submitit import AutoExecutor
 
 from .. import helpers
 from ..core import job_environment, test_core, utils
@@ -49,6 +52,14 @@ def test_local_job(tmp_path: Path) -> None:
     # single task job is a regular job
     assert job2.task(0) is job2
     assert job2.done()
+    # picklability
+    b = pickle.dumps(job2)
+    job3 = pickle.loads(b)
+    assert job3.results() == [0]
+    assert job3._process is not None
+    del job2
+    job3 = pickle.loads(b)
+    assert job3._process is None, "garbage collection should I removed finished job"
 
 
 def test_local_map_array(tmp_path: Path) -> None:
@@ -60,15 +71,15 @@ def test_local_map_array(tmp_path: Path) -> None:
 
 def test_local_submit_array(tmp_path: Path) -> None:
     g = test_debug.CheckFunction(5)
-    executor = local.LocalExecutor(tmp_path)
     fns = [functools.partial(g, x, y) for x, y in zip(g.data1, g.data2)]
+    executor = local.LocalExecutor(tmp_path)
     jobs = executor.submit_array(fns)
     assert list(map(g, g.data1, g.data2)) == [j.result() for j in jobs]
 
 
 def test_local_error(tmp_path: Path) -> None:
     def failing_job() -> None:
-        raise Exception("Failed on purpose")
+        raise RuntimeError("Failed on purpose")
 
     executor = local.LocalExecutor(tmp_path)
     job = executor.submit(failing_job)
@@ -92,7 +103,7 @@ def test_get_first_task_error(tmp_path: Path) -> None:
     def flaky() -> None:
         job_env = job_environment.JobEnvironment()
         if job_env.local_rank > 0:
-            raise Exception(f"Failed on purpose: {job_env.local_rank}")
+            raise RuntimeError(f"Failed on purpose: {job_env.local_rank}")
 
     executor = local.LocalExecutor(tmp_path)
     executor.update_parameters(tasks_per_node=3, nodes=1)
@@ -129,7 +140,7 @@ def test_stdout(tmp_path: Path) -> None:
 def test_killed(tmp_path: Path) -> None:
     def failing_job() -> None:
         time.sleep(120)
-        raise Exception("Failed on purpose")
+        raise RuntimeError("Failed on purpose")
 
     executor = local.LocalExecutor(tmp_path)
     job = executor.submit(failing_job)
@@ -173,7 +184,7 @@ def test_custom_checkpoint(tmp_path: Path) -> None:
             if slack:
                 print("Slacking", flush=True)
                 time.sleep(10)
-                raise Exception("I really don't want to work")
+                raise RuntimeError("I really don't want to work")
             print("Working hard", flush=True)
             return "worked hard"
 
@@ -224,6 +235,16 @@ def test_cancel(tmp_path: Path) -> None:
 
 def f66(x: int, y: int = 0) -> int:  # pylint: disable=unused-argument
     return 66
+
+
+def test_setup(tmp_path: Path) -> None:
+    executor = AutoExecutor(tmp_path, cluster="local")
+    setup_file = tmp_path / "setup_done"
+    executor.update_parameters(local_setup=[f"touch {setup_file}"])
+    job = executor.submit(f66, 12)
+    time.sleep(1)
+    assert job.result() == 66
+    assert setup_file.exists()
 
 
 def test_load_submission(tmp_path: Path) -> None:

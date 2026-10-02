@@ -39,7 +39,7 @@ By default stdout is silenced in `CommandFunction`, but it can be unsilenced wit
 
 **Find more examples [here](docs/examples.md)!!!**
 
-Submitit is a Python 3.6+ toolbox for submitting jobs to Slurm.
+Submitit is a Python 3.8+ toolbox for submitting jobs to Slurm.
 It aims at running python function from python code.
 
 
@@ -93,7 +93,7 @@ The defaults are chosen to make their life easier, and might not be ideal for ev
 
 - a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitit plugin](https://hydra.cc/docs/next/plugins/submitit_launcher) (version >= 1.0.0).
 - a task queue, this only implements the ability to launch tasks, but does not schedule them in any way.
-- being used in Python2! This is a Python3.6+ only package :)
+- being used in Python2! This is a Python3.8+ only package :)
 
 
 ### Comparison with dask.distributed
@@ -114,7 +114,7 @@ The key difference with `submitit` is that `dask.distributed` distributes the jo
 
 ## Contributors
 
-By chronological order: Jérémy Rapin, Louis Martin, Lowik Chanussot, Lucas Hosseini, Fabio Petroni, Francisco Massa, Guillaume Wenzek, Thibaut Lavril, Vinayak Tantia, Andrea Vedaldi, Max Nickel, Quentin Duval (feel free to [contribute](.github/CONTRIBUTING.md) and add your name ;) )
+By chronological order: Jérémy Rapin, Louis Martin, Lowik Chanussot, Lucas Hosseini, Fabio Petroni, Francisco Massa, Guillaume Wenzek, Thibaut Lavril, Vinayak Tantia, Andrea Vedaldi, Max Nickel, Quentin Duval, Rushil Patel (feel free to [contribute](.github/CONTRIBUTING.md) and add your name ;) )
 
 ## License
 

@@ -113,3 +113,17 @@ release: integration
 	SOURCE_DATE_EPOCH=`git log -n1 --format=%cd --date=unix` $(BIN)python -m flit publish --setup-py
 	git checkout HEAD -- README.md
 	git push origin $(CURRENT_VERSION)
+
+
+fast_release:
+	echo "Releasing submitit $(CURRENT_VERSION)"
+	[ ! -d dist ] || rm -r dist
+	# Make sure the repo is in a clean state
+	# --setup-py generates a setup.py file to allow user with old
+	# versions of pip to install it without flit.
+	# git tag $(CURRENT_VERSION)
+	# To have a reproducible build we use the timestamp of the last commit:
+	# https://flit.pypa.io/en/latest/reproducible.html
+	SOURCE_DATE_EPOCH=`git log -n1 --format=%cd --date=unix` $(BIN)python -m flit publish --setup-py
+	git checkout HEAD -- README.md
+	git push origin $(CURRENT_VERSION)

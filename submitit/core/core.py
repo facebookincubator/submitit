@@ -100,7 +100,8 @@ class InfoWatcher:
             one of "force" (forces a call), "standard" (calls regularly) or "cache" (does not call)
         """
         state = self.get_state(job_id, mode=mode)
-        return state.upper() not in ["READY", "PENDING", "RUNNING", "UNKNOWN", "REQUEUED", "COMPLETING"]
+        incomplete = ["READY", "PENDING", "RUNNING", "UNKNOWN", "REQUEUED", "COMPLETING", "PREEMPTED"]
+        return state.upper() not in incomplete
 
     def update_if_long_enough(self, mode: str) -> None:
         """Updates if forced to, or if the delay is reached
@@ -739,8 +740,7 @@ class Executor(abc.ABC):
     @abc.abstractmethod
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]
-    ) -> tp.List[Job[tp.Any]]:
-        ...
+    ) -> tp.List[Job[tp.Any]]: ...
 
     def map_array(self, fn: tp.Callable[..., R], *iterable: tp.Iterable[tp.Any]) -> tp.List[Job[R]]:
         """A distributed equivalent of the map() built-in function
@@ -852,11 +852,21 @@ class PicklingExecutor(Executor):
     ----------
     folder: Path/str
         folder for storing job submission/output and logs.
+    max_num_timeout: int
+        maximum number of timeouts after which submitit will not reschedule the job.
+        Note: only callable implementing a checkpoint method are rescheduled in case
+        of timeout.
+    max_pickle_size_gb: float
+        maximum size of pickles in GB allowed for a submission.
+        Note: during a batch submission, this is the estimated sum of all pickles.
     """
 
-    def __init__(self, folder: tp.Union[Path, str], max_num_timeout: int = 3) -> None:
+    def __init__(
+        self, folder: tp.Union[Path, str], max_num_timeout: int = 3, max_pickle_size_gb: float = 1.0
+    ) -> None:
         super().__init__(folder)
         self.max_num_timeout = max_num_timeout
+        self.max_pickle_size_gb = max_pickle_size_gb
         self._throttling = 0.2
         self._last_job_submitted = 0.0
 
@@ -881,13 +891,23 @@ class PicklingExecutor(Executor):
         eq_dict = self._equivalence_dict()
         timeout_min = self.parameters.get(eq_dict["timeout_min"] if eq_dict else "timeout_min", 5)
         jobs = []
+        check_size = True
         for delayed in delayed_submissions:
             tmp_uuid = uuid.uuid4().hex
             pickle_path = utils.JobPaths.get_first_id_independent_folder(self.folder) / f"{tmp_uuid}.pkl"
             pickle_path.parent.mkdir(parents=True, exist_ok=True)
             delayed.set_timeout(timeout_min, self.max_num_timeout)
             delayed.dump(pickle_path)
-
+            if check_size:  # warn if the dumped objects are too big
+                check_size = False
+                num = len(delayed_submissions)
+                size = pickle_path.stat().st_size / 1024**3
+                if num * size > self.max_pickle_size_gb:
+                    pickle_path.unlink()
+                    msg = f"Submitting an estimated {num} x {size:.2f} > {self.max_pickle_size_gb}GB of objects "
+                    msg += "(function and arguments) through pickle (this can be slow / overload the file system)."
+                    msg += "If this is the intended behavior, you should update executor.max_pickle_size_gb to a larger value "
+                    raise RuntimeError(msg)
             self._throttle()
             self._last_job_submitted = _time.time()
             job = self._submit_command(self._submitit_command_str)
@@ -925,7 +945,7 @@ class PicklingExecutor(Executor):
         """
         tmp_uuid = uuid.uuid4().hex
         submission_file_path = (
-            utils.JobPaths.get_first_id_independent_folder(self.folder) / f"submission_file_{tmp_uuid}.sh"
+            utils.JobPaths.get_first_id_independent_folder(self.folder) / f".submission_file_{tmp_uuid}.sh"
         )
         with submission_file_path.open("w") as f:
             f.write(self._make_submission_file_text(command, tmp_uuid))
@@ -935,7 +955,7 @@ class PicklingExecutor(Executor):
         job_id = self._get_job_id_from_submission_command(output)
         tasks_ids = list(range(self._num_tasks()))
         job: Job[tp.Any] = self.job_class(folder=self.folder, job_id=job_id, tasks=tasks_ids)
-        job.paths.move_temporary_file(submission_file_path, "submission_file")
+        job.paths.move_temporary_file(submission_file_path, "submission_file", keep_as_symlink=True)
         self._write_job_id(job.job_id, tmp_uuid)
         self._set_job_permissions(job.paths.folder)
         return job

@@ -144,3 +144,8 @@ def test_clean_env() -> None:
             assert not _get_env()
         assert len(_get_env()) == len(base) + 2
     assert _get_env() == base
+
+    with utils.environment_variables(MASTER_PORT=42, BLABLA=314):
+        with helpers.clean_env(extra_names=("BLABLA",)):
+            assert "MASTER_PORT" not in os.environ
+            assert "BLABLA" not in os.environ
