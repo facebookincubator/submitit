@@ -4,8 +4,10 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import io
 import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -82,6 +84,37 @@ def test_command_function() -> None:
     with pytest.raises(utils.FailedJobError, match="Too bad"):
         # error=True will make `do_nothing` fail
         utils.CommandFunction(command, verbose=True)(error=True)
+
+
+@pytest.mark.parametrize("verbose", [False, True])
+def test_copy_process_streams_split_utf8(monkeypatch, capsys, verbose: bool) -> None:
+    code = "import os; os.write(1, 'A\\u20acZ'.encode()); os.write(2, 'B\\U0001f600Y'.encode())"
+    stdout, stderr = io.StringIO(), io.StringIO()
+    with subprocess.Popen(
+        [sys.executable, "-c", code], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ) as process:
+        # A pipe read can end inside a UTF-8 code point. Force that boundary
+        # without depending on subprocess timing or the OS pipe buffer size.
+        for stream in (process.stdout, process.stderr):
+            assert isinstance(stream, io.BufferedReader)
+            monkeypatch.setattr(stream.raw, "read", lambda size, read=stream.raw.read: read(1))
+        utils.copy_process_streams(process, stdout, stderr, verbose)
+        assert process.wait() == 0
+    assert stdout.getvalue() == "A\u20acZ"
+    assert stderr.getvalue() == "B\U0001f600Y"
+    captured = capsys.readouterr()
+    assert captured.out == (stdout.getvalue() if verbose else "")
+    assert captured.err == (stderr.getvalue() if verbose else "")
+
+
+def test_copy_process_streams_incomplete_utf8() -> None:
+    code = "import os; os.write(1, bytes([0xe2, 0x82]))"
+    with subprocess.Popen(
+        [sys.executable, "-c", code], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    ) as process:
+        with pytest.raises(UnicodeDecodeError):
+            utils.copy_process_streams(process, io.StringIO(), io.StringIO())
+        assert process.wait() == 0
 
 
 def test_command_function_deadlock(executor) -> None:
