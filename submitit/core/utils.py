@@ -197,7 +197,7 @@ def archive_dev_folders(
         outfile = "_dev_folders_.tar.gz"
     outfile = Path(outfile)
     assert str(outfile).endswith(".tar.gz"), "Archive file must have extension .tar.gz"
-    with tarfile.TarFile(outfile, mode="w") as tf:
+    with tarfile.open(outfile, mode="w:gz") as tf:
         for folder in folders:
             tf.add(str(folder), arcname=Path(folder).name)
     return outfile

@@ -7,6 +7,7 @@
 import os
 import shutil
 import sys
+import tarfile
 from pathlib import Path
 from typing import Optional
 
@@ -70,6 +71,21 @@ def test_archive_dev_folders(tmp_path: Path) -> None:
     utils.archive_dev_folders([Path(__file__).parent], outfile=tmp_path.with_suffix(".tar.gz"))
     shutil.unpack_archive(str(tmp_path.with_suffix(".tar.gz")), extract_dir=tmp_path)
     assert (tmp_path / "core").exists()
+
+
+@pytest.mark.parametrize("default_outfile", [False, True])
+def test_archive_dev_folders_is_gzip(tmp_path: Path, monkeypatch, default_outfile: bool) -> None:
+    monkeypatch.chdir(tmp_path)
+    folder = tmp_path / "project"
+    folder.mkdir()
+    (folder / "data.txt").write_text("archived content")
+    outfile = None if default_outfile else tmp_path / "custom.tar.gz"
+    archive = utils.archive_dev_folders([folder], outfile=outfile)
+
+    with tarfile.open(archive, mode="r:gz") as reader:
+        content = reader.extractfile("project/data.txt")
+        assert content is not None
+        assert content.read() == b"archived content"
 
 
 def test_command_function() -> None:
