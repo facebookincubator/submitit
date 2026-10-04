@@ -301,7 +301,10 @@ class Controller:  # pragma: no cover
     def _forward_signal(self, signum: signal.Signals, *args: tp.Any) -> None:
         for task in self.tasks:
             try:
-                task.send_signal(signum)  # sending kill signal to make sure everything finishes
+                if os.name == "posix" and signum in (signal.SIGINT, signal.SIGKILL):
+                    os.killpg(task.pid, signum)
+                else:
+                    task.send_signal(signum)
             except Exception:
                 pass
 
@@ -323,6 +326,7 @@ class Controller:  # pragma: no cover
                     stderr=self.stderrs[k],
                     stdout=self.stdouts[k],
                     encoding="utf-8",
+                    start_new_session=(os.name == "posix"),
                 )
             )
 
