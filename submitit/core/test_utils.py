@@ -110,3 +110,23 @@ def test_jobpaths(tmp_path: Path) -> None:
         utils.JobPaths(tmp_path / "array-%A-index-%a", "456_3").stdout
         == tmp_path / "array-456-index-3" / "456_3_0_log.out"
     )
+
+
+def test_command_function_environment(monkeypatch) -> None:
+    monkeypatch.setenv("SUBMITIT_TEST_PARENT", "inherited")
+    monkeypatch.delenv("SUBMITIT_TEST_CHILD", raising=False)
+    command = [
+        sys.executable,
+        "-c",
+        "import os; print(os.getenv('SUBMITIT_TEST_PARENT', 'missing'), "
+        "os.getenv('SUBMITIT_TEST_CHILD', 'missing'))",
+    ]
+    assert utils.CommandFunction(command, verbose=False)() == "inherited missing"
+    replacement = {"SUBMITIT_TEST_CHILD": "value"}
+    assert utils.CommandFunction(
+        command, env=replacement, verbose=False
+    )() == "missing value"
+    merged = {**os.environ, **replacement}
+    assert utils.CommandFunction(
+        command, env=merged, verbose=False
+    )() == "inherited value"

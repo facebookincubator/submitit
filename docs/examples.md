@@ -185,8 +185,20 @@ print(function())  # This returns your python path (which you be inside your vir
 
 Some useful parameters of the `CommandFunction` class:
 - `cwd`: to choose from which directory the command is run.
-- `env`: to provide specific environment variables.
+- `env`: to replace the subprocess environment. If omitted, the current environment is inherited. To add variables while keeping `PATH` and other inherited values, merge them with `os.environ`:
 - `verbose`: set to `False` if you do not want any logging.
+
+```python
+import os
+import submitit
+
+function = submitit.helpers.CommandFunction(
+    ["which", "python"],
+    env={**os.environ, "MY_JOB_SETTING": "value"},
+)
+```
+
+Passing only `env={"MY_JOB_SETTING": "value"}` does not preserve the inherited `PATH` or other variables. Use a complete environment when that isolation is intentional.
 
 As an experimental feature, you can also provide arguments when calling the instance:
 ```python
