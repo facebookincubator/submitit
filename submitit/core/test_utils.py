@@ -28,6 +28,61 @@ def test_temporary_save_path(tmp_path: Path, existing_content: Optional[str]) ->
     assert filepath.read_text() == "12"
 
 
+def test_temporary_save_path_replacement_is_atomic(tmp_path: Path, monkeypatch) -> None:
+    filepath = tmp_path / "checkpoint.pkl"
+    filepath.write_text("previous checkpoint")
+    replace = os.replace
+    observed = []
+
+    def observe_move(source, destination):
+        # Observe the actual destination immediately before the native move.
+        observed.append(Path(destination).read_text())
+        return replace(source, destination)
+
+    monkeypatch.setattr(os, "rename", observe_move)
+    monkeypatch.setattr(os, "replace", observe_move)
+    with utils.temporary_save_path(filepath) as tmp:
+        tmp.write_text("next checkpoint")
+    assert observed == ["previous checkpoint"]
+    assert filepath.read_text() == "next checkpoint"
+    assert not tmp.exists()
+
+
+@pytest.mark.parametrize("existing_content", [None, "previous checkpoint"])
+def test_temporary_save_path_move_failure(
+    tmp_path: Path, monkeypatch, existing_content: Optional[str]
+) -> None:
+    filepath = tmp_path / "checkpoint.pkl"
+    if existing_content is not None:
+        filepath.write_text(existing_content)
+
+    def fail_move(_source, _destination):
+        raise OSError("injected move failure")
+
+    monkeypatch.setattr(os, "rename", fail_move)
+    monkeypatch.setattr(os, "replace", fail_move)
+    with pytest.raises(OSError, match="injected move failure"):
+        with utils.temporary_save_path(filepath) as tmp:
+            tmp.write_text("next checkpoint")
+    if existing_content is None:
+        assert not filepath.exists()
+    else:
+        assert filepath.read_text() == existing_content
+    # Retain the staged checkpoint for inspection or recovery.
+    assert tmp.read_text() == "next checkpoint"
+
+
+def test_temporary_save_path_body_failure(tmp_path: Path) -> None:
+    filepath = tmp_path / "checkpoint.pkl"
+    filepath.write_text("previous checkpoint")
+    with pytest.raises(RuntimeError, match="checkpoint failed"):
+        with utils.temporary_save_path(filepath) as tmp:
+            tmp.write_text("partial checkpoint")
+            raise RuntimeError("checkpoint failed")
+    assert filepath.read_text() == "previous checkpoint"
+    assert tmp.read_text() == "partial checkpoint"
+
+
 def test_temporary_save_path_error() -> None:
     with pytest.raises(FileNotFoundError):
         with utils.temporary_save_path("save_and_move_test"):
