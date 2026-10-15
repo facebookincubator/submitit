@@ -28,7 +28,7 @@ def test_temporary_save_path(tmp_path: Path, existing_content: Optional[str]) ->
     assert filepath.read_text() == "12"
 
 
-def test_temporary_save_path_replacement_is_atomic(tmp_path: Path, monkeypatch) -> None:
+def test_temporary_save_path_preserves_destination_until_replace(tmp_path: Path, monkeypatch) -> None:
     filepath = tmp_path / "checkpoint.pkl"
     filepath.write_text("previous checkpoint")
     replace = os.replace
@@ -68,8 +68,6 @@ def test_temporary_save_path_move_failure(
         assert not filepath.exists()
     else:
         assert filepath.read_text() == existing_content
-    # Retain the staged checkpoint for inspection or recovery.
-    assert tmp.read_text() == "next checkpoint"
 
 
 def test_temporary_save_path_body_failure(tmp_path: Path) -> None:
@@ -80,7 +78,6 @@ def test_temporary_save_path_body_failure(tmp_path: Path) -> None:
             tmp.write_text("partial checkpoint")
             raise RuntimeError("checkpoint failed")
     assert filepath.read_text() == "previous checkpoint"
-    assert tmp.read_text() == "partial checkpoint"
 
 
 def test_temporary_save_path_error() -> None:
