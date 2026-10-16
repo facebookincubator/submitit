@@ -183,9 +183,7 @@ def temporary_save_path(filepath: tp.Union[Path, str]) -> tp.Iterator[Path]:
     yield tmppath
     if not tmppath.exists():
         raise FileNotFoundError("No file was saved at the temporary path.")
-    if filepath.exists():
-        os.remove(filepath)
-    os.rename(tmppath, filepath)
+    os.replace(tmppath, filepath)
 
 
 def archive_dev_folders(
