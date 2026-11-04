@@ -6,8 +6,9 @@
 
 import functools
 import os
+from collections.abc import Mapping
 from importlib import metadata
-from typing import TYPE_CHECKING, List, Mapping, Tuple, Type
+from typing import TYPE_CHECKING
 
 from ..core import logger
 
@@ -17,38 +18,15 @@ if TYPE_CHECKING:
     from ..core.job_environment import JobEnvironment
 
 
-def _iter_submitit_entrypoints():
-    """Return an iterable of EntryPoint objects in the 'submitit' group
-    compatible with Python 3.8+ and the backport."""
-
-    # 3.10+ API: EntryPoints with .select
-    eps = metadata.entry_points()
-    if hasattr(eps, "select"):
-        return eps.select(group="submitit")
-
-    # importlib_metadata backport newer signature: entry_points("submitit")
-    try:
-        return metadata.entry_points()["submitit"]
-    except (TypeError, KeyError):
-        pass  # older API or absent group; fall through
-
-    # 3.8/3.9 legacy: mapping {group: [EntryPoint, ...]}
-    if hasattr(eps, "get"):
-        return eps.get("submitit", [])
-
-    # old style (should in theory never get here if 3.8+): flat iterable; filter by .group
-    return [ep for ep in eps if getattr(ep, "group", None) == "submitit"]
-
-
-@functools.lru_cache()
-def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
+@functools.lru_cache
+def _get_plugins() -> tuple[list[type["Executor"]], list["JobEnvironment"]]:
     # pylint: disable=cyclic-import,import-outside-toplevel
     from ..local import debug, local
     from ..slurm import slurm
 
-    executors: List[Type["Executor"]] = [slurm.SlurmExecutor, local.LocalExecutor, debug.DebugExecutor]
+    executors: list[type[Executor]] = [slurm.SlurmExecutor, local.LocalExecutor, debug.DebugExecutor]
     job_envs = [slurm.SlurmJobEnvironment(), local.LocalJobEnvironment(), debug.DebugJobEnvironment()]
-    for entry_point in _iter_submitit_entrypoints():
+    for entry_point in metadata.entry_points(group="submitit"):
         if entry_point.name not in ("executor", "job_environment"):
             logger.warning(f"{entry_point.name} = {entry_point.value}")
             continue
@@ -79,8 +57,8 @@ def _get_plugins() -> Tuple[List[Type["Executor"]], List["JobEnvironment"]]:
     return (executors, job_envs)
 
 
-@functools.lru_cache()
-def get_executors() -> Mapping[str, Type["Executor"]]:
+@functools.lru_cache
+def get_executors() -> Mapping[str, type["Executor"]]:
     # TODO: check collisions between executor names
     return {ex.name(): ex for ex in _get_plugins()[0]}
 
@@ -103,6 +81,6 @@ def get_job_environment() -> "JobEnvironment":
     )
 
 
-@functools.lru_cache()
+@functools.lru_cache
 def get_job_environments() -> Mapping[str, "JobEnvironment"]:
     return {env.name(): env for env in _get_plugins()[1]}

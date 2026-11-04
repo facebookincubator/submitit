@@ -25,7 +25,7 @@ def test_env(env: JobEnvironment) -> None:
 
 
 @pytest.mark.parametrize("ex", plugins.get_executors().values())
-def test_executors(ex: tp.Type[core.Executor]) -> None:
+def test_executors(ex: type[core.Executor]) -> None:
     assert isinstance(ex, type)
     assert issubclass(ex, core.Executor)
     assert ex.affinity() >= -1
@@ -164,9 +164,3 @@ class BadEnvironment:
         assert record.name == "submitit"
         assert record.levelno == ex_record[0]
         assert re.search(ex_record[1], record.getMessage())
-
-
-@pytest.mark.parametrize("entry_points", [{}, {"submitit": ["executor"]}])
-def test_legacy_entry_points_mapping(monkeypatch, entry_points: tp.Dict[str, tp.List[str]]) -> None:
-    monkeypatch.setattr(plugins.metadata, "entry_points", lambda: entry_points)
-    assert list(plugins._iter_submitit_entrypoints()) == entry_points.get("submitit", [])

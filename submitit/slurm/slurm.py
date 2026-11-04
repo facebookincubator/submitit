@@ -20,7 +20,7 @@ from pathlib import Path
 from ..core import core, job_environment, logger, utils
 
 
-def read_job_id(job_id: str) -> tp.List[tp.Tuple[str, ...]]:
+def read_job_id(job_id: str) -> list[tuple[str, ...]]:
     """Reads formated job id and returns a tuple with format:
     (main_id, [array_index, [final_array_index])
     """
@@ -40,7 +40,7 @@ def read_job_id(job_id: str) -> tp.List[tp.Tuple[str, ...]]:
 
 
 class SlurmInfoWatcher(core.InfoWatcher):
-    def _make_command(self) -> tp.Optional[tp.List[str]]:
+    def _make_command(self) -> list[str] | None:
         # asking for array id will return all status
         # on the other end, asking for each and every one of them individually takes a huge amount of time
         to_check = {x.split("_")[0] for x in self._registered - self._finished}
@@ -65,7 +65,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
         info = self.get_info(job_id, mode=mode)
         return info.get("State") or "UNKNOWN"
 
-    def read_info(self, string: tp.Union[bytes, str]) -> tp.Dict[str, tp.Dict[str, str]]:
+    def read_info(self, string: bytes | str) -> dict[str, dict[str, str]]:
         """Reads the output of sacct and returns a dictionary containing main information"""
         if not isinstance(string, str):
             string = string.decode()
@@ -74,7 +74,7 @@ class SlurmInfoWatcher(core.InfoWatcher):
             return {}  # one job id does not exist (yet)
         names = lines[0].split("|")
         # read all lines
-        all_stats: tp.Dict[str, tp.Dict[str, str]] = {}
+        all_stats: dict[str, dict[str, str]] = {}
         for line in lines[1:]:
             stats = {x: y.strip() for x, y in zip(names, line.split("|"))}
             job_id = stats["JobID"]
@@ -122,7 +122,7 @@ class SlurmParseException(Exception):
     pass
 
 
-def _expand_id_suffix(suffix_parts: str) -> tp.List[str]:
+def _expand_id_suffix(suffix_parts: str) -> list[str]:
     """Parse the a suffix formatted like "1-3,5,8" into
     the list of numeric values 1,2,3,5,8.
     """
@@ -138,7 +138,7 @@ def _expand_id_suffix(suffix_parts: str) -> tp.List[str]:
     return suffixes
 
 
-def _parse_node_group(node_list: str, pos: int, parsed: tp.List[str]) -> int:
+def _parse_node_group(node_list: str, pos: int, parsed: list[str]) -> int:
     """Parse a node group of the form PREFIX[1-3,5,8] and return
     the position in the string at which the parsing stopped
     """
@@ -164,7 +164,7 @@ def _parse_node_group(node_list: str, pos: int, parsed: tp.List[str]) -> int:
 def _parse_node_list(node_list: str):
     try:
         pos = 0
-        parsed: tp.List[str] = []
+        parsed: list[str] = []
         while pos < len(node_list):
             pos = _parse_node_group(node_list, pos, parsed)
         return parsed
@@ -191,7 +191,7 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
         logger.get_logger().info(f"Requeued job {jid} ({countdown} remaining timeouts)")
 
     @property
-    def hostnames(self) -> tp.List[str]:
+    def hostnames(self) -> list[str]:
         """Parse the content of the "SLURM_JOB_NODELIST" environment variable,
         which gives access to the list of hostnames that are part of the current job.
 
@@ -277,10 +277,10 @@ class SlurmExecutor(core.PicklingExecutor):
 
     def __init__(
         self,
-        folder: tp.Union[str, Path],
+        folder: str | Path,
         max_num_timeout: int = 3,
         max_pickle_size_gb: float = 1.0,
-        python: tp.Optional[str] = None,
+        python: str | None = None,
     ) -> None:
         super().__init__(
             folder,
@@ -304,11 +304,11 @@ class SlurmExecutor(core.PicklingExecutor):
         }
 
     @classmethod
-    def _valid_parameters(cls) -> tp.Set[str]:
+    def _valid_parameters(cls) -> set[str]:
         """Parameters that can be set through update_parameters"""
         return set(_get_default_parameters())
 
-    def _convert_parameters(self, params: tp.Dict[str, tp.Any]) -> tp.Dict[str, tp.Any]:
+    def _convert_parameters(self, params: dict[str, tp.Any]) -> dict[str, tp.Any]:
         params = super()._convert_parameters(params)
         # replace type in some cases
         if "mem" in params:
@@ -329,8 +329,8 @@ class SlurmExecutor(core.PicklingExecutor):
         super()._internal_update_parameters(**kwargs)
 
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[utils.DelayedSubmission]
-    ) -> tp.List[core.Job[tp.Any]]:
+        self, delayed_submissions: list[utils.DelayedSubmission]
+    ) -> list[core.Job[tp.Any]]:
         if len(delayed_submissions) == 1:
             return super()._internal_process_submissions(delayed_submissions)
         # array
@@ -353,7 +353,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
         first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
         tasks_ids = list(range(first_job.num_tasks))
-        jobs: tp.List[core.Job[tp.Any]] = [
+        jobs: list[core.Job[tp.Any]] = [
             SlurmJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(n)
         ]
         for job, pickle_path in zip(jobs, pickle_paths):
@@ -372,11 +372,11 @@ class SlurmExecutor(core.PicklingExecutor):
         tasks_per_node: int = max(1, self.parameters.get("ntasks_per_node", 1))
         return nodes * tasks_per_node
 
-    def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
+    def _make_submission_command(self, submission_file_path: Path) -> list[str]:
         return ["sbatch", str(submission_file_path)]
 
     @staticmethod
-    def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
+    def _get_job_id_from_submission_command(string: bytes | str) -> str:
         """Returns the job ID from the output of sbatch string"""
         if not isinstance(string, str):
             string = string.decode()
@@ -394,8 +394,8 @@ class SlurmExecutor(core.PicklingExecutor):
         return -1 if shutil.which("srun") is None else 2
 
 
-@functools.lru_cache()
-def _get_default_parameters() -> tp.Dict[str, tp.Any]:
+@functools.lru_cache
+def _get_default_parameters() -> dict[str, tp.Any]:
     """Parameters that can be set through update_parameters"""
     specs = inspect.getfullargspec(_make_sbatch_string)
     zipped = zip(specs.args[-len(specs.defaults) :], specs.defaults)  # type: ignore
@@ -405,40 +405,40 @@ def _get_default_parameters() -> tp.Dict[str, tp.Any]:
 # pylint: disable=too-many-arguments,unused-argument, too-many-locals
 def _make_sbatch_string(
     command: str,
-    folder: tp.Union[str, Path],
+    folder: str | Path,
     job_name: str = "submitit",
-    partition: tp.Optional[str] = None,
+    partition: str | None = None,
     time: int = 5,
     nodes: int = 1,
-    ntasks_per_node: tp.Optional[int] = None,
-    cpus_per_task: tp.Optional[int] = None,
-    cpus_per_gpu: tp.Optional[int] = None,
-    num_gpus: tp.Optional[int] = None,  # legacy
-    gpus_per_node: tp.Optional[int] = None,
-    gpus_per_task: tp.Optional[int] = None,
-    qos: tp.Optional[str] = None,  # quality of service
-    setup: tp.Optional[tp.List[str]] = None,
-    teardown: tp.Optional[tp.List[str]] = None,
-    mem: tp.Optional[str] = None,
-    mem_per_gpu: tp.Optional[str] = None,
-    mem_per_cpu: tp.Optional[str] = None,
+    ntasks_per_node: int | None = None,
+    cpus_per_task: int | None = None,
+    cpus_per_gpu: int | None = None,
+    num_gpus: int | None = None,  # legacy
+    gpus_per_node: int | None = None,
+    gpus_per_task: int | None = None,
+    qos: str | None = None,  # quality of service
+    setup: list[str] | None = None,
+    teardown: list[str] | None = None,
+    mem: str | None = None,
+    mem_per_gpu: str | None = None,
+    mem_per_cpu: str | None = None,
     signal_delay_s: int = 90,
-    comment: tp.Optional[str] = None,
-    constraint: tp.Optional[str] = None,
-    exclude: tp.Optional[str] = None,
-    account: tp.Optional[str] = None,
-    gres: tp.Optional[str] = None,
-    mail_type: tp.Optional[str] = None,
-    mail_user: tp.Optional[str] = None,
-    nodelist: tp.Optional[str] = None,
-    dependency: tp.Optional[str] = None,
-    exclusive: tp.Optional[tp.Union[bool, str]] = None,
+    comment: str | None = None,
+    constraint: str | None = None,
+    exclude: str | None = None,
+    account: str | None = None,
+    gres: str | None = None,
+    mail_type: str | None = None,
+    mail_user: str | None = None,
+    nodelist: str | None = None,
+    dependency: str | None = None,
+    exclusive: bool | str | None = None,
     array_parallelism: int = 256,
     wckey: str = "submitit",
     stderr_to_stdout: bool = False,
-    map_count: tp.Optional[int] = None,  # used internally
-    additional_parameters: tp.Optional[tp.Dict[str, tp.Any]] = None,
-    srun_args: tp.Optional[tp.Iterable[str]] = None,
+    map_count: int | None = None,  # used internally
+    additional_parameters: dict[str, tp.Any] | None = None,
+    srun_args: tp.Iterable[str] | None = None,
     use_srun: bool = True,
 ) -> str:
     """Creates the content of an sbatch file with provided parameters,
@@ -501,7 +501,7 @@ def _make_sbatch_string(
         stderr_flags = [] if stderr_to_stdout else ["--error", stderr]
         if srun_args is None:
             srun_args = []
-        srun_cmd = _shlex_join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args])
+        srun_cmd = shlex.join(["srun", "--unbuffered", "--output", stdout, *stderr_flags, *srun_args])
         command = " ".join((srun_cmd, command))
 
     lines += [
@@ -532,8 +532,3 @@ def _as_sbatch_flag(key: str, value: tp.Any) -> str:
 
     value = shlex.quote(str(value))
     return f"#SBATCH --{key}={value}"
-
-
-def _shlex_join(split_command: tp.List[str]) -> str:
-    """Same as shlex.join, but that was only added in Python 3.8"""
-    return " ".join(shlex.quote(arg) for arg in split_command)

@@ -79,7 +79,7 @@ The defaults are chosen to make their life easier, and might not be ideal for ev
 
 - a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitit plugin](https://hydra.cc/docs/next/plugins/submitit_launcher) (version >= 1.0.0).
 - a task queue, this only implements the ability to launch tasks, but does not schedule them in any way.
-- being used in Python2! This is a Python3.8+ only package :)
+- being used in Python2! This is a Python3.11+ only package :)
 
 
 ## Comparison with dask.distributed
