@@ -49,11 +49,11 @@ def _get_root() -> Path:
     return root
 
 
-def _get_markdown_files(root: Path) -> tp.List[Path]:
+def _get_markdown_files(root: Path) -> list[Path]:
     return [md for pattern in ("*.md", "submitit/**/*.md", "docs/**/*.md") for md in root.glob(pattern)]
 
 
-def _get_all_markdown_links(root: Path, files: tp.List[Path]) -> tp.List[MarkdownLink]:
+def _get_all_markdown_links(root: Path, files: list[Path]) -> list[MarkdownLink]:
     """Returns a list of all existing markdown links"""
     pattern = MarkdownLink.regex
     links = []
@@ -81,13 +81,13 @@ def test_doc_snippets(page: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(submitit.AutoExecutor, "which", staticmethod(lambda: "local"))  # even on Slurm
     blocks = re.findall(r"^```python\n(.*?)^```", text, flags=re.MULTILINE | re.DOTALL)
     assert blocks, f"No python block found in {page}"
-    namespace: tp.Dict[str, tp.Any] = {"__name__": "__main__"}  # functions pickled by value
+    namespace: dict[str, tp.Any] = {"__name__": "__main__"}  # functions pickled by value
     for block in blocks:
         exec(block, namespace)  # pylint: disable=exec-used
 
 
 @pytest.mark.parametrize("executor", [submitit.AutoExecutor, submitit.SlurmExecutor, submitit.LocalExecutor])
-def test_update_parameters_documented(executor: tp.Type[submitit.Executor]) -> None:
+def test_update_parameters_documented(executor: type[submitit.Executor]) -> None:
     section = inspect.cleandoc(executor.__doc__ or "").partition("Update parameters\n")[2]
     documented = {
         n for m in re.finditer(r"^([\w, ]+):", section, re.MULTILINE) for n in m.group(1).split(", ")

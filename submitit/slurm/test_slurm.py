@@ -91,7 +91,7 @@ def test_slurm_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
             assert y in data2
             return x + y
 
-        jobs: tp.List[Job[int]] = []
+        jobs: list[Job[int]] = []
         if use_batch_api:
             with executor.batch():
                 for d1, d2 in zip(data1, data2):
@@ -130,7 +130,7 @@ def test_slurm_error_mocked(tmp_path: Path) -> None:
 
 
 @contextlib.contextmanager
-def mock_requeue(called_with: tp.Optional[int] = None, not_called: bool = False):
+def mock_requeue(called_with: int | None = None, not_called: bool = False):
     assert not_called or called_with is not None
     requeue = patch("submitit.slurm.slurm.SlurmJobEnvironment._requeue", return_value=None)
     with requeue as _patch:
@@ -186,8 +186,9 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
 
     # The job has already timed out twice, we should stop here.
     usr_sig = slurm.SlurmJobEnvironment._usr_sig()
-    with mock_requeue(not_called=True), pytest.raises(
-        utils.UncompletedJobError, match="timed-out too many times."
+    with (
+        mock_requeue(not_called=True),
+        pytest.raises(utils.UncompletedJobError, match="timed-out too many times."),
     ):
         sig.checkpoint_and_try_requeue(usr_sig)
 
@@ -216,8 +217,9 @@ def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> Non
     fast_forward_clock(minutes=50)
 
     # Wait 50 minutes, now the job as timed out.
-    with mock_requeue(not_called=True), pytest.raises(
-        utils.UncompletedJobError, match="timed-out and not checkpointable"
+    with (
+        mock_requeue(not_called=True),
+        pytest.raises(utils.UncompletedJobError, match="timed-out and not checkpointable"),
     ):
         sig.checkpoint_and_try_requeue(usr_sig)
 
@@ -327,7 +329,7 @@ def test_read_info_array(name: str, state: str) -> None:
         ("20_[0%1]", [(20, 0)]),
     ],
 )
-def test_read_job_id(job_id: str, expected: tp.List[tp.Tuple[tp.Union[int, str], ...]]) -> None:
+def test_read_job_id(job_id: str, expected: list[tuple[int | str, ...]]) -> None:
     output = slurm.read_job_id(job_id)
     assert output == [tuple(str(x) for x in group) for group in expected]
 
@@ -486,7 +488,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("params", [{}, {"mem_gb": None}])  # type: ignore
-def test_slurm_through_auto(params: tp.Dict[str, int], tmp_path: Path) -> None:
+def test_slurm_through_auto(params: dict[str, int], tmp_path: Path) -> None:
     with mocked_slurm():
         executor = submitit.AutoExecutor(folder=tmp_path)
         executor.update_parameters(**params, slurm_additional_parameters={"mem_per_gpu": 12})
