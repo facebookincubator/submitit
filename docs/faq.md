@@ -8,14 +8,15 @@ Solutions, from the most robust:
 
 - install your code as a package in the environment (`pip install -e .`);
 - add its directory to `PYTHONPATH` before running the submitting script;
-- submit from the directory containing your modules.
+- submit from the directory containing your modules;
+- as a last resort, call `sys.path.append` inside the submitted function, before importing the module.
 
 See [Tips and caveats](tips.md) for other pickling pitfalls.
 
 ## Pickling fails, or hits a recursion error
 
-Some objects cannot be pickled (locks, open files, database connections, objects wrapping C resources).
-Create them inside the submitted function rather than passing them as arguments, and prefer functions imported from a module to functions defined in the submitting script.
+Some objects cannot be pickled (locks, open files, database connections, objects wrapping C resources), including as default arguments of the submitted function.
+Create them inside the submitted function rather than passing them as arguments, and prefer functions imported from a module to functions defined in the submitting script, which also give more explicit tracebacks.
 
 ## My job is killed after a few minutes
 

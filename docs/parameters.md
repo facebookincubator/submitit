@@ -18,8 +18,6 @@ These parameters work on every executor and are converted to the cluster's own o
 | `gpus_per_node` | `--gpus-per-node` | |
 | `stderr_to_stdout` | no `--error` | writes stderr to the stdout log |
 
-Always set `timeout_min`: jobs that do not set it are killed after a few minutes.
-
 ## Slurm parameters
 
 Slurm-specific parameters are prefixed by `slurm_`, and ignored by other executors so that the same code also runs locally:
