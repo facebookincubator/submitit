@@ -155,6 +155,7 @@ class InfoWatcher:
 # pylint: disable=too-many-public-methods
 class Job(tp.Generic[R]):
     """Access to a cluster job information and result.
+    It mirrors the main methods of ``concurrent.futures.Future``.
 
     Parameters
     ----------
@@ -198,6 +199,7 @@ class Job(tp.Generic[R]):
 
     @property
     def paths(self) -> utils.JobPaths:
+        """Paths of the submission, result and log files of the job"""
         return self._paths
 
     @property
@@ -267,6 +269,7 @@ class Job(tp.Generic[R]):
         )
 
     def result(self) -> R:
+        """Waits for and outputs the result of the submitted function, for jobs with one task"""
         r = self.results()
         assert not self._sub_jobs, "You should use `results()` if your job has subtasks."
         return r[0]
@@ -679,17 +682,17 @@ class Executor(abc.ABC):
         """Creates a context within which all submissions are packed into a job array.
         By default the array submissions happens when leaving the context
 
-        Parameter
-        ---------
+        Parameters
+        ----------
         allow_implicit_submissions: bool
             submits the current batch whenever a job attribute is accessed instead of raising an exception
 
         Example
         -------
-        jobs = []
-        with executor.batch():
-            for k in range(12):
-                jobs.append(executor.submit(add, k, 1))
+        >>> jobs = []
+        >>> with executor.batch():
+        ...     for k in range(12):
+        ...         jobs.append(executor.submit(add, k, 1))
 
         Raises
         ------
@@ -803,7 +806,9 @@ class Executor(abc.ABC):
         return self._internal_process_submissions(submissions)
 
     def update_parameters(self, **kwargs: tp.Any) -> None:
-        """Update submision parameters."""
+        """Updates the parameters of the next submissions, see :class:`~submitit.AutoExecutor`,
+        :class:`~submitit.SlurmExecutor` and :class:`~submitit.LocalExecutor` for the valid ones.
+        An invalid parameter raises an error listing the valid ones."""
         if self._delayed_batch is not None:
             raise RuntimeError(
                 'Changing parameters within batch context "with executor.batch():" is not allowed'

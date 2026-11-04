@@ -3,7 +3,7 @@
 In order to switch between executing on Slurm and another cluster,
 `submitit` provides a plugin API.
 Each plugin must implement an `Executor`, a `Job`, an `InfoWatcher` and a `JobEnvironment` class.
-Look at [structure.md](./structure.md) for more details on those classes.
+Look at the [API reference](api.rst) for more details on those classes.
 
 Main functions to implement:
 

@@ -20,7 +20,7 @@ Create them inside the submitted function rather than passing them as arguments,
 
 ## My job is killed after a few minutes
 
-Jobs that do not set `timeout_min` are stopped after 5 minutes on Slurm (2 minutes with the local executor): set it with `executor.update_parameters(timeout_min=...)`.
+Jobs that do not set `timeout_min` get a short default time limit, see `time` in [`SlurmExecutor`](#submitit.SlurmExecutor) and `timeout_min` in [`LocalExecutor`](#submitit.LocalExecutor).
 
 ## My `logging` output does not appear in the logs
 
@@ -29,29 +29,20 @@ Configure logging at the beginning of the submitted function.
 
 ## sbatch rejects an option that I did not set
 
-submitit always writes `--job-name`, `--nodes`, `--time`, `--signal`, `--wckey` and the log options (`--output`, `--error`, `--open-mode`), and the other options only when set:
-
-- `Invalid wckey specification`: set `slurm_wckey=""`;
-- `Invalid generic resource (gres) specification` with `gpus_per_node`: your cluster may not support `--gpus-per-node`, request GPUs with e.g. `slurm_gres="gpu:2"` instead;
-- any option submitit does not support: pass it through `slurm_additional_parameters`, e.g. `{"reservation": "my_reservation"}`.
+submitit always writes `--job-name`, `--nodes`, `--time`, `--signal`, `--wckey` and the log options (`--output`, `--error`, `--open-mode`), and the other options only when set.
+See the options in [`SlurmExecutor`](#submitit.SlurmExecutor), including workarounds for `wckey` and `gpus_per_node`, and `additional_parameters` for options submitit does not support.
 
 ## How do I load modules or set environment variables before the job starts?
 
-Use `slurm_setup`, a list of shell commands run in the sbatch script before the job, e.g. `executor.update_parameters(slurm_setup=["module load cuda/12.1"])`.
+Use `slurm_setup`, see `setup` in [`SlurmExecutor`](#submitit.SlurmExecutor).
 
 ## How do I run the job with another Python or in a container?
 
-Pass `slurm_python` when creating the executor, e.g. `submitit.AutoExecutor(folder, slurm_python="singularity exec image.sif python")`; it defaults to the current interpreter.
+Use `slurm_python`, see the `python` argument of [`SlurmExecutor`](#submitit.SlurmExecutor).
 
 ## Jobs submitted from within a job fail, e.g. with `Unable to satisfy cpu bind request`
 
-A job submitted from a Slurm job inherits its `SLURM_*` environment variables.
-Submit inside `submitit.helpers.clean_env()`, which removes them and restores them on exit:
-
-```python
-with submitit.helpers.clean_env():
-    job = executor.submit(evaluate, checkpoint)
-```
+Submit inside [`submitit.helpers.clean_env()`](#submitit.helpers.clean_env).
 
 ## Processes started by my function ignore `terminate()`, with `Bypassing signal SIGTERM` in the logs
 
@@ -60,14 +51,10 @@ Stop them with `kill()`, let them exit by themselves (`close()` and `join()` a p
 
 ## How do I retrieve or cancel a job from another process?
 
-Recreate it from its folder and id, see [Inspect a job](getting_started.md#inspect-a-job).
+Recreate it from its folder and id, e.g. `submitit.SlurmJob(folder="logs/%j", job_id="1234")`, to check its `state`, wait for its `result()` or `cancel()` it.
 For the local executor, the job id is the process id.
 
 ## Can I use torchrun?
 
 No: submitit already starts one process per task through Slurm.
 Request one task per GPU (`tasks_per_node=gpus_per_node`) and initialize PyTorch distributed with `submitit.helpers.TorchDistributedEnvironment`, see [PyTorch distributed initialization](examples.md#pytorch-distributed-initialization).
-
-## Does submitit work with other schedulers than Slurm?
-
-Only Slurm, local and debug executors are provided; other schedulers need a [plugin](plugins.md).

@@ -61,16 +61,19 @@ class FunctionSequence(Checkpointable):
     Also this "function" is stateful, hence it can be stopped, and recovered,
     which is useful when job can be preempted.
 
-    Usage
-    -----
-    func = FunctionSequence()
-    func.add(my_function1, arg1, kwarg1=value_kwarg1)
-    func.add(my_function2, arg1, arg2)
-    result1, result2 = func()
+    Example
+    -------
+    .. code-block:: python
+
+        func = FunctionSequence()
+        func.add(my_function1, arg1, kwarg1=value_kwarg1)
+        func.add(my_function2, arg1, arg2)
+        result1, result2 = func()
 
     Note
     ----
     This function is checkpointable because:
+
     - it derives from Checkpointable
     - it keeps DelayedSubmission objects as attribute, which in turn store the
       results of the computation in memory once they are computed. So at checkpoint
@@ -310,10 +313,12 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
     Submitting within this context should prevent this.
     ``SLURM_CONF`` (cluster configuration location) is kept unless listed in ``extra_names``.
 
-    Usage
-    -----
-    with submitit.helpers.clean_env():
-        executor.submit(...)
+    Example
+    -------
+    .. code-block:: python
+
+        with submitit.helpers.clean_env():
+            executor.submit(...)
     """
     distrib_names = ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
     cluster_env = {
@@ -332,16 +337,17 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
 
 
 class TorchDistributedEnvironment:  # pragma: no cover
-    def __init__(self) -> None:
-        """Construct a class holding the parameters required to properly setup
-        PyTorch distributed (with the default env:// initialization method).
+    """Holds the parameters required to properly setup
+    PyTorch distributed (with the default env:// initialization method).
 
-        Examples
-        --------
-        >>> dist_env = TorchDistributedEnvironment().export()
-        >>> torch.distributed.init_process_group(backend="nccl")
-        >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
-        """
+    Examples
+    --------
+    >>> dist_env = TorchDistributedEnvironment().export()
+    >>> torch.distributed.init_process_group(backend="nccl")
+    >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
+    """
+
+    def __init__(self) -> None:
         self._job_env = JobEnvironment()
         self.master_addr = self._job_env.hostnames[0]
         self.master_port = self._get_master_port()
@@ -373,9 +379,9 @@ class TorchDistributedEnvironment:  # pragma: no cover
         MASTER_ADDR, MASTER_PORT, RANK, WORLD_SIZE (to which LOCAL_RANK and
         LOCAL_WORLD_SIZE are added).
 
-        Parameter
+        Parameters
         ----------
-        set_cuda_visible_device: bool
+        set_cuda_visible_devices: bool
             if True, updates CUDA_VISIBLE_DEVICES to use only the device
             matching the local rank.
         overwrite: bool

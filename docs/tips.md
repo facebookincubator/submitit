@@ -13,4 +13,3 @@
 ## Specific to Slurm
 
  - While all jobs are requeued after preemption, only Checkpointable classes are requeued after a timeout (since a stateless function is expected to timeout again if it is requeued)
- - the log/output folder fills up pretty fast with batch files and pickled objects, but no cleaning mechanism is currently implemented.

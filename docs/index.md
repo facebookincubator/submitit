@@ -35,7 +35,7 @@ The `Job` class also provides tools for reading the log files (`job.stdout()` an
 If what you want to run is a command, turn it into a Python function using `submitit.helpers.CommandFunction`, then submit it.
 By default stdout is silenced in `CommandFunction`, but it can be unsilenced with `verbose=True`.
 
-**New to submitit? Start with [Getting started](getting_started.md), and find more examples [here](examples.md)!**
+**Find more examples [here](examples.md)!!!**
 
 
 ## Install
@@ -101,7 +101,6 @@ The key difference with `submitit` is that `dask.distributed` distributes the jo
 ```{toctree}
 :hidden:
 
-getting_started
 examples
 structure
 checkpointing
@@ -109,4 +108,5 @@ tips
 faq
 nevergrad
 plugins
+api
 ```
