@@ -11,6 +11,8 @@ The same code runs locally.
 pip install submitit  # or: conda install -c conda-forge submitit
 ```
 
+Requires Python 3.11+.
+
 ```python
 import submitit
 

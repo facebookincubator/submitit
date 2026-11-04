@@ -17,6 +17,10 @@ classifiers=[
     "License :: OSI Approved :: MIT License",
     "Topic :: System :: Distributed Computing",
     "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 [project.urls]

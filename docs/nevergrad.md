@@ -22,7 +22,7 @@ recommendation = optimizer.minimize(train, executor=executor)  # at most 16 jobs
 print(recommendation.kwargs)
 ```
 
-Instead of `minimize`, to control the loop:
+Instead of `minimize`, to control the loop (with `train`, `parametrization` and `executor` from above):
 
 ```python
 optimizer = ng.optimizers.NGOpt(parametrization=parametrization, budget=128, num_workers=16)

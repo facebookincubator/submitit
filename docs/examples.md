@@ -53,7 +53,7 @@ for job in submitit.helpers.as_completed(jobs, poll_frequency=1):
     print(job.job_id, "finished")
 ```
 
-`submit`, `result` and `done` follow `concurrent.futures`: the same code runs in local threads with `executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)`.
+Jobs provide `done()`, `result()` and `exception()` like `concurrent.futures.Future`.
 
 ## Wait with asyncio
 
@@ -137,7 +137,7 @@ assert job.results() == [[0, 4, 16, 36, 64], [1, 9, 25, 49, 81]]  # one result p
 print(job.task(1).stdout())  # logs of task 1
 ```
 
-`job.result()` fails on multi-task jobs, use `job.results()`, and `job.stdout()` concatenates the logs of all tasks.
+`job.result()` raises an `AssertionError` on multi-task jobs (after waiting for them), use `job.results()`, and `job.stdout()` concatenates the logs of all tasks.
 
 ## PyTorch distributed
 

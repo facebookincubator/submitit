@@ -2,7 +2,7 @@
 
 ## My job fails with `ModuleNotFoundError` or `ImportError`
 
-The job does not run your script: it runs `python -m submitit.core._submit` from your submission directory, so imports relying on the directory of your script, or on a `sys.path.append` in it, fail.
+The job does not run your script (see [How it works](structure.md)), so imports relying on the directory of your script, or on a `sys.path.append` in it, fail.
 Solutions, from the most robust:
 
 - install your code as a package in the environment (`pip install -e .`);
@@ -13,7 +13,7 @@ Solutions, from the most robust:
 ## My job runs code I edited after submitting it
 
 Functions imported from a module are pickled by reference: the job imports the module as it is when the job starts, or is requeued.
-Submit inside `with submitit.helpers.RsyncSnapshot(snapshot_dir):` to run jobs from a snapshot of your git repository (this does not cover installed packages).
+Submit inside `with submitit.helpers.RsyncSnapshot(snapshot_dir):` to run jobs from a snapshot of your git repository. Installed packages, including editable installs (`pip install -e .`), are still imported from their original location.
 
 ## A module fails at import in the job, but not in my script
 
@@ -37,7 +37,6 @@ Configure logging at the beginning of the submitted function.
 
 ## sbatch rejects an option that I did not set
 
-`executor.submit` raises a `FailedJobError` with the sbatch error.
 submitit always writes `--job-name`, `--nodes`, `--time`, `--signal`, `--wckey` and the log options (`--output`, `--error`, `--open-mode`), and the other options only when set.
 See `wckey` and `gpus_per_node` in [`SlurmExecutor`](#submitit.SlurmExecutor) for workarounds.
 

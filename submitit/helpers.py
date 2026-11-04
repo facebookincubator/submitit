@@ -131,7 +131,7 @@ def as_completed(
     jobs: list
         Jobs instances
 
-    timeout: int/float
+    timeout: int | float
         Maximum time (in sec) to wait for jobs completion
 
     poll_frequency: float
@@ -168,10 +168,14 @@ class RsyncSnapshot:
     code from when they are submitted, not from when they start or restart.
 
 
+    Requires ``git`` and ``rsync``.
+
     Parameters
     ----------
     snapshot_dir: Path
         A path to where the snapshot should be created
+    root_dir: Path
+        root of the repository to snapshot (default: the repository of the current directory)
     with_submodules: bool
         Whether or not submodules should be included in the snapshot
     exclude: Sequence[str]
@@ -272,7 +276,7 @@ def monitor_jobs(
 
     Parameters
     ----------
-    jobs: List[Jobs]
+    jobs: list[Job]
         A list of jobs to monitor
     poll_frequency: int
         The time (in seconds) between two refreshes of the monitoring, at least 30.
@@ -281,7 +285,7 @@ def monitor_jobs(
     """
 
     if not test_mode:
-        assert poll_frequency >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
+        assert poll_frequency >= 30, "You can't refresh too often (>= 30s) to avoid overloading the scheduler"
 
     n_jobs = len(jobs)
     if n_jobs == 0:
