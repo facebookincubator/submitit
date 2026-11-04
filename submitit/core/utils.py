@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import codecs
 import contextlib
 import io
 import itertools
@@ -260,6 +261,7 @@ def copy_process_streams(
         p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
     }
     fds = list(stream_by_fd.keys())
+    decoders = {fd: codecs.getincrementaldecoder("utf-8")() for fd in fds}
     poller = select.poll()
     for fd in stream_by_fd:
         poller.register(fd, select.POLLIN | select.POLLPRI)
@@ -269,11 +271,10 @@ def copy_process_streams(
         for fd, _ in ready:
             p_stream, string, std = stream_by_fd[fd]
             raw_buf = p_stream.read(2**16)
+            buf = decoders[fd].decode(raw_buf, final=not raw_buf)
             if not raw_buf:
                 fds.remove(fd)
                 poller.unregister(fd)
-                continue
-            buf = raw_buf.decode()
             string.write(buf)
             string.flush()
             if verbose:
