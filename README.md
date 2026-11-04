@@ -11,6 +11,21 @@ The same code runs locally.
 pip install submitit  # or: conda install -c conda-forge submitit
 ```
 
+```python
+import submitit
+
+
+def add(a, b):
+    return a + b
+
+
+executor = submitit.AutoExecutor(folder="logs/%j")
+executor.update_parameters(timeout_min=10, slurm_partition="<your_partition>")
+job = executor.submit(add, 5, 7)
+print(job.job_id)
+assert job.result() == 12
+```
+
 **Documentation: https://facebookincubator.github.io/submitit/**
 
 ## Contributors

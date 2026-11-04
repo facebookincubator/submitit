@@ -15,6 +15,11 @@ Solutions, from the most robust:
 Functions imported from a module are pickled by reference: the job imports the module as it is when the job starts, or is requeued.
 Submit inside `with submitit.helpers.RsyncSnapshot(snapshot_dir):` to run jobs from a snapshot of your git repository (this does not cover installed packages).
 
+## A module fails at import in the job, but not in my script
+
+The job imports the modules of the submitted function when unpickling it, not in the order of your script: imports with side effects (e.g. a module that must be imported before another) may break.
+Import them inside the submitted function, or in a module imported by it.
+
 ## Pickling fails
 
 Some objects cannot be pickled (locks, open files, database connections, objects wrapping C resources), including as default arguments of the submitted function.
@@ -60,7 +65,7 @@ Stop them with `kill()`, let them exit by themselves (`close()` and `join()` a p
 ## How do I retrieve or cancel a job from another process?
 
 Recreate it from its folder and id, e.g. [`submitit.SlurmJob(folder="logs/%j", job_id="1234")`](#submitit.SlurmJob) (`job_id="1234_3"` for a job array, `tasks=range(n)` for a multi-task job), to check its `state`, wait for its `result()` or `cancel()` it.
-Local jobs cannot be followed from another process: only their result can be read once they are finished.
+Local jobs cannot be followed from another process: their job id is the id of their controlling process, and `kill -INT <job_id>` stops them (`kill` alone does not).
 
 ## Can I use torchrun?
 
@@ -69,4 +74,4 @@ No: submitit already starts one process per task through Slurm, see [PyTorch dis
 ## How does submitit compare to dask.distributed?
 
 [`dask.distributed`](https://distributed.dask.org) runs tasks on a pool of workers, while submitit runs each submission as a cluster job.
-For many small tasks, use dask, or group them in [job arrays](examples.md#job-arrays): many independent jobs overload the scheduler.
+For many small tasks, use dask (with [dask-jobqueue](https://jobqueue.dask.org) on Slurm), or group them in [job arrays](examples.md#job-arrays): many independent jobs overload the scheduler.

@@ -7,6 +7,7 @@ The same code runs locally.
 
 ```bash
 pip install submitit  # or: conda install -c conda-forge submitit
+pip install git+https://github.com/facebookincubator/submitit@main  # development version
 ```
 
 Install it in the environment your jobs should use: jobs run with the Python interpreter of the process that submits them.
@@ -74,8 +75,9 @@ To submit many jobs as one Slurm job array, use `executor.map_array` or `with ex
 
 ## Scope
 
+- Any picklable callable can be submitted, including lambdas and functions defined in the submitting script.
 - Each submission is a cluster job, with its own logs, requeued after preemption and [checkpointed](checkpointing.md) if it supports it.
-- submitit is not a command-line tool (use [Hydra's submitit launcher](https://hydra.cc/docs/plugins/submitit_launcher/) for that), nor a workflow engine: it does not manage dependencies between jobs (pass `slurm_dependency` yourself).
+- submitit is not a command-line tool (use [Hydra's submitit launcher](https://hydra.cc/docs/plugins/submitit_launcher/) for that), nor a task queue: it does not schedule jobs itself, nor manage dependencies between them (pass `slurm_dependency` yourself).
 - Schedulers other than Slurm can be supported through [plugins](plugins.md).
 
 ```{toctree}
