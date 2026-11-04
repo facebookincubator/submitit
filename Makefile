@@ -49,6 +49,10 @@ pylint:
 
 lint: mypy pylint
 
+.PHONY: docs
+docs:
+	$(BIN)sphinx-build -W --keep-going -b html docs docs/_build/html
+
 venv: venv/pyproject.toml
 
 venv/pyproject.toml: pyproject.toml

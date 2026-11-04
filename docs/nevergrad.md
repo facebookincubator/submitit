@@ -43,6 +43,7 @@ The optimal value is obtained through `recommendation.value`.
 
 
 5 base types of variables are currently provided for instrumentation:
+
 - `Choice`: for unordered categorical values.
 - `TransitionChoice`: for ordered categorical values.
 - `Array`: for array parameters, possibly bounded
@@ -101,6 +102,7 @@ recommendation = optimizer.minimize(my_function, executor=executor, verbosity=2)
 ### Using the ask and tell interface
 
 `nevergrad` also provides an ask and tell interface:
+
 - `ask()` provides a candidate point to evaluate.
 - `tell(x, value)` is used to feed the function evaluation back to `nevergrad`.
 

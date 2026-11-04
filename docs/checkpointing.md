@@ -27,12 +27,13 @@ Generally checkpointing requires a modification of your code to skip the parts t
 You can look at [the MNIST example](./mnist.py) to see what it looks like in practice.
 
 You may however submit something completely different if you wish. This can happen for instance if:
+
  - you want to restart with different parameters.
  - you do not want all the attributes to be pickled. Typically, you may want to dump a neural network in a separate file
   in a standard format and set the corresponding argument to None in order to avoid relying on pickle for saving the
   network.
 
-For a basic example of a checkpointable callable, checkout the code from `submitit.helpers.FunctionSequence` in [helpers.py](../submitit/helpers.py).
+For a basic example of a checkpointable callable, checkout the code from `submitit.helpers.FunctionSequence` in [helpers.py](https://github.com/facebookincubator/submitit/blob/main/submitit/helpers.py).
 
 
 ## Example - Training and checkpointing a model

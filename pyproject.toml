@@ -41,6 +41,12 @@ classifiers=[
         # Release
         "flit>=3.5.1"
     ]
+    docs = [
+        "sphinx>=7.1",
+        "furo>=2024.1.29",
+        "myst-parser>=2.0",
+        "sphinx-copybutton>=0.5.2",
+    ]
 
 [tool.black]
 line-length = 110
