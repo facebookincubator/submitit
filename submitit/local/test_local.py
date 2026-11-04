@@ -264,3 +264,41 @@ def test_load_submission(tmp_path: Path) -> None:
 def test_weird_dir(weird_tmp_path: Path) -> None:
     executor = local.LocalExecutor(weird_tmp_path / "%j")
     executor.submit(f66, 67, 68).result()
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Uses /proc to check child state")
+def test_cancel_command_function_child(tmp_path: Path) -> None:
+    pid_file = tmp_path / "command-child.pid"
+    executor = local.LocalExecutor(tmp_path / "logs")
+    command = helpers.CommandFunction(
+        [
+            sys.executable,
+            "-c",
+            "import os, pathlib, time; "
+            f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid())); "
+            "time.sleep(30)",
+        ],
+        verbose=False,
+    )
+    job = executor.submit(command)
+    child_pid = None
+    try:
+        deadline = time.monotonic() + 10
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert pid_file.exists(), "Command child did not start"
+        child_pid = int(pid_file.read_text())
+        job.cancel()
+        deadline = time.monotonic() + 5
+        status = Path(f"/proc/{child_pid}/status")
+        while status.exists() and time.monotonic() < deadline:
+            time.sleep(0.05)
+        assert not status.exists(), "Command child survived cancellation"
+    finally:
+        if child_pid is not None:
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if not job.done():
+            job.cancel(check=False)
