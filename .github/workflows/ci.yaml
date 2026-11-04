@@ -68,15 +68,17 @@ jobs:
     - name: Test lint
       run: |
         source activate ./ci_env
-        pip show mypy
-        make use_venv=0 lint
+        mypy --version
+        mypy submitit
+        pylint --version
+        pylint submitit
 
     - name: Test coverage
       run: |
         source activate ./ci_env
-        make use_venv=0 test_coverage
+        pytest -v --cov=submitit --cov-report=term --durations=10 submitit
 
     - name: Test format
       run: |
         source activate ./ci_env
-        make use_venv=0 format
+        pre-commit run --all-files --show-diff-on-failure

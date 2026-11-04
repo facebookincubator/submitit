@@ -84,6 +84,7 @@ Notice that this is straightforward to convert to multi-threading:
 ```python
 import time
 from concurrent import futures
+
 with futures.ThreadPoolExecutor(max_workers=10) as executor:  # This is the only real difference
     jobs = [executor.submit(time.sleep, k) for k in range(1, 11)]
     time.sleep(5)
@@ -102,9 +103,11 @@ import random
 import submitit
 import time
 
+
 def slow_multiplication(x, y):
-    time.sleep(x*y)
-    return x*y
+    time.sleep(x * y)
+    return x * y
+
 
 executor = submitit.AutoExecutor(folder="log_test")
 executor.update_parameters(timeout_min=1, slurm_partition="dev")
@@ -152,6 +155,7 @@ Note however that, because we use `subprocess` with `shell=False` under the hood
 By default, the function hides stdout and returns it at the end:
 ```python
 import submitit
+
 function = submitit.helpers.CommandFunction(["which", "python"])  # commands must be provided as a list!
 print(function())  # This returns your python path (which you be inside your virtualenv)
 # for me: /private/home/jrapin/.conda/envs/dfconda/bin/python
@@ -185,6 +189,7 @@ print(submitit.helpers.CommandFunction(["which"])("pip"))  # will run  "which pi
 the active conda environment to submit your job:
 ```python
 import submitit
+
 function = submitit.helpers.CommandFunction(["which", "python"])
 executor = submitit.AutoExecutor(folder="log_test")
 executor.update_parameters(timeout_min=1, slurm_partition="dev")
@@ -206,6 +211,7 @@ You just need to use the `tasks_per_node` and `nodes` parameters.
 ```python
 import submitit
 from operator import add
+
 executor = submitit.AutoExecutor(folder="log_test")
 # 3 * 2 = 6 tasks
 executor.update_parameters(tasks_per_node=3, nodes=2, timeout_min=1, slurm_partition="dev")
@@ -221,6 +227,7 @@ We provide a `JobEnvironment` class, that gives access to this information (in a
 import submitit
 from math import ceil
 
+
 def my_func(inputs):
     job_env = submitit.JobEnvironment()
     print(f"There are {job_env.num_tasks} in this job")
@@ -228,7 +235,7 @@ def my_func(inputs):
     print(f"I'm the task #{job_env.global_rank} in the job")
     num_items_per_task = int(ceil(len(inputs) / job_env.num_tasks))
     r = job_env.local_rank
-    task_chunk = inputs[r * num_items_per_task: (r + 1) * num_items_per_task]
+    task_chunk = inputs[r * num_items_per_task : (r + 1) * num_items_per_task]
     return process(task_chunk)  # process only this chunk.
 ```
 
@@ -238,6 +245,7 @@ You can use the `task` method of a `Job` instance to access task specific inform
 import submitit
 
 from operator import add
+
 executor = submitit.AutoExecutor(folder="log_test")
 # 3 * 2 = 6 tasks
 executor.update_parameters(tasks_per_node=3, nodes=2, timeout_min=1, slurm_partition="dev")

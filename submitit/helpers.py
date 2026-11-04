@@ -43,9 +43,9 @@ class Checkpointable:
     # pylint: disable=unused-argument
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
-        assert callable(
-            instance
-        ), f"Class {cls.__name__} is marked as Checkpointable but doesn't have a __call__ method. Please add a __call__ method."
+        assert callable(instance), (
+            f"Class {cls.__name__} is marked as Checkpointable but doesn't have a __call__ method. Please add a __call__ method."
+        )
         return instance
 
     def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:

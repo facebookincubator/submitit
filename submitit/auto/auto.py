@@ -74,9 +74,9 @@ class AutoExecutor(Executor):
         for name in kwargs:
             assert "_" in name, f"{err} '{name}'. {err_ex_list}"
             prefix = name.split("_")[0]
-            assert (
-                prefix in executors
-            ), f"{err} '{name}', and '{prefix}' executor is also unknown. {err_ex_list}"
+            assert prefix in executors, (
+                f"{err} '{name}', and '{prefix}' executor is also unknown. {err_ex_list}"
+            )
         self._executor = flexible_init(executors[self.cluster], folder, **kwargs)
 
         valid = self._valid_parameters()
@@ -160,7 +160,7 @@ class AutoExecutor(Executor):
                 expected_type = (int, float)  # type: ignore
             if name in kwargs:
                 assert isinstance(kwargs[name], expected_type), (
-                    f'Parameter "{name}" expected type {expected_type} ' f'(but value: "{kwargs[name]}")'
+                    f'Parameter "{name}" expected type {expected_type} (but value: "{kwargs[name]}")'
                 )
 
         _convert_deprecated_args(kwargs, self._deprecated_args)
