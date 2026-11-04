@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import codecs
 import contextlib
 import io
@@ -48,9 +50,7 @@ class FailedSubmissionError(RuntimeError):
 class JobPaths:
     """Creates paths related to the slurm job and its submission"""
 
-    def __init__(
-        self, folder: tp.Union[Path, str], job_id: tp.Optional[str] = None, task_id: tp.Optional[int] = None
-    ) -> None:
+    def __init__(self, folder: Path | str, job_id: str | None = None, task_id: int | None = None) -> None:
         self._folder = Path(folder).expanduser().absolute()
         self.job_id = job_id
         self.task_id = task_id or 0
@@ -82,7 +82,7 @@ class JobPaths:
     def stdout(self) -> Path:
         return self._format_id(self.folder / "%j_%t_log.out")
 
-    def _format_id(self, path: tp.Union[Path, str]) -> Path:
+    def _format_id(self, path: Path | str) -> Path:
         """Replace id tag by actual id if available"""
         if self.job_id is None:
             return Path(path)
@@ -94,16 +94,14 @@ class JobPaths:
             replaced_path = replaced_path.replace("%a", array_index[0])
         return Path(replaced_path.replace("%A", array_id))
 
-    def move_temporary_file(
-        self, tmp_path: tp.Union[Path, str], name: str, keep_as_symlink: bool = False
-    ) -> None:
+    def move_temporary_file(self, tmp_path: Path | str, name: str, keep_as_symlink: bool = False) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         Path(tmp_path).rename(getattr(self, name))
         if keep_as_symlink:
             Path(tmp_path).symlink_to(getattr(self, name))
 
     @staticmethod
-    def get_first_id_independent_folder(folder: tp.Union[Path, str]) -> Path:
+    def get_first_id_independent_folder(folder: Path | str) -> Path:
         """Returns the closest folder which is id independent"""
         parts = Path(folder).expanduser().absolute().parts
         tags = ["%j", "%t", "%A", "%a"]
@@ -142,7 +140,7 @@ class DelayedSubmission:
     def done(self) -> bool:
         return self._done
 
-    def dump(self, filepath: tp.Union[str, Path]) -> None:
+    def dump(self, filepath: str | Path) -> None:
         cloudpickle_dump(self, filepath)
 
     def set_timeout(self, timeout_min: int, max_num_timeout: int) -> None:
@@ -150,14 +148,14 @@ class DelayedSubmission:
         self._timeout_countdown = max_num_timeout
 
     @classmethod
-    def load(cls: tp.Type["DelayedSubmission"], filepath: tp.Union[str, Path]) -> "DelayedSubmission":
+    def load(cls, filepath: str | Path) -> tp.Self:
         obj = pickle_load(filepath)
         # following assertion is relaxed compared to isinstance, to allow flexibility
         # (Eg: copying this class in a project to be able to have checkpointable jobs without adding submitit as dependency)
         assert obj.__class__.__name__ == cls.__name__, f"Loaded object is {type(obj)} but should be {cls}."
         return obj  # type: ignore
 
-    def _checkpoint_function(self) -> tp.Optional["DelayedSubmission"]:
+    def _checkpoint_function(self) -> DelayedSubmission | None:
         checkpoint = getattr(self.function, "__submitit_checkpoint__", None)
         if checkpoint is None:
             checkpoint = getattr(self.function, "checkpoint", None)
@@ -167,7 +165,7 @@ class DelayedSubmission:
 
 
 @contextlib.contextmanager
-def temporary_save_path(filepath: tp.Union[Path, str]) -> tp.Iterator[Path]:
+def temporary_save_path(filepath: Path | str) -> tp.Iterator[Path]:
     """Yields a path where to save a file and moves it
     afterward to the provided location (and replaces any
     existing file)
@@ -189,9 +187,7 @@ def temporary_save_path(filepath: tp.Union[Path, str]) -> tp.Iterator[Path]:
     os.rename(tmppath, filepath)
 
 
-def archive_dev_folders(
-    folders: tp.List[tp.Union[str, Path]], outfile: tp.Optional[tp.Union[str, Path]] = None
-) -> Path:
+def archive_dev_folders(folders: list[str | Path], outfile: str | Path | None = None) -> Path:
     """Creates a tar.gz file with all provided folders"""
     assert isinstance(folders, (list, tuple)), "Only lists and tuples of folders are allowed"
     if outfile is None:
@@ -204,7 +200,7 @@ def archive_dev_folders(
     return outfile
 
 
-def copy_par_file(par_file: tp.Union[str, Path], folder: tp.Union[str, Path]) -> Path:
+def copy_par_file(par_file: str | Path, folder: str | Path) -> Path:
     """Copy the par (or xar) file in the folder
 
     Parameter
@@ -227,13 +223,13 @@ def copy_par_file(par_file: tp.Union[str, Path], folder: tp.Union[str, Path]) ->
     return dst_name
 
 
-def pickle_load(filename: tp.Union[str, Path]) -> tp.Any:
+def pickle_load(filename: str | Path) -> tp.Any:
     # this is used by cloudpickle as well
     with open(filename, "rb") as ifile:
         return pickle.load(ifile)
 
 
-def cloudpickle_dump(obj: tp.Any, filename: tp.Union[str, Path]) -> None:
+def cloudpickle_dump(obj: tp.Any, filename: str | Path) -> None:
     with open(filename, "wb") as ofile:
         cloudpickle.dump(obj, ofile, pickle.HIGHEST_PROTOCOL)
 
@@ -248,7 +244,7 @@ def copy_process_streams(
     If `verbose` the process stdout/stderr are also copying to the interpreter stdout/stderr.
     """
 
-    def raw(stream: tp.Optional[tp.IO[bytes]]) -> tp.IO[bytes]:
+    def raw(stream: tp.IO[bytes] | None) -> tp.IO[bytes]:
         if stream is None:
             raise RuntimeError("Stream should not be None")
         if isinstance(stream, io.BufferedIOBase):
@@ -256,7 +252,7 @@ def copy_process_streams(
         return stream  # type: ignore
 
     p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
-    stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.IO[str]]] = {
+    stream_by_fd: dict[int, tuple[tp.IO[bytes], io.StringIO, tp.IO[str]]] = {
         p_stdout.fileno(): (p_stdout, stdout, sys.stdout),
         p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
     }
@@ -307,10 +303,10 @@ class CommandFunction:
 
     def __init__(
         self,
-        command: tp.List[str],
+        command: list[str],
         verbose: bool = True,
-        cwd: tp.Optional[tp.Union[str, Path]] = None,
-        env: tp.Optional[tp.Dict[str, str]] = None,
+        cwd: str | Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         if not isinstance(command, list):
             raise TypeError("The command must be provided as a list")

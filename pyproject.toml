@@ -6,12 +6,11 @@ build-backend = "flit_core.buildapi"
 name = "submitit"
 readme = "README.md"
 authors = [{name = "Facebook AI Research"}]
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dynamic = ["version", "description"]
 
 dependencies = [
-  "cloudpickle>=1.2.1",
-  "typing_extensions>=3.7.4.2"
+  "cloudpickle>=1.2.1"
 ]
 # zip_safe = false
 classifiers=[
@@ -48,9 +47,10 @@ classifiers=[
 
 [tool.ruff]
 line-length = 110
+target-version = "py311"
 
 [tool.ruff.lint]
-select = ["I"]  # import sorting only, pylint and mypy do the linting
+select = ["I", "UP"]  # import sorting and syntax upgrades, pylint and mypy do the linting
 
 
 [tool.pylint]

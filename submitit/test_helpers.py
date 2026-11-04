@@ -6,7 +6,6 @@
 
 import os
 import time
-import typing as tp
 from pathlib import Path
 
 import pytest
@@ -132,7 +131,7 @@ def test_monitor_jobs(tmp_path: Path) -> None:
     assert set(j for j in jobs if j.state.upper() == "FAILED") == {job}
 
 
-def _get_env() -> tp.Dict[str, str]:
+def _get_env() -> dict[str, str]:
     return {x: y for x, y in os.environ.items() if x.startswith(("SLURM_", "SUBMITIT_"))}
 
 

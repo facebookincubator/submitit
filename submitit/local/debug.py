@@ -8,7 +8,6 @@ import logging
 import os
 import typing as tp
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 from ..core.core import Executor, InfoWatcher, Job, R
 from ..core.job_environment import JobEnvironment
@@ -64,7 +63,7 @@ class DebugJob(Job[R]):
         if self.cancelled:
             raise UncompletedJobError(f"Job {self} was cancelled.")
 
-    def results(self) -> List[R]:
+    def results(self) -> list[R]:
         self._check_not_cancelled()
         if self._submission.done():
             return [self._submission._result]
@@ -107,7 +106,7 @@ class DebugJob(Job[R]):
             root_logger.removeHandler(stdout_handler)
             root_logger.removeHandler(stderr_handler)
 
-    def exception(self) -> Optional[BaseException]:  # type: ignore
+    def exception(self) -> BaseException | None:  # type: ignore
         self._check_not_cancelled()
         try:
             self._submission.result()
@@ -134,7 +133,7 @@ class DebugJob(Job[R]):
             return "CANCELLED"
         return "QUEUED"
 
-    def get_info(self, mode: str = "force") -> Dict[str, str]:  # pylint: disable=unused-argument
+    def get_info(self, mode: str = "force") -> dict[str, str]:  # pylint: disable=unused-argument
         return {"STATE": self.state}
 
     def __del__(self) -> None:
@@ -149,10 +148,10 @@ class DebugExecutor(Executor):
 
     job_class = DebugJob
 
-    def __init__(self, folder: Union[str, Path]):
+    def __init__(self, folder: str | Path):
         super().__init__(folder)
 
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[DelayedSubmission]
-    ) -> tp.List[Job[tp.Any]]:
+        self, delayed_submissions: list[DelayedSubmission]
+    ) -> list[Job[tp.Any]]:
         return [DebugJob(self.folder, ds) for ds in delayed_submissions]

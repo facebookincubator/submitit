@@ -8,7 +8,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -16,7 +15,7 @@ from . import utils
 
 
 @pytest.mark.parametrize("existing_content", [None, "blublu"])  # type: ignore
-def test_temporary_save_path(tmp_path: Path, existing_content: Optional[str]) -> None:
+def test_temporary_save_path(tmp_path: Path, existing_content: str | None) -> None:
     filepath = tmp_path / "save_and_move_test.txt"
     if existing_content:
         filepath.write_text(existing_content)

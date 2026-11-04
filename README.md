@@ -41,7 +41,7 @@ By default stdout is silenced in `CommandFunction`, but it can be unsilenced wit
 
 **Find more examples [here](docs/examples.md)!!!**
 
-Submitit is a Python 3.8+ toolbox for submitting jobs to Slurm.
+Submitit is a Python 3.11+ toolbox for submitting jobs to Slurm.
 It aims at running python function from python code.
 
 
