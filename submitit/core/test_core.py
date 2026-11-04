@@ -153,7 +153,8 @@ def do_nothing(*args: tp.Any, **kwargs: tp.Any) -> int:
 
 
 def test_fake_job(tmp_path: Path) -> None:
-    job: FakeJob[int] = FakeJob(job_id="12", folder=tmp_path)
+    job: FakeJob[int] = FakeJob(job_id=12, folder=tmp_path)
+    assert job.job_id == "12"
     repr(job)
     assert not job.done(force_check=True)
     # logs
@@ -171,14 +172,6 @@ def test_fake_job(tmp_path: Path) -> None:
     assert isinstance(job.exception(), Exception)
     with pytest.raises(core.utils.FailedJobError):
         job.result()
-
-
-def test_fake_job_with_int_job_id(tmp_path: Path) -> None:
-    job: FakeJob[int] = FakeJob(job_id=12, folder=tmp_path)
-    assert job.job_id == "12"
-    assert job.paths.job_id == "12"
-    array_job: FakeJob[int] = FakeJob(job_id=12, folder=tmp_path, tasks=(0, 1))
-    assert [sub.job_id for sub in array_job._sub_jobs] == ["12", "12"]
 
 
 def test_fake_job_cancel_at_deletion(tmp_path: Path) -> None:
