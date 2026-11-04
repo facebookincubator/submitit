@@ -12,13 +12,12 @@ but we don't have any major feature planned ahead.
 We actively welcome your pull requests.
 
 1. Fork the repo and create your branch from `main`.
-2. Create a virtual environment and activate it: `make venv && . venv/bin/activate`
+2. Create a virtual environment, activate it, then install the package and the pre-commit hooks: `pip install -e .[dev] && pre-commit install`
 3. If you've added code please add tests.
 4. If you've changed APIs, please update the documentation.
-5. Ensure the test suite passes: `make test`
-6. Make sure your code lints: `make pre_commit`. You can run this automatically on commit by making it a hook: `make register_pre_commit`
-7. When ready you can run the full test suits ran on CI with `make -k integration`
-8. If you haven't already, complete the Contributor License Agreement ("CLA").
+5. Ensure the test suite passes: `pytest submitit`
+6. Make sure your code lints: `mypy submitit && pylint submitit`
+7. If you haven't already, complete the Contributor License Agreement ("CLA").
 
 ## Contributor License Agreement ("CLA")
 In order to accept your pull request, we need you to submit a CLA. You only need
@@ -35,7 +34,18 @@ disclosure of security bugs. In those cases, please go through the process
 outlined on that page and do not file a public issue.
 
 ## Coding Style
-We format with ruff (`make format`) with a generous 110 line length.
+We format with ruff through pre-commit (`pre-commit run --all-files`), with a generous 110 line length.
+
+## Releasing
+After bumping `__version__` in `submitit/__init__.py` on `main`:
+```bash
+VERSION=$(python -c "import submitit; print(submitit.__version__)")
+git tag $VERSION
+python submitit/test_documentation.py  # makes README links absolute for PyPI
+SOURCE_DATE_EPOCH=$(git log -n1 --format=%cd --date=unix) flit publish --setup-py
+git checkout HEAD -- README.md
+git push origin $VERSION
+```
 
 ## License
 By contributing to _submitit_, you agree that your contributions will be licensed

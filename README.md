@@ -1,4 +1,4 @@
-[![CircleCI](https://circleci.com/gh/facebookincubator/submitit.svg?style=svg)](https://circleci.com/gh/facebookincubator/workflows/submitit)
+[![CI](https://github.com/facebookincubator/submitit/actions/workflows/ci.yaml/badge.svg)](https://github.com/facebookincubator/submitit/actions/workflows/ci.yaml)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Pypi](https://img.shields.io/pypi/v/submitit)](https://pypi.org/project/submitit/)
 [![conda-forge](https://img.shields.io/conda/vn/conda-forge/submitit)](https://anaconda.org/conda-forge/submitit)
@@ -18,8 +18,10 @@ From inside an environment with `submitit` installed:
 ```python
 import submitit
 
+
 def add(a, b):
     return a + b
+
 
 # executor is the submission interface (logs are dumped in the folder)
 executor = submitit.AutoExecutor(folder="log_test")

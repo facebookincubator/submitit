@@ -31,8 +31,7 @@ classifiers=[
         "pytest-asyncio>=0.15.0",
         "pytest-cov>=4.1.0",
         "coverage[toml]>=5.1",
-        # Format
-        "ruff==0.17.3",
+        # Format (ruff runs through pre-commit)
         "pre-commit>=1.15.2",
         # Linters
         "mypy>=1.4.1",
