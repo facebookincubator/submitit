@@ -149,3 +149,30 @@ def test_clean_env() -> None:
         with helpers.clean_env(extra_names=("BLABLA",)):
             assert "MASTER_PORT" not in os.environ
             assert "BLABLA" not in os.environ
+
+
+@pytest.mark.parametrize("raise_error", [False, True])
+def test_clean_env_preserves_slurm_configuration(raise_error: bool) -> None:
+    config = "/custom/slurm.conf"
+    with utils.environment_variables(SLURM_CONF=config, SLURM_JOB_ID="123", SUBMITIT_JOB_ID="123"):
+        try:
+            with helpers.clean_env():
+                assert os.environ["SLURM_CONF"] == config
+                assert "SLURM_JOB_ID" not in os.environ
+                assert "SUBMITIT_JOB_ID" not in os.environ
+                with helpers.clean_env():
+                    assert os.environ["SLURM_CONF"] == config
+                    if raise_error:
+                        raise RuntimeError("test cleanup")
+        except RuntimeError as error:
+            assert str(error) == "test cleanup"
+        assert os.environ["SLURM_CONF"] == config
+        assert os.environ["SLURM_JOB_ID"] == "123"
+        assert os.environ["SUBMITIT_JOB_ID"] == "123"
+
+
+def test_clean_env_explicitly_hides_slurm_configuration() -> None:
+    with utils.environment_variables(SLURM_CONF="/custom/slurm.conf"):
+        with helpers.clean_env(extra_names=("SLURM_CONF",)):
+            assert "SLURM_CONF" not in os.environ
+        assert os.environ["SLURM_CONF"] == "/custom/slurm.conf"

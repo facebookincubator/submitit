@@ -307,7 +307,9 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
     ----
     A slurm job submitted from within a slurm job inherits some of its attributes, which may
     be confusing a cause weird gres errors (or pytorch distributed).
-    Submitting within this context should prevent this.
+    Submitting within this context should prevent this. ``SLURM_CONF`` is preserved
+    so Slurm can locate the cluster configuration; include it in ``extra_names``
+    to explicitly hide it.
 
     Usage
     -----
@@ -319,7 +321,7 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
         x: os.environ.pop(x)
         for x in os.environ
         if (
-            x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITIT_"))
+            (x != "SLURM_CONF" and x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITIT_")))
             or x in distrib_names
             or x in extra_names
         )
