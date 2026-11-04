@@ -329,7 +329,7 @@ class Job(tp.Generic[R]):
                 f"Job (task={self.task_id}) failed during processing with trace:\n"
                 f"----------------------\n{trace}\n"
                 "----------------------\n"
-                f"You can check full logs with 'job.stderr({self.task_id})' and 'job.stdout({self.task_id})'"
+                "You can check full logs with 'job.stderr()' and 'job.stdout()' "
                 f"or at paths:\n  - {self.paths.stderr}\n  - {self.paths.stdout}"
             )
         return None

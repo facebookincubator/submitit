@@ -35,7 +35,7 @@ executor.update_parameters(timeout_min=60, slurm_partition="<your_partition>")
 job = executor.submit(Counter(), 7200)
 ```
 
-See also the [MNIST example](https://github.com/facebookincubator/submitit/blob/main/docs/mnist.py), and `submitit.helpers.FunctionSequence`, which runs several calls in one job and does not rerun finished calls after requeuing.
+See also `submitit.helpers.FunctionSequence`, which runs several calls in one job and does not rerun finished calls after requeuing.
 
 ## Customize the resubmission
 
