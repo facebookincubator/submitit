@@ -4,6 +4,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import contextlib
 import os
 import shutil
 import sys
@@ -58,6 +59,27 @@ def test_environment_variable_context() -> None:
             assert os.environ[name] == "blublu2"
         assert os.environ[name] == "blublu"
     assert name not in os.environ
+
+
+@pytest.mark.parametrize("original", [None, "original"])
+@pytest.mark.parametrize("raise_error", [False, True])
+def test_environment_variables_removed_in_context(monkeypatch, original, raise_error: bool) -> None:
+    name = "SUBMITIT_TEST_REMOVED_ENV"
+    other = "SUBMITIT_TEST_OTHER_ENV"
+    monkeypatch.delenv(name, raising=False)
+    if original is not None:
+        monkeypatch.setenv(name, original)
+    monkeypatch.setenv(other, "other original")
+    error_context = (
+        pytest.raises(ValueError, match="body failed") if raise_error else contextlib.nullcontext()
+    )
+    with error_context:
+        with utils.environment_variables(**{name: "temporary", other: "temporary"}):
+            del os.environ[name]
+            if raise_error:
+                raise ValueError("body failed")
+    assert os.environ.get(name) == original
+    assert os.environ[other] == "other original"
 
 
 def test_slurmpaths_id_independent() -> None:

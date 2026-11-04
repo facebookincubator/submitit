@@ -28,7 +28,7 @@ def environment_variables(**kwargs: tp.Any) -> tp.Iterator[None]:
         yield
     finally:
         for x in kwargs:
-            del os.environ[x]
+            os.environ.pop(x, None)
         os.environ.update(backup)
 
 
