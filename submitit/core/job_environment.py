@@ -178,7 +178,15 @@ class SignalHandler:
         # SignalHandler is created by submitit as soon as the process start,
         # so _start_time is an accurate measure of the global runtime of the job.
         walltime = time.time() - self._start_time
-        max_walltime = self._delayed._timeout_min * 60
+        timeout_min = self._delayed._timeout_min
+        start, end = os.environ.get("SLURM_JOB_START_TIME"), os.environ.get("SLURM_JOB_END_TIME")
+        if isinstance(timeout_min, (int, float)):
+            max_walltime = timeout_min * 60
+        elif start is not None and end is not None:  # e.g. Slurm time string, Slurm >= 23.02
+            max_walltime = int(end) - int(start)
+        else:
+            self._logger.warning(f"Cannot interpret timeout {timeout_min!r}, assuming no timeout.")
+            return False
         guaranteed_walltime = min(max_walltime * 0.8, max_walltime - 10 * 60)
 
         timed_out = walltime >= guaranteed_walltime
