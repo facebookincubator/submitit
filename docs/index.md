@@ -32,7 +32,7 @@ assert job.result() == 12
 
 - `AutoExecutor` submits to Slurm when `srun` is available, and otherwise runs the job as a subprocess of the current machine (`executor.cluster` tells which).
 - `folder` receives the pickled function, its result and the logs, with `%j` replaced by the job id. On Slurm, it must be on a filesystem shared with the compute nodes (not `/tmp`), otherwise jobs fail without logs.
-- `job.result()` waits for the job and returns its output. It raises a `submitit.core.utils.FailedJobError` with the traceback if the function raised or the job reached its time limit, or its parent `UncompletedJobError` with the end of the logs if the job died without result (out of memory, cancelled, node failure).
+- `job.result()` waits for the job and returns its output. It raises a `submitit.FailedJobError` with the traceback if the function raised or the job reached its time limit, or its parent `UncompletedJobError` with the end of the logs if the job died without result (out of memory, cancelled, node failure).
 - `executor.submit` raises a `FailedJobError` with the sbatch error if Slurm rejects the job.
 - The job imports your code from the submission directory, not from the directory of your script, see the [FAQ](faq.md#my-job-fails-with-modulenotfounderror-or-importerror) if imports fail.
 

@@ -87,7 +87,7 @@ executor = submitit.AutoExecutor(folder="logs/%j")
 executor.update_parameters(timeout_min=10)
 job = executor.submit(truediv, 1, 0)
 error = job.exception()  # waits for the job
-assert isinstance(error, submitit.core.utils.FailedJobError)
+assert isinstance(error, submitit.FailedJobError)
 print(error)  # ZeroDivisionError traceback
 print(job.stderr())  # full error log
 ```
