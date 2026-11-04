@@ -212,7 +212,7 @@ class Job(tp.Generic[R]):
         )
         return utils.DelayedSubmission.load(self.paths.submitted_pickle)
 
-    def cancel_at_deletion(self, value: bool = True) -> "Job[R]":
+    def cancel_at_deletion(self, value: bool = True) -> tp.Self:
         """Sets whether the job deletion in the python environment triggers
         cancellation of the corresponding job in the cluster
         By default, jobs are not cancelled unless this method is called to turn the
@@ -668,10 +668,7 @@ class Executor(abc.ABC):
 
     @classmethod
     def name(cls) -> str:
-        n = cls.__name__
-        if n.endswith("Executor"):
-            n = n[: -len("Executor")]
-        return n.lower()
+        return cls.__name__.removesuffix("Executor").lower()
 
     @contextlib.contextmanager
     def batch(self, allow_implicit_submissions: bool = False) -> tp.Iterator[None]:

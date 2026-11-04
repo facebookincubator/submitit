@@ -146,7 +146,7 @@ class DelayedSubmission:
         self._timeout_countdown = max_num_timeout
 
     @classmethod
-    def load(cls: type["DelayedSubmission"], filepath: str | Path) -> "DelayedSubmission":
+    def load(cls, filepath: str | Path) -> tp.Self:
         obj = pickle_load(filepath)
         # following assertion is relaxed compared to isinstance, to allow flexibility
         # (Eg: copying this class in a project to be able to have checkpointable jobs without adding submitit as dependency)

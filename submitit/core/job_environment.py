@@ -48,10 +48,7 @@ class JobEnvironment:
 
     @classmethod
     def name(cls) -> str:
-        n = cls.__name__
-        if n.endswith("JobEnvironment"):
-            n = n[: -len("JobEnvironment")]
-        return n.lower()
+        return cls.__name__.removesuffix("JobEnvironment").lower()
 
     @property
     def paths(self) -> JobPaths:

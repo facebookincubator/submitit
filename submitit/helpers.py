@@ -373,7 +373,7 @@ class TorchDistributedEnvironment:  # pragma: no cover
         self,
         set_cuda_visible_devices: bool = True,
         overwrite: bool = False,
-    ) -> "TorchDistributedEnvironment":
+    ) -> tp.Self:
         """Export all the environment variables required to properly setup
         PyTorch distributed (with the default env:// initialization method) i.e.
         MASTER_ADDR, MASTER_PORT, RANK, WORLD_SIZE (to which LOCAL_RANK and
