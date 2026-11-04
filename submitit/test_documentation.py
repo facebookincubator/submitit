@@ -8,6 +8,8 @@ import re
 import typing as tp
 from pathlib import Path
 
+import pytest
+
 import submitit
 
 
@@ -67,6 +69,18 @@ def test_assert_markdown_links_not_broken() -> None:
     assert len(links) > 5, "There should be several hyperlinks!"
     broken_links = [l for l in links if not l.exists()]
     assert not broken_links
+
+
+@pytest.mark.parametrize("page", ["getting_started.md", "parameters.md"])
+def test_doc_snippets(page: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    text = (_get_root() / "docs" / page).read_text()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(submitit.AutoExecutor, "which", staticmethod(lambda: "local"))  # even on Slurm
+    blocks = re.findall(r"^```python\n(.*?)^```", text, flags=re.MULTILINE | re.DOTALL)
+    assert blocks, f"No python block found in {page}"
+    namespace: tp.Dict[str, tp.Any] = {"__name__": "__main__"}  # functions pickled by value
+    for block in blocks:
+        exec(block, namespace)  # pylint: disable=exec-used
 
 
 def _replace_relative_links(regex: tp.Match[str]) -> str:
