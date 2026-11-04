@@ -3,7 +3,7 @@
 ## My job fails with `ModuleNotFoundError` or `ImportError`
 
 Functions defined in a module are pickled by reference: the job imports that module again before running the function.
-The job runs the same Python interpreter from the directory you submitted from, but not your script, so imports that only work because of your script's location or a `sys.path.append` fail in the job.
+The job runs from the directory you submitted from, but not your script, so imports that only work because of your script's location or a `sys.path.append` fail in the job.
 Solutions, from the most robust:
 
 - install your code as a package in the environment (`pip install -e .`);

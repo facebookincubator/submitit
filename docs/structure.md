@@ -11,8 +11,7 @@ If the computation failed and we are able to catch the error, then the trace wil
 However, if it could not be catched, you will be notified as well, but will probably need to look into the logs to understand what happened.
 
 For each job, you will therefore usually end up with a task file `<job_id>_submitted.pkl`, an output file `<job_id>_result.pkl`,
-a batch file `batchfile_<uuid>.sh`, a stdout log file `<job_id>_<task_id>_log.out` and a stderr log file `<job_id>_<task_id>_log.err`, where the uuid
-is created by `submitit`, and the id is the job id from slurm. The Job instance helps you link all of this together (see `job.job_id`).
+a submission file `<job_id>_submission.sh`, a stdout log file `<job_id>_<task_id>_log.out` and a stderr log file `<job_id>_<task_id>_log.err`, where the id is the job id from slurm. The Job instance helps you link all of this together (see `job.job_id`).
 
 ## Main objects
 
@@ -27,14 +26,8 @@ Its main methods are:
  - `submit(function, *args, **kwargs)`: submits a function for run on the cluster with given parameters, and returns
    a `Job` instance.
  - `map_array(function, *iterables)`: submits a function several times for run on the cluster with different parameters
-   (pulled from the iterables), and returns a list of `Job` instances. On Slurm, this uses [job arrays](https://slurm.schedmd.com/job_array.html),
-   which are the preferred options for submitting large number of jobs in parallel, since they are better handled by the scheduler.
-   The `slurm_array_parallelism` parameter of `executor.update_parameters` controls how many jobs will be able to run in parallel on Slurm cluster.
- - `update_parameters(**kwargs)`: sets or updates parameters for the cluster. Only a subset is implemented but
-   it can be easily improved with more parameters. We have homogenized some parameter names, to use the same
-   parameters for slurm and other clusters (eg, use `gpus_per_node=2`, that historically corresponds to `--gres=gpu:2` for slurm, but is now `--gpus-per-node` as well).
-   If you misspell a name, the function will raise an exception with all allowed parameters (this can be useful if you are looking for
-   an argument ;) )
+   (pulled from the iterables), and returns a list of `Job` instances, see [Job arrays](examples.md#job-arrays).
+ - `update_parameters(**kwargs)`: sets or updates the parameters of the next submissions, see [Parameters](parameters.md).
 
 `submitit` has a plugin system so that several executor implementations can be provided. There are currently several implementations:
 

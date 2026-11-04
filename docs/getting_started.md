@@ -2,7 +2,7 @@
 
 ## Submit a function
 
-Install submitit (see [Install](index.md#install)) in the environment your jobs should use: jobs run with the same Python interpreter as the process that submits them.
+Install submitit (see [Install](index.md#install)) in the environment your jobs should use.
 
 ```python
 import submitit
