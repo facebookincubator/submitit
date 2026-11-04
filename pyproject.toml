@@ -32,7 +32,7 @@ classifiers=[
         "pytest-cov>=4.1.0",
         "coverage[toml]>=5.1",
         # Format
-        "ruff==0.15.8",
+        "ruff==0.17.3",
         "pre-commit>=1.15.2",
         # Linters
         "mypy>=1.4.1",

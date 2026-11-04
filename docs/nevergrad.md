@@ -12,7 +12,7 @@ The following is a simplified version of the tutorial in [`nevergrad`'s reposito
 For the sake of this example, we'll define a function to optimize:
 ```python
 def myfunction(x, y=12):
-    return sum((x - .5)**2) + abs(y)
+    return sum((x - 0.5) ** 2) + abs(y)
 ```
 
 Before we can perform optimization, we must define how this function is instrumented, i.e. the values that the parameters
@@ -21,9 +21,11 @@ The following states the first parameter of the function is an array of size 2, 
 
 ```python
 import nevergrad as ng
+
 instrum = ng.p.Instrumentation(
     ng.p.Array(shape=(2,)),  # first parameter
-    y=ng.p.Scalar())  # second (named) parameter
+    y=ng.p.Scalar(),
+)  # second (named) parameter
 ```
 
 
@@ -56,7 +58,9 @@ import nevergrad as ng
 
 arg1 = ng.p.TransitionChoice(["a", "b"])  # either "a" or "b" (ordered)
 arg2 = ng.p.Choice(["a", "c", "e"])  # "a", "c" or "e" (unordered)
-arg4 = ng.p.Array(shape=(4, 3)).set_bounds(lower=0, upper=1)   # an array of size (4, 3) with values between 0 and 1
+arg4 = ng.p.Array(shape=(4, 3)).set_bounds(
+    lower=0, upper=1
+)  # an array of size (4, 3) with values between 0 and 1
 
 # the following instrumentation uses these variables (and keeps the 3rd argument constant)
 instrum = ng.p.Instrumentation(arg1, arg2, "constant_argument", arg4)

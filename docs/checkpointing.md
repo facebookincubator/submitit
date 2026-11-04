@@ -44,17 +44,17 @@ The following example provides a recipe for checkpointing the training of a mode
 from pathlib import Path
 import submitit
 
-class NetworkTraining:
 
+class NetworkTraining:
     def __init__(self):
         # this is the "state" which we will be able to access when checkpointing:
         self.model = None
 
     def __call__(self, checkpointpath: str):
         if not Path(checkpointpath).exists():
-            self.model = ... # initialize your model
+            self.model = ...  # initialize your model
         else:
-            self.model = ... # load your model
+            self.model = ...  # load your model
         # train your model
         ...
 
@@ -81,9 +81,9 @@ submitted to a slurm job, which will be checkpointed and requeued at most `slurm
 ```python
 import submitit
 from .network import NetworkTraining  # must be defined in an importable module!
+
 executor = submitit.AutoExecutor(folder="logs_training", slurm_max_num_timeout=3)
-executor.update_parameters(timeout_min=30, slurm_partition="your_partition",
-                           gpus_per_node=1, cpus_per_task=2)
+executor.update_parameters(timeout_min=30, slurm_partition="your_partition", gpus_per_node=1, cpus_per_task=2)
 training_callable = NetworkTraining()
 job = executor.submit(training_callable, "some/path/for/checkpointing/your/network")
 ```
