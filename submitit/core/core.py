@@ -160,7 +160,7 @@ class Job(tp.Generic[R]):
     ----------
     folder: Path/str
         A path to the submitted job file
-    job_id: str
+    job_id: str or int
         the id of the cluster job
     tasks: List[int]
         The ids of the tasks associated to this job.
@@ -171,7 +171,10 @@ class Job(tp.Generic[R]):
     _results_timeout_s = 15
     watcher = InfoWatcher()
 
-    def __init__(self, folder: tp.Union[Path, str], job_id: str, tasks: tp.Sequence[int] = (0,)) -> None:
+    def __init__(
+        self, folder: tp.Union[Path, str], job_id: tp.Union[str, int], tasks: tp.Sequence[int] = (0,)
+    ) -> None:
+        job_id = str(job_id)
         self._job_id = job_id
         self._tasks = tuple(tasks)
         self._sub_jobs: tp.Sequence["Job[R]"] = []
@@ -740,7 +743,8 @@ class Executor(abc.ABC):
     @abc.abstractmethod
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]
-    ) -> tp.List[Job[tp.Any]]: ...
+    ) -> tp.List[Job[tp.Any]]:
+        ...
 
     def map_array(self, fn: tp.Callable[..., R], *iterable: tp.Iterable[tp.Any]) -> tp.List[Job[R]]:
         """A distributed equivalent of the map() built-in function

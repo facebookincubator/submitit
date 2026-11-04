@@ -173,6 +173,14 @@ def test_fake_job(tmp_path: Path) -> None:
         job.result()
 
 
+def test_fake_job_with_int_job_id(tmp_path: Path) -> None:
+    job: FakeJob[int] = FakeJob(job_id=12, folder=tmp_path)
+    assert job.job_id == "12"
+    assert job.paths.job_id == "12"
+    array_job: FakeJob[int] = FakeJob(job_id=12, folder=tmp_path, tasks=(0, 1))
+    assert [sub.job_id for sub in array_job._sub_jobs] == ["12", "12"]
+
+
 def test_fake_job_cancel_at_deletion(tmp_path: Path) -> None:
     job: FakeJob[tp.Any] = FakeJob(job_id="12", folder=tmp_path).cancel_at_deletion()  # type: ignore
     with patch("subprocess.call", return_value=None) as mock:
