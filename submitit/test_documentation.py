@@ -4,9 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import inspect
 import re
 import typing as tp
 from pathlib import Path
+
+import pytest
 
 import submitit
 
@@ -67,6 +70,16 @@ def test_assert_markdown_links_not_broken() -> None:
     assert len(links) > 5, "There should be several hyperlinks!"
     broken_links = [l for l in links if not l.exists()]
     assert not broken_links
+
+
+@pytest.mark.parametrize("executor", [submitit.AutoExecutor, submitit.SlurmExecutor, submitit.LocalExecutor])
+def test_update_parameters_documented(executor: tp.Type[submitit.Executor]) -> None:
+    section = inspect.cleandoc(executor.__doc__ or "").partition("Update parameters\n")[2]
+    documented = {
+        n for m in re.finditer(r"^([\w, ]+):", section, re.MULTILINE) for n in m.group(1).split(", ")
+    }
+    missing = executor._valid_parameters() - documented
+    assert not missing, f"Undocumented update parameters in {executor.__name__} docstring: {missing}"
 
 
 def _replace_relative_links(regex: tp.Match[str]) -> str:

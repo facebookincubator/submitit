@@ -117,8 +117,8 @@ class JobPaths:
 class DelayedSubmission:
     """Object for specifying the function/callable call to submit and process later.
     This is only syntactic sugar to make sure everything is well formatted:
-    If what you want to compute later is func(*args, **kwargs), just instanciate:
-    DelayedSubmission(func, *args, **kwargs).
+    If what you want to compute later is ``func(*args, **kwargs)``, just instanciate:
+    ``DelayedSubmission(func, *args, **kwargs)``.
     It also provides convenient tools for dumping and loading.
     """
 

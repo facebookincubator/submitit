@@ -24,39 +24,47 @@ def _convert_deprecated_args(kwargs: tp.Dict[str, Any], deprecated_args: tp.Mapp
 
 
 class AutoExecutor(Executor):
-    """Automatic job executor
-    This class is used to hold the parameters to run a job on the cluster
-    corresponding to the environment.
-    It can also be used to run job locally or in debug mode.
-    In practice, it will create a bash file in the specified directory for each job,
-    and pickle the task function and parameters. At completion, the job will also pickle
-    the output. Logs are also dumped in the same directory.
-
-    Executor specific parameters must be specified by prefixing them with the name
-    of the executor they refer to. eg:
-        - 'chronos_conda_file' (internal)
-        - 'slurm_max_num_timeout'
-    See each executor documentation for the list of available parameters.
+    """Executor submitting to the best available cluster: Slurm when ``srun`` is available,
+    the local executor otherwise.
 
     Parameters
     ----------
     folder: Path/str
         folder for storing job submission/output and logs.
-    warn_ignored: bool
-        prints a warning each time a parameter is provided but ignored because it is only
-        useful for the other cluster.
     cluster: str
         Forces AutoExecutor to use the given environment. Use "local" to run jobs locally,
         "debug" to run jobs in process.
-    kwargs: other arguments must be prefixed by the name of the executor they refer to.
-        {exname}_{argname}: see {argname} documentation in {Exname}Executor documentation.
+    kwargs:
+        executor constructor arguments, prefixed by the executor name, e.g. ``slurm_python``
+        for the ``python`` argument of :class:`~submitit.SlurmExecutor`.
+
+    Update parameters
+    -----------------
+    name: str
+        job name
+    timeout_min: int
+        time limit in minutes (defaults: see each executor)
+    mem_gb: float
+        memory per node in GB
+    nodes: int
+        number of nodes
+    tasks_per_node: int
+        number of tasks per node, each running the submitted function
+    cpus_per_task: int
+        number of CPUs per task
+    gpus_per_node: int
+        number of GPUs per node
+    stderr_to_stdout: bool
+        writes stderr to the stdout log
+    <executor>_<parameter>:
+        parameter of one executor, e.g. ``slurm_partition`` (see :class:`~submitit.SlurmExecutor`
+        and :class:`~submitit.LocalExecutor`), ignored by the other executors.
+        A prefixed generic parameter, e.g. ``slurm_timeout_min``, overrides the generic one on
+        that executor only.
 
     Note
     ----
-    - be aware that the log/output folder will be full of logs and pickled objects very fast,
-      it may need cleaning.
-    - use update_parameters to specify custom parameters (gpus_per_node etc...). If you
-      input erroneous parameters, an error will print all parameters available for you.
+    The folder fills up quickly with logs and pickled objects, it may need cleaning.
     """
 
     _ctor_deprecated_args = {"max_num_timeout": "slurm_max_num_timeout", "conda_file": "chronos_conda_file"}

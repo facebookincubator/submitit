@@ -123,25 +123,36 @@ class LocalJobEnvironment(job_environment.JobEnvironment):
 
 
 class LocalExecutor(core.PicklingExecutor):
-    """Local job executor
-    This class is used to hold the parameters to run a job locally.
-    In practice, it will create a bash file in the specified directory for each job,
-    and pickle the task function and parameters. At completion, the job will also pickle
-    the output. Logs are also dumped in the same directory.
-
-    The submission file spawn several processes (one per task), with a timeout.
-
+    """Executor running jobs as subprocesses of the current machine, one per task, with a timeout.
 
     Parameters
     ----------
     folder: Path/str
         folder for storing job submission/output and logs.
 
-    Note
-    ----
-    - be aware that the log/output folder will be full of logs and pickled objects very fast,
-      it may need cleaning.
-    - use update_parameters to specify custom parameters (n_gpus etc...).
+    Update parameters
+    -----------------
+    timeout_min: float
+        time limit in minutes (default: 2)
+    tasks_per_node: int
+        number of tasks, each running the submitted function (default: 1)
+    gpus_per_node: int
+        sets ``CUDA_VISIBLE_DEVICES`` to the first ``gpus_per_node`` GPUs (of ``visible_gpus``
+        if provided): GPUs are not shared out between concurrent jobs
+    visible_gpus: Sequence[int]
+        ids of the GPUs that jobs can use
+    nodes: int
+        must be 1
+    signal_delay_s: int
+        seconds before the time limit at which the job is signaled, for checkpointing
+        (default: 30)
+    stderr_to_stdout: bool
+        writes stderr to the stdout log
+    setup: list of str
+        shell commands run before the job
+
+    Through :class:`~submitit.AutoExecutor`, only the generic parameters and ``local_setup``
+    are accepted.
     """
 
     job_class = LocalJob
@@ -169,18 +180,7 @@ class LocalExecutor(core.PicklingExecutor):
         return {"setup"}
 
     def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
-        """Update the parameters of the Executor.
-
-        Valid parameters are:
-        - timeout_min (float)
-        - gpus_per_node (int)
-        - visible_gpus (Sequence[int])
-        - tasks_per_node (int)
-        - nodes (int). Must be 1 if specified
-        - signal_delay_s (int): signal (lately: USR2) delay before timeout
-
-        Other parameters are ignored
-        """
+        """Update the parameters of the Executor, see the class docstring for the valid ones"""
         if kwargs.get("nodes", 0) > 1:
             raise ValueError("LocalExecutor can use only one node. Use nodes=1")
         gpus_requested = kwargs.get("gpus_per_node", 0)

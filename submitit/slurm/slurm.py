@@ -209,33 +209,68 @@ class SlurmJobEnvironment(job_environment.JobEnvironment):
 
 
 class SlurmExecutor(core.PicklingExecutor):
-    """Slurm job executor
-    This class is used to hold the parameters to run a job on slurm.
-    In practice, it will create a batch file in the specified directory for each job,
-    and pickle the task function and parameters. At completion, the job will also pickle
-    the output. Logs are also dumped in the same directory.
+    """Executor submitting jobs to Slurm with ``sbatch``.
 
     Parameters
     ----------
     folder: Path/str
-        folder for storing job submission/output and logs.
+        folder for storing job submission/output and logs. It must be shared with the compute
+        nodes (not ``/tmp``), otherwise jobs fail without logs.
     max_num_timeout: int
         Maximum number of time the job can be requeued after timeout (if
         the instance is derived from helpers.Checkpointable)
+    max_pickle_size_gb: float
+        maximum size of the pickled function and arguments of a submission, as large pickles
+        overload the shared filesystem
     python: Optional[str]
         Command to launch python. This allow to use singularity for example.
         Caller is responsible to provide a valid shell command here.
         By default reuse the current python executable
 
-    Note
-    ----
-    - be aware that the log/output folder will be full of logs and pickled objects very fast,
-      it may need cleaning.
-    - the folder needs to point to a directory shared through the cluster. This is typically
-      not the case for your tmp! If you try to use it, slurm will fail silently (since it
-      will not even be able to log stderr.
-    - use update_parameters to specify custom parameters (n_gpus etc...). If you
-      input erroneous parameters, an error will print all parameters available for you.
+    Update parameters
+    -----------------
+    job_name: str
+        ``--job-name`` (generic: ``name``, default: "submitit")
+    time: int
+        ``--time``, in minutes (generic: ``timeout_min``, default: 5)
+    nodes: int
+        ``--nodes`` (default: 1)
+    ntasks_per_node: int
+        ``--ntasks-per-node`` (generic: ``tasks_per_node``)
+    cpus_per_task: int
+        ``--cpus-per-task``
+    gpus_per_node: int
+        ``--gpus-per-node``
+    mem: str
+        ``--mem``, e.g. "16GB" (generic: ``mem_gb``)
+    partition, account, qos, constraint, exclude, nodelist, dependency, comment: str
+        sbatch option of the same name, with ``_`` replaced by ``-``
+    gres, gpus_per_task, cpus_per_gpu, mem_per_gpu, mem_per_cpu, exclusive, mail_type, mail_user: str
+        same as above; ``cpus_per_gpu`` requires ``gpus_per_task`` rather than ``gpus_per_node``
+    wckey: str
+        ``--wckey`` (default: "submitit"), set it to "" if the cluster rejects it
+    array_parallelism: int
+        maximum number of tasks of a job array running at the same time (default: 256)
+    signal_delay_s: int
+        seconds before the time limit at which the job is signaled, for checkpointing
+        (default: 90)
+    setup: list of str
+        shell commands run in the sbatch script before the job
+    teardown: list of str
+        shell commands run in the sbatch script after the job
+    srun_args: list of str
+        extra arguments of the ``srun`` call running the job
+    use_srun: bool
+        runs the job through ``srun`` in the sbatch script, or directly if False (default: True)
+    stderr_to_stdout: bool
+        writes stderr to the stdout log
+    additional_parameters: dict
+        sbatch options not supported above, e.g. ``{"reservation": "my_reservation"}``,
+        overriding any other value
+    num_gpus: int
+        deprecated, use ``gpus_per_node``
+
+    An invalid parameter raises a ``ValueError`` listing the valid ones with their defaults.
     """
 
     job_class = SlurmJob
@@ -281,32 +316,7 @@ class SlurmExecutor(core.PicklingExecutor):
         return params
 
     def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
-        """Updates sbatch submission file parameters
-
-        Parameters
-        ----------
-        See slurm documentation for most parameters.
-        Most useful parameters are: time, mem, gpus_per_node, cpus_per_task, partition
-        Below are the parameters that differ from slurm documentation:
-
-        signal_delay_s: int
-            delay between the kill signal and the actual kill of the slurm job.
-        setup: list
-            a list of command to run in sbatch befure running srun
-        array_parallelism: int
-            number of map tasks that will be executed in parallel
-
-        Raises
-        ------
-        ValueError
-            In case an erroneous keyword argument is added, a list of all eligible parameters
-            is printed, with their default values
-
-        Note
-        ----
-        Best practice (as far as Quip is concerned): cpus_per_task=2x (number of data workers + gpus_per_task)
-        You can use cpus_per_gpu=2 (requires using gpus_per_task and not gpus_per_node)
-        """
+        """Updates sbatch submission file parameters, see the class docstring for the valid ones"""
         defaults = _get_default_parameters()
         in_valid_parameters = sorted(set(kwargs) - set(defaults))
         if in_valid_parameters:
@@ -431,37 +441,8 @@ def _make_sbatch_string(
     srun_args: tp.Optional[tp.Iterable[str]] = None,
     use_srun: bool = True,
 ) -> str:
-    """Creates the content of an sbatch file with provided parameters
-
-    Parameters
-    ----------
-    See slurm sbatch documentation for most parameters:
-    https://slurm.schedmd.com/sbatch.html
-
-    Below are the parameters that differ from slurm documentation:
-
-    folder: str/Path
-        folder where print logs and error logs will be written
-    signal_delay_s: int
-        delay between the kill signal and the actual kill of the slurm job.
-    setup: list
-        a list of command to run in sbatch before running srun
-    teardown: list
-        a list of command to run in sbatch after running srun
-    map_size: int
-        number of simultaneous map/array jobs allowed
-    additional_parameters: dict
-        Forces any parameter to a given value in sbatch. This can be useful
-        to add parameters which are not currently available in submitit.
-        Eg: {"mail-user": "blublu@fb.com", "mail-type": "BEGIN"}
-    srun_args: List[str]
-        Add each argument in the list to the srun call
-
-    Raises
-    ------
-    ValueError
-        In case an erroneous keyword argument is added, a list of all eligible parameters
-        is printed, with their default values
+    """Creates the content of an sbatch file with provided parameters,
+    see :class:`SlurmExecutor` for their meaning
     """
     nonslurm = [
         "nonslurm",
