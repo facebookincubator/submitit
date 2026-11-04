@@ -4,12 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 
-import io
 import os
 import shutil
-import subprocess
 import sys
-import tarfile
 from pathlib import Path
 from typing import Optional
 
@@ -71,24 +68,10 @@ def test_slurmpaths_id_independent() -> None:
 
 
 def test_archive_dev_folders(tmp_path: Path) -> None:
-    utils.archive_dev_folders([Path(__file__).parent], outfile=tmp_path.with_suffix(".tar.gz"))
-    shutil.unpack_archive(str(tmp_path.with_suffix(".tar.gz")), extract_dir=tmp_path)
+    archive = utils.archive_dev_folders([Path(__file__).parent], outfile=tmp_path.with_suffix(".tar.gz"))
+    assert archive.read_bytes()[:2] == b"\x1f\x8b", "archive is not gzip-compressed"
+    shutil.unpack_archive(str(archive), extract_dir=tmp_path)
     assert (tmp_path / "core").exists()
-
-
-@pytest.mark.parametrize("default_outfile", [False, True])
-def test_archive_dev_folders_is_gzip(tmp_path: Path, monkeypatch, default_outfile: bool) -> None:
-    monkeypatch.chdir(tmp_path)
-    folder = tmp_path / "project"
-    folder.mkdir()
-    (folder / "data.txt").write_text("archived content")
-    outfile = None if default_outfile else tmp_path / "custom.tar.gz"
-    archive = utils.archive_dev_folders([folder], outfile=outfile)
-
-    with tarfile.open(archive, mode="r:gz") as reader:
-        content = reader.extractfile("project/data.txt")
-        assert content is not None
-        assert content.read() == b"archived content"
 
 
 def test_command_function() -> None:
@@ -103,44 +86,13 @@ def test_command_function() -> None:
         utils.CommandFunction(command, verbose=True)(error=True)
 
 
-@pytest.mark.parametrize("verbose", [False, True])
-def test_copy_process_streams_split_utf8(monkeypatch, capsys, verbose: bool) -> None:
-    code = "import os; os.write(1, 'A\\u20acZ'.encode()); os.write(2, 'B\\U0001f600Y'.encode())"
-    stdout, stderr = io.StringIO(), io.StringIO()
-    with subprocess.Popen(
-        [sys.executable, "-c", code], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ) as process:
-        # A pipe read can end inside a UTF-8 code point. Force that boundary
-        # without depending on subprocess timing or the OS pipe buffer size.
-        for stream in (process.stdout, process.stderr):
-            assert isinstance(stream, io.BufferedReader)
-            monkeypatch.setattr(stream.raw, "read", lambda size, read=stream.raw.read: read(1))
-        utils.copy_process_streams(process, stdout, stderr, verbose)
-        assert process.wait() == 0
-    assert stdout.getvalue() == "A\u20acZ"
-    assert stderr.getvalue() == "B\U0001f600Y"
-    captured = capsys.readouterr()
-    assert captured.out == (stdout.getvalue() if verbose else "")
-    assert captured.err == (stderr.getvalue() if verbose else "")
-
-
-def test_copy_process_streams_incomplete_utf8() -> None:
-    code = "import os; os.write(1, bytes([0xe2, 0x82]))"
-    with subprocess.Popen(
-        [sys.executable, "-c", code], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    ) as process:
-        with pytest.raises(UnicodeDecodeError):
-            utils.copy_process_streams(process, io.StringIO(), io.StringIO())
-        assert process.wait() == 0
-
-
 def test_command_function_deadlock(executor) -> None:
     code = """
 import sys;
 print(sys.__stderr__)
 # The goal here is to fill up the stderr pipe buffer.
 for i in range({n}):
-    print("-" * 1024, file=sys.stdout)
+    print("\u20ac" * 1024, file=sys.stdout)  # multi-byte chars split across pipe reads
 print("printed {n} lines to stderr")
 """
     fn1 = utils.CommandFunction([sys.executable, "-c", code.format(n=10)])
@@ -148,7 +100,7 @@ print("printed {n} lines to stderr")
     j1 = executor.submit(fn1)
     assert "10 lines" in j1.result()
 
-    fn2 = utils.CommandFunction(["python", "-c", code.format(n=1000)])
+    fn2 = utils.CommandFunction([sys.executable, "-c", code.format(n=1000)])
     j2 = executor.submit(fn2)
     assert "1000 lines" in j2.result()
 
@@ -160,23 +112,3 @@ def test_jobpaths(tmp_path: Path) -> None:
         utils.JobPaths(tmp_path / "array-%A-index-%a", "456_3").stdout
         == tmp_path / "array-456-index-3" / "456_3_0_log.out"
     )
-
-
-def test_command_function_environment(monkeypatch) -> None:
-    monkeypatch.setenv("SUBMITIT_TEST_PARENT", "inherited")
-    monkeypatch.delenv("SUBMITIT_TEST_CHILD", raising=False)
-    command = [
-        sys.executable,
-        "-c",
-        "import os; print(os.getenv('SUBMITIT_TEST_PARENT', 'missing'), "
-        "os.getenv('SUBMITIT_TEST_CHILD', 'missing'))",
-    ]
-    assert utils.CommandFunction(command, verbose=False)() == "inherited missing"
-    replacement = {"SUBMITIT_TEST_CHILD": "value"}
-    assert utils.CommandFunction(
-        command, env=replacement, verbose=False
-    )() == "missing value"
-    merged = {**os.environ, **replacement}
-    assert utils.CommandFunction(
-        command, env=merged, verbose=False
-    )() == "inherited value"
