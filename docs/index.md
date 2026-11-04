@@ -14,8 +14,10 @@ From inside an environment with `submitit` installed:
 ```python
 import submitit
 
+
 def add(a, b):
     return a + b
+
 
 # executor is the submission interface (logs are dumped in the folder)
 executor = submitit.AutoExecutor(folder="log_test")
@@ -87,6 +89,7 @@ The defaults are chosen to make their life easier, and might not be ideal for ev
 ```python
 from distributed import Client
 from dask_jobqueue import SLURMCluster
+
 cluster = SLURMCluster(processes=1, cores=2, memory="2GB")
 cluster.scale(2)  # this may take a few seconds to launch
 executor = Client(cluster)
