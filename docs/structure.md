@@ -23,6 +23,7 @@ Here are some information about the main objects defined in `submitit`, but you 
 The executor is your interface for submitting jobs. Its role is to save/dump the job you want to submit,
 then, in Slurm case for instance, to create the sbatch file for running submitting the job.
 Its main methods are:
+
  - `submit(function, *args, **kwargs)`: submits a function for run on the cluster with given parameters, and returns
    a `Job` instance.
  - `map_array(function, *iterables)`: submits a function several times for run on the cluster with different parameters
@@ -36,6 +37,7 @@ Its main methods are:
    an argument ;) )
 
 `submitit` has a plugin system so that several executor implementations can be provided. There are currently several implementations:
+
 - `AutoExecutor` which **we advise to always use** for submititting to clusters. This executor chooses the best available plugin to use depending on your environment. The aim is to be able to use the same code an several clusters.
 - `SlurmExecutor` which only works for slurm, and should be used through `AutoExecutor`.
 - `LocalExecutor` which provides a way to test job submission locally through multiprocessing.
@@ -47,6 +49,7 @@ Its main methods are:
 Jobs are processes running on the cluster. The `Job` class implements methods for checking the state and the results, as well as
 raised exceptions within the job. This class tends to replicate the main element of the  `concurrent.Future` API and adds some more.
 Its main methods and attributes are:
+
  - `job_id`: ID of the job in slurm (`str`).
  - `state`: the current state of the job (Eg: `RUNNING`, `PENDING`).
  - `done`: whether your job is finished.
@@ -63,7 +66,8 @@ Its main methods and attributes are:
 ### helpers
 
 This module implements convenient functions/classes for use with `submitit`:
- - `CommandFunction`: a class transforming a shell command into a function, so as to be able to submit it as well (see examples below).
+
+ - `CommandFunction`: a class transforming a shell command into a function, so as to be able to submit it as well (see [examples](examples.md#working-with-commands)).
  - `Checkpointable`: base class implementing a very basic example of checkpointing (`checkpoint` method). More on this on the [Checkpointing section](https://github.com/facebookincubator/submitit/blob/main/docs/checkpointing.md).
  - `FunctionSequence`: A function that computes sequentially the output of other functions. This can be used
  to compute several independent results sequentially on a unique job, and it implements checkpointing for free.
@@ -76,7 +80,9 @@ This module implements convenient functions/classes for use with `submitit`:
 
 This is the class which contains all information about the job. You will only have to deal with it if you do
 custom checkpointing (see below). Its main attributes are:
+
 - `function`: the function (or callable) to be called
 - `args`: the positional arguments
 - `kwargs`: the keyword arguments
+
 It is basically used exactly as the `submit` method of an `executor`: `DelayedSubmission(func, arg1, arg2, kwarg1=12)`

@@ -16,6 +16,7 @@
  - Some non-picklable objects like locks cannot be submited. This may cause issue if they are used as default arguments of a function.
 
 ## Specific to Slurm
+
  - While all jobs are requeued after preemption, only Checkpointable classes are requeued after a timeout (since a stateless function is expected to timeout again if it is requeued)
  - Timeouts are requeued a limited number of time (default: 3, see `Executor`) in order to avoid endless jobs.
  - the log/output folder must be chosen carefully: it must be a directory shared between instances, which rules out /tmp. If you

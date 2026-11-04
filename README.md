@@ -64,52 +64,14 @@ You can try running the [MNIST example](docs/mnist.py) to check that everything 
 
 ## Documentation
 
-See the following pages for more detailled information:
+The full documentation is available at **https://facebookincubator.github.io/submitit/**, including:
 
 - [Examples](docs/examples.md): for a bunch of examples dealing with errors, concurrency, multi-tasking etc...
 - [Structure and main objects](docs/structure.md): to get a better understanding of how `submitit` works, which files are created for each job, and the main objects you will interact with.
 - [Checkpointing](docs/checkpointing.md): to understand how you can configure your job to get checkpointed when preempted and/or timed-out.
 - [Tips and caveats](docs/tips.md): for a bunch of information that can be handy when working with `submitit`.
 - [Hyperparameter search with nevergrad](docs/nevergrad.md): basic example of `nevergrad` usage and how it interfaces with `submitit`.
-
-
-### Goals
-
-The aim of this Python3 package is to be able to launch jobs on Slurm painlessly from *inside Python*, using the same submission and job patterns than the standard library package `concurrent.futures`:
-
-Here are a few benefits of using this lightweight package:
- - submit any function, even lambda and script-defined functions.
- - raises an error with stack trace if the job failed.
- - requeue preempted jobs (Slurm only)
- - swap between `submitit` executor and one of `concurrent.futures` executors in a line, so that it is easy to run your code either on slurm, or locally with multithreading for instance.
- - checkpoints stateful callables when preempted or timed-out and requeue from current state (advanced feature).
- - easy access to task local/global rank for multi-nodes/tasks jobs.
- - same code can work for different clusters thanks to a plugin system.
-
-Submitit is used by FAIR researchers on the FAIR cluster.
-The defaults are chosen to make their life easier, and might not be ideal for every cluster.
-
-### Non-goals
-
-- a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitit plugin](https://hydra.cc/docs/next/plugins/submitit_launcher) (version >= 1.0.0).
-- a task queue, this only implements the ability to launch tasks, but does not schedule them in any way.
-- being used in Python2! This is a Python3.8+ only package :)
-
-
-### Comparison with dask.distributed
-
-[`dask`](https://distributed.dask.org/en/latest/) is a nice framework for distributed computing. `dask.distributed` provides the same `concurrent.futures` executor API as `submitit`:
-
-```python
-from distributed import Client
-from dask_jobqueue import SLURMCluster
-cluster = SLURMCluster(processes=1, cores=2, memory="2GB")
-cluster.scale(2)  # this may take a few seconds to launch
-executor = Client(cluster)
-executor.submit(...)
-```
-
-The key difference with `submitit` is that `dask.distributed` distributes the jobs to a pool of workers (see the `cluster` variable above) while `submitit` jobs are directly jobs on the cluster. In that sense `submitit` is a lower level interface than `dask.distributed` and you get more direct control over your jobs, including individual `stdout` and `stderr`, and possibly checkpointing in case of preemption and timeout. On the other hand, you should avoid submitting multiple small tasks with `submitit`, which would create many independent jobs and possibly overload the cluster, while you can do it without any problem through `dask.distributed`.
+- [Goals, non-goals and comparison with dask.distributed](docs/index.md#goals).
 
 
 ## Contributors

@@ -6,6 +6,7 @@ Each plugin must implement an `Executor`, a `Job`, an `InfoWatcher` and a `JobEn
 Look at [structure.md](./structure.md) for more details on those classes.
 
 Main functions to implement:
+
   - `Executor.submit`: from a function create a `Job` using the correct log files and python executable
   - `Executor._convert_parameters`: convert standardized parameters to cluster specific ones
   - `InfoWatcher.get_info`: given a job id, get the state of the job (pending, running, ...)

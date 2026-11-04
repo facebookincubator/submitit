@@ -33,6 +33,7 @@ assert output == 12  # 5 + 7 = 12...  your addition was computed in the cluster
 `submitit` supports the submission of [Slurm job arrays](https://slurm.schedmd.com/job_array.html) through the `executor.map_array` method.
 
 If you want to submit many jobs at once, this is the **preferred way to go** because:
+
  - it can submit all jobs in only 1 call to slurm (avoids flooding it).
  - it is faster than submitting all jobs independently.
  - it lets you define a cap on how many jobs can run in parallel at any given time, so you can send thousands of jobs without breaking the scheduler, as long as you leave a reasonable value for this parallelism.
@@ -80,6 +81,7 @@ the submission being triggered when leaving the context.
 This allows to submit job arrays when the functions need many arguments and keywords arguments.
 
 **Disclaimers**:
+
 - within the context, you won't be allowed to interact with the jobs methods and attributes (nor even print it)! This is because the jobs are only submitted when leaving the context: inside the context, the jobs are like empty shells. You can however store the jobs in a list for instance, and access their attributes and methods after leaving the batch context.
 - within the context, you can't update the executor parameters either (since all jobs must be submitted with the same settings)
 - any error within the context will just cancel the whole submission.
@@ -184,6 +186,7 @@ print(function())  # This returns your python path (which you be inside your vir
 ```
 
 Some useful parameters of the `CommandFunction` class:
+
 - `cwd`: to choose from which directory the command is run.
 - `env`: to replace the subprocess environment. If omitted, the current environment is inherited. To add variables while keeping `PATH` and other inherited values, merge them with `os.environ`:
 - `verbose`: set to `False` if you do not want any logging.
