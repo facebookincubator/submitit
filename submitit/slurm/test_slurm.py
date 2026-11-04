@@ -196,9 +196,8 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
 def test_requeuing_not_checkpointable(
     tmp_path: Path, fast_forward_clock, monkeypatch, time: tp.Union[int, str]
 ) -> None:
-    if isinstance(time, str):  # limit is then read from the Slurm job environment
-        monkeypatch.setenv("SLURM_JOB_START_TIME", "0")
-        monkeypatch.setenv("SLURM_JOB_END_TIME", "3600")
+    monkeypatch.setenv("SLURM_JOB_START_TIME", "0")
+    monkeypatch.setenv("SLURM_JOB_END_TIME", "3600" if isinstance(time, str) else "60")  # numeric time wins
     usr_sig = submitit.JobEnvironment._usr_sig()
     # Start job with a 60 minutes timeout
     with mocked_slurm():

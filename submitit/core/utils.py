@@ -128,7 +128,7 @@ class DelayedSubmission:
         self.kwargs = kwargs
         self._result: tp.Any = None
         self._done = False
-        self._timeout_min: int = 0
+        self._timeout_min: tp.Union[int, float, str] = 0
         self._timeout_countdown: int = 0  # controlled in submission and execution
 
     def result(self) -> tp.Any:
@@ -145,7 +145,7 @@ class DelayedSubmission:
     def dump(self, filepath: tp.Union[str, Path]) -> None:
         cloudpickle_dump(self, filepath)
 
-    def set_timeout(self, timeout_min: int, max_num_timeout: int) -> None:
+    def set_timeout(self, timeout_min: tp.Union[int, float, str], max_num_timeout: int) -> None:
         self._timeout_min = timeout_min
         self._timeout_countdown = max_num_timeout
 

@@ -180,13 +180,15 @@ class SignalHandler:
         walltime = time.time() - self._start_time
         timeout_min = self._delayed._timeout_min
         start, end = os.environ.get("SLURM_JOB_START_TIME"), os.environ.get("SLURM_JOB_END_TIME")
-        if isinstance(timeout_min, (int, float)):
+        if not isinstance(timeout_min, str):
             max_walltime = timeout_min * 60
-        elif start is not None and end is not None:  # e.g. Slurm time string, Slurm >= 23.02
+        elif start is not None and end is not None:
             max_walltime = int(end) - int(start)
         else:
-            self._logger.warning(f"Cannot interpret timeout {timeout_min!r}, assuming no timeout.")
-            return False
+            self._logger.warning(
+                f"Cannot read Slurm time limit {timeout_min!r} (needs Slurm >= 23.02), treating signal as timeout."
+            )
+            return True
         guaranteed_walltime = min(max_walltime * 0.8, max_walltime - 10 * 60)
 
         timed_out = walltime >= guaranteed_walltime
