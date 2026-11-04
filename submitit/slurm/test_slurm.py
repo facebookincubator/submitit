@@ -82,7 +82,7 @@ def test_slurm_job_mocked(tmp_path: Path) -> None:
 def test_slurm_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
     n = 5
     with mocked_slurm() as mock:
-        executor = slurm.SlurmExecutor(folder=tmp_path)
+        executor = slurm.SlurmExecutor(folder=tmp_path / "%j")
         executor.update_parameters(array_parallelism=3)
         data1, data2 = range(n), range(10, 10 + n)
 
@@ -109,7 +109,7 @@ def test_slurm_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
         jobs[0]._interrupt(timeout=True)  # type: ignore
         assert list(map(add, data1, data2)) == [j.result() for j in jobs]
         # check submission file
-        sbatch = Job(tmp_path, job_id=array_id).paths.submission_file.read_text()
+        sbatch = jobs[0].paths.submission_file.read_text()
         array_line = [l.strip() for l in sbatch.splitlines() if "--array" in l]
         assert array_line == ["#SBATCH --array=0-4%3"]
 
@@ -195,7 +195,7 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
 
 @pytest.mark.parametrize("time", [60, "1:00:00"])
 def test_requeuing_not_checkpointable(
-    tmp_path: Path, fast_forward_clock, monkeypatch, time: tp.Union[int, str]
+    tmp_path: Path, fast_forward_clock, monkeypatch, time: int | str
 ) -> None:
     monkeypatch.setenv("SLURM_JOB_START_TIME", "0")
     monkeypatch.setenv("SLURM_JOB_END_TIME", "3600" if isinstance(time, str) else "60")  # numeric time wins
@@ -275,8 +275,9 @@ def test_make_sbatch_string() -> None:
 
 
 def test_make_sbatch_string_gpu() -> None:
-    string = slurm._make_sbatch_string(command="blublu", folder="/tmp", gpus_per_node=2)
+    string = slurm._make_sbatch_string(command="blublu", folder="/tmp", gpus_per_node=2, wckey="")
     assert "--gpus-per-node=2" in string
+    assert "--wckey" not in string, "empty options must be removed"
 
 
 def test_make_sbatch_stderr() -> None:

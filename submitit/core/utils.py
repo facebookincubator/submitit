@@ -66,8 +66,8 @@ class JobPaths:
     @property
     def submission_file(self) -> Path:
         if self.job_id and "_" in self.job_id:
-            # We only have one submission file per job array
-            return self._format_id(self.folder / "%A_submission.sh")
+            # one submission file per job array, written with the array id
+            return JobPaths(self._folder, job_id=self.job_id.split("_")[0]).submission_file
         return self._format_id(self.folder / "%j_submission.sh")
 
     @property
@@ -129,7 +129,7 @@ class DelayedSubmission:
         self.kwargs = kwargs
         self._result: tp.Any = None
         self._done = False
-        self._timeout_min: tp.Union[int, float, str] = 0
+        self._timeout_min: int | float | str = 0
         self._timeout_countdown: int = 0  # controlled in submission and execution
 
     def result(self) -> tp.Any:
@@ -146,7 +146,7 @@ class DelayedSubmission:
     def dump(self, filepath: str | Path) -> None:
         cloudpickle_dump(self, filepath)
 
-    def set_timeout(self, timeout_min: tp.Union[int, float, str], max_num_timeout: int) -> None:
+    def set_timeout(self, timeout_min: int | float | str, max_num_timeout: int) -> None:
         self._timeout_min = timeout_min
         self._timeout_countdown = max_num_timeout
 

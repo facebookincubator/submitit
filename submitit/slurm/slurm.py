@@ -249,7 +249,7 @@ class SlurmExecutor(core.PicklingExecutor):
     gres, gpus_per_task, cpus_per_gpu, mem_per_gpu, mem_per_cpu, exclusive, mail_type, mail_user: str
         same as above; ``cpus_per_gpu`` requires ``gpus_per_task`` rather than ``gpus_per_node``
     wckey: str
-        ``--wckey`` (default: "submitit"), set it to "" if the cluster rejects it
+        ``--wckey`` (default: "submitit"), set it to "" to remove it if the cluster rejects it
         (``Invalid wckey specification``)
     array_parallelism: int
         maximum number of jobs of a job array running at the same time (default: 256)
@@ -458,7 +458,7 @@ def _make_sbatch_string(
         "srun_args",
         "use_srun",  # if False, un python directly in sbatch instead of through srun
     ]
-    parameters = {k: v for k, v in locals().items() if v is not None and k not in nonslurm}
+    parameters = {k: v for k, v in locals().items() if v not in (None, "") and k not in nonslurm}
     # rename and reformat parameters
     parameters["signal"] = f"{SlurmJobEnvironment.USR_SIG}@{signal_delay_s}"
     if num_gpus is not None:

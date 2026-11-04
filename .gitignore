@@ -1,5 +1,4 @@
 # Project specific folders
-/docs/mnist_logs/
 /integration/logs/
 /docs/_build/
 
