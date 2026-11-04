@@ -23,7 +23,9 @@ jobs:
       with:
         python-version: '3.12'
     - name: Install
-      run: pip install --progress-bar off .[docs]
+      run: pip install --progress-bar off .[docs] pytest
+    - name: Test snippets
+      run: pytest submitit/test_documentation.py
     - name: Build
       run: sphinx-build -W --keep-going -b html docs docs/_build/html
     - name: Upload site

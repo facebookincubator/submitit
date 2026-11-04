@@ -105,6 +105,8 @@ examples
 structure
 checkpointing
 tips
+faq
 nevergrad
 plugins
+api
 ```

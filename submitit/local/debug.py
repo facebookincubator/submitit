@@ -143,6 +143,10 @@ class DebugJob(Job[R]):
 
 
 class DebugExecutor(Executor):
+    """Executor running jobs in the current process, when their result is requested.
+    Breakpoints work, and a failure opens a post-mortem debugger. Parameters are ignored.
+    """
+
     job_class = DebugJob
 
     def __init__(self, folder: Union[str, Path]):

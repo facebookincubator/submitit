@@ -69,9 +69,11 @@ You can try running the [MNIST example](docs/mnist.py) to check that everything 
 The full documentation is available at **https://facebookincubator.github.io/submitit/**, including:
 
 - [Examples](docs/examples.md): for a bunch of examples dealing with errors, concurrency, multi-tasking etc...
-- [Structure and main objects](docs/structure.md): to get a better understanding of how `submitit` works, which files are created for each job, and the main objects you will interact with.
+- [Structure](docs/structure.md): to get a better understanding of how `submitit` works and which files are created for each job.
 - [Checkpointing](docs/checkpointing.md): to understand how you can configure your job to get checkpointed when preempted and/or timed-out.
 - [Tips and caveats](docs/tips.md): for a bunch of information that can be handy when working with `submitit`.
+- [FAQ](docs/faq.md): common errors and how to solve them.
+- [API reference](https://facebookincubator.github.io/submitit/api.html): executors and their parameters, jobs and helpers.
 - [Hyperparameter search with nevergrad](docs/nevergrad.md): basic example of `nevergrad` usage and how it interfaces with `submitit`.
 - [Goals, non-goals and comparison with dask.distributed](docs/index.md#goals).
 
