@@ -193,12 +193,17 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
         sig.checkpoint_and_try_requeue(usr_sig)
 
 
-def test_requeuing_not_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
+@pytest.mark.parametrize("time", [60, "1:00:00"])
+def test_requeuing_not_checkpointable(
+    tmp_path: Path, fast_forward_clock, monkeypatch, time: tp.Union[int, str]
+) -> None:
+    monkeypatch.setenv("SLURM_JOB_START_TIME", "0")
+    monkeypatch.setenv("SLURM_JOB_END_TIME", "3600" if isinstance(time, str) else "60")  # numeric time wins
     usr_sig = submitit.JobEnvironment._usr_sig()
     # Start job with a 60 minutes timeout
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
-        executor.update_parameters(time=60)
+        executor.update_parameters(time=time)
         job = executor.submit(test_core._three_time, 10)
 
     # simulate job start
