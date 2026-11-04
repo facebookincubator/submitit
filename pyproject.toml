@@ -107,3 +107,7 @@ select = ["I", "UP"]  # import sorting and syntax upgrades, pylint and mypy do t
 [[tool.mypy.overrides]]
   module = ['cloudpickle', 'ipdb', 'pytest', 'setuptools']
   ignore_missing_imports = true
+
+[tool.codespell]
+skip = '.git,.gitignore,.gitattributes,.git-meta'
+check-hidden = true

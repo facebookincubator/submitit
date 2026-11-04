@@ -321,7 +321,7 @@ class CommandFunction:
         self.env = env
 
     def __call__(self, *args: tp.Any, **kwargs: tp.Any) -> str:
-        """Call the cammand line with addidional arguments
+        """Call the command line with additional arguments
         The keyword arguments will be sent as --{key}={val}
         The logs bufferized. They will be printed if the job fails, or sent as output of the function
         Errors are provided with the internal stderr.

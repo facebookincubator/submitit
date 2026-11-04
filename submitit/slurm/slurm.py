@@ -21,7 +21,7 @@ from ..core import core, job_environment, logger, utils
 
 
 def read_job_id(job_id: str) -> list[tuple[str, ...]]:
-    """Reads formated job id and returns a tuple with format:
+    """Reads formatted job id and returns a tuple with format:
     (main_id, [array_index, [final_array_index])
     """
     pattern = r"(?P<main_id>\d+)_\[(?P<arrays>(\d+(-\d+)?(,)?)+)(\%\d+)?\]"
@@ -463,7 +463,7 @@ def _make_sbatch_string(
     parameters["signal"] = f"{SlurmJobEnvironment.USR_SIG}@{signal_delay_s}"
     if num_gpus is not None:
         warnings.warn(
-            '"num_gpus" is deprecated, please use "gpus_per_node" instead (overwritting with num_gpus)'
+            '"num_gpus" is deprecated, please use "gpus_per_node" instead (overwriting with num_gpus)'
         )
         parameters["gpus_per_node"] = parameters.pop("num_gpus", 0)
     if "cpus_per_gpu" in parameters and "gpus_per_task" not in parameters:
