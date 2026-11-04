@@ -21,7 +21,7 @@ assert job.result() == 12
 
 - `AutoExecutor` submits to Slurm when `srun` is available, and otherwise runs the job in a subprocess on the current machine, so the same code works on a laptop and on the cluster.
 - `folder` receives the pickled function, the result and the logs of each job; `%j` is replaced by the job id. On Slurm it must be on a filesystem shared with the compute nodes (not `/tmp`), otherwise jobs fail without logs.
-- `update_parameters` sets the resources of the next submissions, see [Parameters](parameters.md).
+- `update_parameters` sets the resources of the next submissions.
 - `job.result()` waits for the job to finish and returns its output. If the function raised, it raises a `FailedJobError` containing the traceback from the job, see [Errors](examples.md#errors).
 
 ## Inspect a job

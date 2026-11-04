@@ -27,7 +27,11 @@ Its main methods are:
    a `Job` instance.
  - `map_array(function, *iterables)`: submits a function several times for run on the cluster with different parameters
    (pulled from the iterables), and returns a list of `Job` instances, see [Job arrays](examples.md#job-arrays).
- - `update_parameters(**kwargs)`: sets or updates the parameters of the next submissions, see [Parameters](parameters.md).
+ - `update_parameters(**kwargs)`: sets or updates parameters for the cluster. Only a subset is implemented but
+   it can be easily improved with more parameters. We have homogenized some parameter names, to use the same
+   parameters for slurm and other clusters (eg, use `gpus_per_node=2`, that historically corresponds to `--gres=gpu:2` for slurm, but is now `--gpus-per-node` as well).
+   If you misspell a name, the function will raise an exception with all allowed parameters (this can be useful if you are looking for
+   an argument ;) )
 
 `submitit` has a plugin system so that several executor implementations can be provided. There are currently several implementations:
 

@@ -69,7 +69,6 @@ You can try running the [MNIST example](docs/mnist.py) to check that everything 
 The full documentation is available at **https://facebookincubator.github.io/submitit/**, including:
 
 - [Getting started](docs/getting_started.md): submitting, inspecting and debugging jobs.
-- [Parameters](docs/parameters.md): resources, Slurm options and environment setup.
 - [Examples](docs/examples.md): for a bunch of examples dealing with errors, concurrency, multi-tasking etc...
 - [Structure and main objects](docs/structure.md): to get a better understanding of how `submitit` works, which files are created for each job, and the main objects you will interact with.
 - [Checkpointing](docs/checkpointing.md): to understand how you can configure your job to get checkpointed when preempted and/or timed-out.

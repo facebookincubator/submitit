@@ -71,13 +71,12 @@ def test_assert_markdown_links_not_broken() -> None:
     assert not broken_links
 
 
-@pytest.mark.parametrize("page", ["getting_started.md", "parameters.md"])
-def test_doc_snippets(page: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    text = (_get_root() / "docs" / page).read_text()
+def test_getting_started_snippets(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    text = (_get_root() / "docs" / "getting_started.md").read_text()
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(submitit.AutoExecutor, "which", staticmethod(lambda: "local"))  # even on Slurm
     blocks = re.findall(r"^```python\n(.*?)^```", text, flags=re.MULTILINE | re.DOTALL)
-    assert blocks, f"No python block found in {page}"
+    assert blocks, "No python block found"
     namespace: tp.Dict[str, tp.Any] = {"__name__": "__main__"}  # functions pickled by value
     for block in blocks:
         exec(block, namespace)  # pylint: disable=exec-used

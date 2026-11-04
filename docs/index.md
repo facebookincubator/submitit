@@ -102,7 +102,6 @@ The key difference with `submitit` is that `dask.distributed` distributes the jo
 :hidden:
 
 getting_started
-parameters
 examples
 structure
 checkpointing

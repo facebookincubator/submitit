@@ -20,7 +20,7 @@ Create them inside the submitted function rather than passing them as arguments,
 
 ## My job is killed after a few minutes
 
-Jobs that do not set `timeout_min` get a short default time limit, see [Generic parameters](parameters.md#generic-parameters).
+Jobs that do not set `timeout_min` are stopped after 5 minutes on Slurm (2 minutes with the local executor): set it with `executor.update_parameters(timeout_min=...)`.
 
 ## My `logging` output does not appear in the logs
 
@@ -33,15 +33,15 @@ submitit always writes `--job-name`, `--nodes`, `--time`, `--signal`, `--wckey` 
 
 - `Invalid wckey specification`: set `slurm_wckey=""`;
 - `Invalid generic resource (gres) specification` with `gpus_per_node`: your cluster may not support `--gpus-per-node`, request GPUs with e.g. `slurm_gres="gpu:2"` instead;
-- any option submitit does not support: use `slurm_additional_parameters`, see [Slurm parameters](parameters.md#slurm-parameters).
+- any option submitit does not support: pass it through `slurm_additional_parameters`, e.g. `{"reservation": "my_reservation"}`.
 
 ## How do I load modules or set environment variables before the job starts?
 
-Use `slurm_setup`, see [Slurm parameters](parameters.md#slurm-parameters).
+Use `slurm_setup`, a list of shell commands run in the sbatch script before the job, e.g. `executor.update_parameters(slurm_setup=["module load cuda/12.1"])`.
 
 ## How do I run the job with another Python or in a container?
 
-Use `slurm_python`, see [Executor arguments](parameters.md#executor-arguments).
+Pass `slurm_python` when creating the executor, e.g. `submitit.AutoExecutor(folder, slurm_python="singularity exec image.sif python")`; it defaults to the current interpreter.
 
 ## Jobs submitted from within a job fail, e.g. with `Unable to satisfy cpu bind request`
 
