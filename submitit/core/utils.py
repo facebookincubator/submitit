@@ -329,7 +329,7 @@ class CommandFunction:
             self.command + [str(x) for x in args] + [f"--{x}={y}" for x, y in kwargs.items()]
         )  # TODO bad parsing
         if self.verbose:
-            print(f"The following command is sent: \"{' '.join(full_command)}\"")
+            print(f'The following command is sent: "{" ".join(full_command)}"')
         with subprocess.Popen(
             full_command,
             stdout=subprocess.PIPE,

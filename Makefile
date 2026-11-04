@@ -30,13 +30,13 @@ test_coverage:
 
 format:
 	$(BIN)python -m pre_commit
-	$(BIN)isort $(CODE_AND_DOCS)
-	$(BIN)black $(CODE_AND_DOCS)
+	$(BIN)ruff check --fix $(CODE_AND_DOCS)
+	$(BIN)ruff format $(CODE_AND_DOCS)
 
 check_format:
 	# also formats docs
-	$(BIN)isort --check --diff $(CODE_AND_DOCS)
-	$(BIN)black --check --diff $(CODE_AND_DOCS)
+	$(BIN)ruff check $(CODE_AND_DOCS)
+	$(BIN)ruff format --check --diff $(CODE_AND_DOCS)
 
 mypy:
 	$(BIN)mypy --version

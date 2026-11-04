@@ -32,8 +32,7 @@ classifiers=[
         "pytest-cov>=4.1.0",
         "coverage[toml]>=5.1",
         # Format
-        "black==26.10.1",
-        "isort==5.11.5",
+        "ruff==0.15.8",
         "pre-commit>=1.15.2",
         # Linters
         "mypy>=1.4.1",
@@ -48,20 +47,11 @@ classifiers=[
         "sphinx-copybutton>=0.5.2",
     ]
 
-[tool.black]
+[tool.ruff]
 line-length = 110
-exclude = '''
-/(
-  | \.git
-  | \.mypy_cache
-  | venv
-)/
-'''
 
-[tool.isort]
-profile = "black"
-line_length = 110
-skip_gitignore = true
+[tool.ruff.lint]
+select = ["I"]  # import sorting only, pylint and mypy do the linting
 
 
 [tool.pylint]

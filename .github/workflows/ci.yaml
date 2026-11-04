@@ -79,4 +79,4 @@ jobs:
     - name: Test format
       run: |
         source activate ./ci_env
-        make use_venv=0 format
+        make use_venv=0 check_format

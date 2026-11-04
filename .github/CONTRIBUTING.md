@@ -35,7 +35,7 @@ disclosure of security bugs. In those cases, please go through the process
 outlined on that page and do not file a public issue.
 
 ## Coding Style
-We use black coding style with a generous 110 line length.
+We format with ruff (`make format`) with a generous 110 line length.
 
 ## License
 By contributing to _submitit_, you agree that your contributions will be licensed

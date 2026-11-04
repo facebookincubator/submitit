@@ -209,9 +209,9 @@ class Job(tp.Generic[R]):
 
     def submission(self) -> utils.DelayedSubmission:
         """Returns the submitted object, with attributes `function`, `args` and `kwargs`"""
-        assert (
-            self.paths.submitted_pickle.exists()
-        ), f"Cannot find job submission pickle: {self.paths.submitted_pickle}"
+        assert self.paths.submitted_pickle.exists(), (
+            f"Cannot find job submission pickle: {self.paths.submitted_pickle}"
+        )
         return utils.DelayedSubmission.load(self.paths.submitted_pickle)
 
     def cancel_at_deletion(self, value: bool = True) -> "Job[R]":
@@ -319,9 +319,7 @@ class Job(tp.Generic[R]):
         if self._sub_jobs:
             all_exceptions = [sub_job.exception() for sub_job in self._sub_jobs]
             # unexpected pylint issue on correct code:
-            exceptions = [
-                e for e in all_exceptions if e is not None  # pylint: disable=used-before-assignment
-            ]
+            exceptions = [e for e in all_exceptions if e is not None]  # pylint: disable=used-before-assignment
             if not exceptions:
                 return None
             return exceptions[0]
@@ -743,8 +741,7 @@ class Executor(abc.ABC):
     @abc.abstractmethod
     def _internal_process_submissions(
         self, delayed_submissions: tp.List[utils.DelayedSubmission]
-    ) -> tp.List[Job[tp.Any]]:
-        ...
+    ) -> tp.List[Job[tp.Any]]: ...
 
     def map_array(self, fn: tp.Callable[..., R], *iterable: tp.Iterable[tp.Any]) -> tp.List[Job[R]]:
         """A distributed equivalent of the map() built-in function
