@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import codecs
 import contextlib
 import io
@@ -153,7 +155,7 @@ class DelayedSubmission:
         assert obj.__class__.__name__ == cls.__name__, f"Loaded object is {type(obj)} but should be {cls}."
         return obj  # type: ignore
 
-    def _checkpoint_function(self) -> tp.Optional["DelayedSubmission"]:
+    def _checkpoint_function(self) -> DelayedSubmission | None:
         checkpoint = getattr(self.function, "__submitit_checkpoint__", None)
         if checkpoint is None:
             checkpoint = getattr(self.function, "checkpoint", None)

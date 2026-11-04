@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import os
 import signal
 import socket
@@ -35,7 +37,7 @@ class JobEnvironment:
     USR_SIG = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
     _env: tp.ClassVar[dict[str, str]] = {}
 
-    def __new__(cls, *args: tp.Any) -> "JobEnvironment":
+    def __new__(cls, *args: tp.Any) -> JobEnvironment:
         if cls is not JobEnvironment:
             return super().__new__(cls, *args)  # type: ignore
 

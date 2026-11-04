@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import abc
 import asyncio
 import contextlib
@@ -232,7 +234,7 @@ class Job(tp.Generic[R]):
         self._cancel_at_deletion = value
         return self
 
-    def task(self, task_id: int) -> "Job[R]":
+    def task(self, task_id: int) -> Job[R]:
         """Returns a given sub-Job (task).
 
         Parameters
@@ -494,7 +496,7 @@ class Job(tp.Generic[R]):
             return "\n".join(stderr_not_none)
         return self._get_logs_string("stderr")
 
-    def awaitable(self) -> "AsyncJobProxy[R]":
+    def awaitable(self) -> AsyncJobProxy[R]:
         """Returns a proxy object that provides asyncio methods
         for this Job.
         """
@@ -534,7 +536,7 @@ class DelayedJob(Job[R]):
     and you'll obtain a real job instead.
     """
 
-    def __init__(self, ex: "Executor"):
+    def __init__(self, ex: Executor):
         # pylint: disable = super-init-not-called
         self._submitit_executor = ex
 

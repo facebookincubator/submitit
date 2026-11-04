@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import functools
 import os
 from collections.abc import Mapping
@@ -19,7 +21,7 @@ if TYPE_CHECKING:
 
 
 @functools.lru_cache
-def _get_plugins() -> tuple[list[type["Executor"]], list["JobEnvironment"]]:
+def _get_plugins() -> tuple[list[type[Executor]], list[JobEnvironment]]:
     # pylint: disable=cyclic-import,import-outside-toplevel
     from ..local import debug, local
     from ..slurm import slurm
@@ -58,12 +60,12 @@ def _get_plugins() -> tuple[list[type["Executor"]], list["JobEnvironment"]]:
 
 
 @functools.lru_cache
-def get_executors() -> Mapping[str, type["Executor"]]:
+def get_executors() -> Mapping[str, type[Executor]]:
     # TODO: check collisions between executor names
     return {ex.name(): ex for ex in _get_plugins()[0]}
 
 
-def get_job_environment() -> "JobEnvironment":
+def get_job_environment() -> JobEnvironment:
     # Don't cache this function. It makes testing harder.
     # The slow part is the plugin discovery anyway.
     envs = get_job_environments()
@@ -82,5 +84,5 @@ def get_job_environment() -> "JobEnvironment":
 
 
 @functools.lru_cache
-def get_job_environments() -> Mapping[str, "JobEnvironment"]:
+def get_job_environments() -> Mapping[str, JobEnvironment]:
     return {env.name(): env for env in _get_plugins()[1]}
