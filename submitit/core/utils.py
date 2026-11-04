@@ -4,6 +4,9 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
+import codecs
 import contextlib
 import io
 import itertools
@@ -15,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import typing as tp
+import warnings
 from pathlib import Path
 
 import cloudpickle
@@ -28,28 +32,31 @@ def environment_variables(**kwargs: tp.Any) -> tp.Iterator[None]:
         yield
     finally:
         for x in kwargs:
-            del os.environ[x]
+            os.environ.pop(x, None)
         os.environ.update(backup)
 
 
+CHECKPOINT_DEPRECATION = "The checkpoint method is deprecated, rename it __submitit_checkpoint__"
+
+
 class UncompletedJobError(RuntimeError):
-    """Job is incomplete: either unfinished or failed"""
+    """Job ended without result (e.g. out of memory, cancelled, node failure), parent of FailedJobError"""
 
 
 class FailedJobError(UncompletedJobError):
-    """Job failed during processing"""
+    """The submitted function raised, the job reached its time limit without checkpointing, or the
+    submission was rejected by the cluster
+    """
 
 
 class FailedSubmissionError(RuntimeError):
-    """Job Submission failed"""
+    """The submission command succeeded but its output contained no job id"""
 
 
 class JobPaths:
     """Creates paths related to the slurm job and its submission"""
 
-    def __init__(
-        self, folder: tp.Union[Path, str], job_id: tp.Optional[str] = None, task_id: tp.Optional[int] = None
-    ) -> None:
+    def __init__(self, folder: Path | str, job_id: str | None = None, task_id: int | None = None) -> None:
         self._folder = Path(folder).expanduser().absolute()
         self.job_id = job_id
         self.task_id = task_id or 0
@@ -61,8 +68,8 @@ class JobPaths:
     @property
     def submission_file(self) -> Path:
         if self.job_id and "_" in self.job_id:
-            # We only have one submission file per job array
-            return self._format_id(self.folder / "%A_submission.sh")
+            # one submission file per job array, written with the array id
+            return JobPaths(self._folder, job_id=self.job_id.split("_")[0]).submission_file
         return self._format_id(self.folder / "%j_submission.sh")
 
     @property
@@ -81,7 +88,7 @@ class JobPaths:
     def stdout(self) -> Path:
         return self._format_id(self.folder / "%j_%t_log.out")
 
-    def _format_id(self, path: tp.Union[Path, str]) -> Path:
+    def _format_id(self, path: Path | str) -> Path:
         """Replace id tag by actual id if available"""
         if self.job_id is None:
             return Path(path)
@@ -93,16 +100,14 @@ class JobPaths:
             replaced_path = replaced_path.replace("%a", array_index[0])
         return Path(replaced_path.replace("%A", array_id))
 
-    def move_temporary_file(
-        self, tmp_path: tp.Union[Path, str], name: str, keep_as_symlink: bool = False
-    ) -> None:
+    def move_temporary_file(self, tmp_path: Path | str, name: str, keep_as_symlink: bool = False) -> None:
         self.folder.mkdir(parents=True, exist_ok=True)
         Path(tmp_path).rename(getattr(self, name))
         if keep_as_symlink:
             Path(tmp_path).symlink_to(getattr(self, name))
 
     @staticmethod
-    def get_first_id_independent_folder(folder: tp.Union[Path, str]) -> Path:
+    def get_first_id_independent_folder(folder: Path | str) -> Path:
         """Returns the closest folder which is id independent"""
         parts = Path(folder).expanduser().absolute().parts
         tags = ["%j", "%t", "%A", "%a"]
@@ -114,20 +119,19 @@ class JobPaths:
 
 
 class DelayedSubmission:
-    """Object for specifying the function/callable call to submit and process later.
-    This is only syntactic sugar to make sure everything is well formatted:
-    If what you want to compute later is func(*args, **kwargs), just instantiate:
-    DelayedSubmission(func, *args, **kwargs).
-    It also provides convenient tools for dumping and loading.
+    """The call ``function(*args, **kwargs)``, to run later, e.g. returned by
+    ``__submitit_checkpoint__``.
     """
 
     def __init__(self, function: tp.Callable[..., tp.Any], *args: tp.Any, **kwargs: tp.Any) -> None:
+        if hasattr(function, "checkpoint") and not hasattr(function, "__submitit_checkpoint__"):
+            warnings.warn(CHECKPOINT_DEPRECATION, FutureWarning)
         self.function = function
         self.args = args
         self.kwargs = kwargs
         self._result: tp.Any = None
         self._done = False
-        self._timeout_min: int = 0
+        self._timeout_min: int | float | str = 0
         self._timeout_countdown: int = 0  # controlled in submission and execution
 
     def result(self) -> tp.Any:
@@ -141,22 +145,22 @@ class DelayedSubmission:
     def done(self) -> bool:
         return self._done
 
-    def dump(self, filepath: tp.Union[str, Path]) -> None:
+    def dump(self, filepath: str | Path) -> None:
         cloudpickle_dump(self, filepath)
 
-    def set_timeout(self, timeout_min: int, max_num_timeout: int) -> None:
+    def set_timeout(self, timeout_min: int | float | str, max_num_timeout: int) -> None:
         self._timeout_min = timeout_min
         self._timeout_countdown = max_num_timeout
 
     @classmethod
-    def load(cls: tp.Type["DelayedSubmission"], filepath: tp.Union[str, Path]) -> "DelayedSubmission":
+    def load(cls, filepath: str | Path) -> tp.Self:
         obj = pickle_load(filepath)
         # following assertion is relaxed compared to isinstance, to allow flexibility
         # (Eg: copying this class in a project to be able to have checkpointable jobs without adding submitit as dependency)
         assert obj.__class__.__name__ == cls.__name__, f"Loaded object is {type(obj)} but should be {cls}."
         return obj  # type: ignore
 
-    def _checkpoint_function(self) -> tp.Optional["DelayedSubmission"]:
+    def _checkpoint_function(self) -> DelayedSubmission | None:
         checkpoint = getattr(self.function, "__submitit_checkpoint__", None)
         if checkpoint is None:
             checkpoint = getattr(self.function, "checkpoint", None)
@@ -166,7 +170,7 @@ class DelayedSubmission:
 
 
 @contextlib.contextmanager
-def temporary_save_path(filepath: tp.Union[Path, str]) -> tp.Iterator[Path]:
+def temporary_save_path(filepath: Path | str) -> tp.Iterator[Path]:
     """Yields a path where to save a file and moves it
     afterward to the provided location (and replaces any
     existing file)
@@ -188,29 +192,27 @@ def temporary_save_path(filepath: tp.Union[Path, str]) -> tp.Iterator[Path]:
     os.rename(tmppath, filepath)
 
 
-def archive_dev_folders(
-    folders: tp.List[tp.Union[str, Path]], outfile: tp.Optional[tp.Union[str, Path]] = None
-) -> Path:
+def archive_dev_folders(folders: list[str | Path], outfile: str | Path | None = None) -> Path:
     """Creates a tar.gz file with all provided folders"""
     assert isinstance(folders, (list, tuple)), "Only lists and tuples of folders are allowed"
     if outfile is None:
         outfile = "_dev_folders_.tar.gz"
     outfile = Path(outfile)
     assert str(outfile).endswith(".tar.gz"), "Archive file must have extension .tar.gz"
-    with tarfile.TarFile(outfile, mode="w") as tf:
+    with tarfile.open(outfile, mode="w:gz") as tf:
         for folder in folders:
             tf.add(str(folder), arcname=Path(folder).name)
     return outfile
 
 
-def copy_par_file(par_file: tp.Union[str, Path], folder: tp.Union[str, Path]) -> Path:
+def copy_par_file(par_file: str | Path, folder: str | Path) -> Path:
     """Copy the par (or xar) file in the folder
 
     Parameter
     ---------
-    par_file: str/Path
+    par_file: str | Path
         Par file generated by buck
-    folder: str/Path
+    folder: str | Path
         folder where the par file must be copied
 
     Returns
@@ -226,13 +228,13 @@ def copy_par_file(par_file: tp.Union[str, Path], folder: tp.Union[str, Path]) ->
     return dst_name
 
 
-def pickle_load(filename: tp.Union[str, Path]) -> tp.Any:
+def pickle_load(filename: str | Path) -> tp.Any:
     # this is used by cloudpickle as well
     with open(filename, "rb") as ifile:
         return pickle.load(ifile)
 
 
-def cloudpickle_dump(obj: tp.Any, filename: tp.Union[str, Path]) -> None:
+def cloudpickle_dump(obj: tp.Any, filename: str | Path) -> None:
     with open(filename, "wb") as ofile:
         cloudpickle.dump(obj, ofile, pickle.HIGHEST_PROTOCOL)
 
@@ -247,7 +249,7 @@ def copy_process_streams(
     If `verbose` the process stdout/stderr are also copying to the interpreter stdout/stderr.
     """
 
-    def raw(stream: tp.Optional[tp.IO[bytes]]) -> tp.IO[bytes]:
+    def raw(stream: tp.IO[bytes] | None) -> tp.IO[bytes]:
         if stream is None:
             raise RuntimeError("Stream should not be None")
         if isinstance(stream, io.BufferedIOBase):
@@ -255,11 +257,12 @@ def copy_process_streams(
         return stream  # type: ignore
 
     p_stdout, p_stderr = raw(process.stdout), raw(process.stderr)
-    stream_by_fd: tp.Dict[int, tp.Tuple[tp.IO[bytes], io.StringIO, tp.IO[str]]] = {
+    stream_by_fd: dict[int, tuple[tp.IO[bytes], io.StringIO, tp.IO[str]]] = {
         p_stdout.fileno(): (p_stdout, stdout, sys.stdout),
         p_stderr.fileno(): (p_stderr, stderr, sys.stderr),
     }
     fds = list(stream_by_fd.keys())
+    decoders = {fd: codecs.getincrementaldecoder("utf-8")() for fd in fds}
     poller = select.poll()
     for fd in stream_by_fd:
         poller.register(fd, select.POLLIN | select.POLLPRI)
@@ -269,11 +272,10 @@ def copy_process_streams(
         for fd, _ in ready:
             p_stream, string, std = stream_by_fd[fd]
             raw_buf = p_stream.read(2**16)
+            buf = decoders[fd].decode(raw_buf, final=not raw_buf)
             if not raw_buf:
                 fds.remove(fd)
                 poller.unregister(fd)
-                continue
-            buf = raw_buf.decode()
             string.write(buf)
             string.flush()
             if verbose:
@@ -283,11 +285,9 @@ def copy_process_streams(
 
 # used in "_core", so cannot be in "helpers"
 class CommandFunction:
-    """Wraps a command as a function in order to make sure it goes through the
-    pipeline and notify when it is finished.
-    The output is a string containing everything that has been sent to stdout.
-    WARNING: use CommandFunction only if you know the output won't be too big !
-    Otherwise use subprocess.run() that also streams the outputto stdout/stderr.
+    """Wraps a command as a function returning everything sent to stdout, and raising a
+    FailedJobError with the stderr if the command fails.
+    The output is buffered in memory: for large outputs, use ``subprocess.run`` instead.
 
     Parameters
     ----------
@@ -295,8 +295,10 @@ class CommandFunction:
         command to run, as a list
     verbose: bool
         prints the command and stdout at runtime
-    cwd: Path/str
+    cwd: Path | str
         path to the location where the command must run from
+    env: dict
+        environment of the command, replacing the inherited one
 
     Returns
     -------
@@ -306,10 +308,10 @@ class CommandFunction:
 
     def __init__(
         self,
-        command: tp.List[str],
+        command: list[str],
         verbose: bool = True,
-        cwd: tp.Optional[tp.Union[str, Path]] = None,
-        env: tp.Optional[tp.Dict[str, str]] = None,
+        cwd: str | Path | None = None,
+        env: dict[str, str] | None = None,
     ) -> None:
         if not isinstance(command, list):
             raise TypeError("The command must be provided as a list")
@@ -319,7 +321,7 @@ class CommandFunction:
         self.env = env
 
     def __call__(self, *args: tp.Any, **kwargs: tp.Any) -> str:
-        """Call the command line with addidional arguments
+        """Call the command line with additional arguments
         The keyword arguments will be sent as --{key}={val}
         The logs bufferized. They will be printed if the job fails, or sent as output of the function
         Errors are provided with the internal stderr.
@@ -328,7 +330,7 @@ class CommandFunction:
             self.command + [str(x) for x in args] + [f"--{x}={y}" for x, y in kwargs.items()]
         )  # TODO bad parsing
         if self.verbose:
-            print(f"The following command is sent: \"{' '.join(full_command)}\"")
+            print(f'The following command is sent: "{" ".join(full_command)}"')
         with subprocess.Popen(
             full_command,
             stdout=subprocess.PIPE,

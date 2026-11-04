@@ -15,62 +15,77 @@ import subprocess
 import tempfile
 import time
 import typing as tp
+import warnings
 from pathlib import Path
 
 # pylint: disable=unused-import
 # import DelayedSubmission and CommandFunction to populate helpers namespace
 from .core import core
 from .core.job_environment import JobEnvironment
+from .core.utils import CHECKPOINT_DEPRECATION
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
 from .core.utils import environment_variables as environment_variables  # noqa
 
 
 class Checkpointable:
-    """Derived callable classes are requeued after timeout with their current
+    """Derived callable classes are requeued after preemption or timeout with their current
     state dumped at checkpoint.
 
     __call__ method must be implemented to make your class a callable.
 
     Note
     ----
-    The following implementation of the checkpoint method resubmits the full current
+    The following implementation of the ``__submitit_checkpoint__`` method resubmits the full current
     state of the callable (self) with the initial argument. You may want to replace the method to
     curate the state (dump a neural network to a standard format and remove it from
-    the state so that not to pickle it) and change/remove the initial parameters.
+    the state so that it is not pickled) and change/remove the initial parameters.
     """
 
     # pylint: disable=unused-argument
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
-        assert callable(
-            instance
-        ), f"Class {cls.__name__} is marked as Checkpointable but doesn't have a __call__ method. Please add a __call__ method."
+        assert callable(instance), (
+            f"Class {cls.__name__} is marked as Checkpointable but doesn't have a __call__ method. Please add a __call__ method."
+        )
         return instance
 
-    def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
+    def __submitit_checkpoint__(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
         """Resubmits the same callable with the same arguments"""
+        if type(self).checkpoint is not Checkpointable.checkpoint:  # deprecated override
+            warnings.warn(CHECKPOINT_DEPRECATION, FutureWarning)
+            return self.checkpoint(*args, **kwargs)
         # The DelayedSubmission class goal is only to register and format
         # the arguments of the call "self(*args, **kwargs)" for submission to slurm
         return DelayedSubmission(self, *args, **kwargs)  # type: ignore
 
+    # deprecated
+    def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
+        return DelayedSubmission(self, *args, **kwargs)  # type: ignore
+
 
 class FunctionSequence(Checkpointable):
-    """This is for gathering several estimations into one function, which
-    will return the sequence of outputs.
-    Also this "function" is stateful, hence it can be stopped, and recovered,
-    which is useful when job can be preempted.
+    """Runs several calls in sequence in one job, and returns their outputs.
+    Finished calls are not run again after requeuing.
 
-    Usage
-    -----
-    func = FunctionSequence()
-    func.add(my_function1, arg1, kwarg1=value_kwarg1)
-    func.add(my_function2, arg1, arg2)
-    result1, result2 = func()
+    Parameters
+    ----------
+    verbose: bool
+        prints how many functions were already computed when starting
+
+    Example
+    -------
+    .. code-block:: python
+
+        func = FunctionSequence()
+        func.add(my_function1, arg1, kwarg1=value_kwarg1)
+        func.add(my_function2, arg1, arg2)
+        result1, result2 = func()
 
     Note
     ----
     This function is checkpointable because:
+
     - it derives from Checkpointable
     - it keeps DelayedSubmission objects as attribute, which in turn store the
       results of the computation in memory once they are computed. So at checkpoint
@@ -80,7 +95,7 @@ class FunctionSequence(Checkpointable):
 
     def __init__(self, verbose: bool = False) -> None:
         self.verbose = verbose
-        self.delayed_functions: tp.List[DelayedSubmission] = []
+        self.delayed_functions: list[DelayedSubmission] = []
 
     def add(self, func: tp.Callable[..., tp.Any], *args: tp.Any, **kwargs: tp.Any) -> None:
         self.delayed_functions.append(DelayedSubmission(func, *args, **kwargs))
@@ -91,7 +106,7 @@ class FunctionSequence(Checkpointable):
     def __iter__(self) -> tp.Iterator[DelayedSubmission]:
         return iter(self.delayed_functions)
 
-    def __call__(self) -> tp.List[tp.Any]:  # pylint: disable=arguments-differ
+    def __call__(self) -> list[tp.Any]:  # pylint: disable=arguments-differ
         if self.verbose:
             done = sum(f.done() for f in self)  # those were computed before checkpoint
             print(f"Starting from {done}/{len(self.delayed_functions)}", flush=True)
@@ -102,7 +117,7 @@ class FunctionSequence(Checkpointable):
 
 def as_completed(
     jobs: tp.Sequence[core.Job[core.R]],
-    timeout: tp.Optional[tp.Union[int, float]] = None,
+    timeout: int | float | None = None,
     poll_frequency: float = 10,
 ) -> tp.Iterator[core.Job[core.R]]:
     """
@@ -116,11 +131,11 @@ def as_completed(
     jobs: list
         Jobs instances
 
-    timeout: int/float
+    timeout: int | float
         Maximum time (in sec) to wait for jobs completion
 
     poll_frequency: float
-        Frequency in second at which we check job status.
+        seconds between two checks of the job states
 
     Yields
     ------
@@ -128,7 +143,7 @@ def as_completed(
         The next completed job
     """
     start = time.time()
-    jobs_done: tp.Set[int] = set()
+    jobs_done: set[int] = set()
     while True:
         if timeout is not None and time.time() - start > timeout:
             raise TimeoutError
@@ -148,35 +163,45 @@ def run_cmd(str_args, **kwargs):
 
 
 class RsyncSnapshot:
-    """Takes a snapshot of the git repository that the script lives in.
+    """Context manager taking a snapshot of the git repository of the current directory
+    (or ``root_dir``), and moving to it: jobs submitted inside run from the snapshot, with the
+    code from when they are submitted, not from when they start or restart.
 
-    This ensures that remote jobs always use the code from when they are scheduled
-    and not the code from when they are launched / re-started.
 
+    Requires ``git`` and ``rsync``.
 
     Parameters
     ----------
     snapshot_dir: Path
         A path to where the snapshot should be created
+    root_dir: Path
+        root of the repository to snapshot (default: the repository of the current directory)
     with_submodules: bool
         Whether or not submodules should be included in the snapshot
     exclude: Sequence[str]
         An optional list of patterns to exclude from the snapshot
     include: Sequence[str]
-        A list of relative file names to include from the snapshot.
+        A list of relative file names to include in the snapshot.
         Useful for .so or other build artifacts that are generally not tracked by git.
 
     Note
     ----
-    - Only files that are checked in to the repository are included in the snapshot.
-        If you have experimental code that you would like to include in the snapshot,
-        you'll need to `git add` the file first for it to be included, or use `include` arg.
+    Only files that are checked in to the repository are included in the snapshot.
+    If you have experimental code that you would like to include in the snapshot,
+    you'll need to ``git add`` the file first for it to be included, or use ``include``.
+
+    Example
+    -------
+    .. code-block:: python
+
+        with submitit.helpers.RsyncSnapshot(snapshot_dir=Path("snapshot")):
+            job = executor.submit(train)
     """
 
     def __init__(
         self,
         snapshot_dir: Path,
-        root_dir: tp.Optional[Path] = None,
+        root_dir: Path | None = None,
         with_submodules: bool = False,
         exclude: tp.Sequence[str] = (),
         include: tp.Sequence[str] = (),
@@ -223,7 +248,7 @@ class RsyncSnapshot:
         os.chdir(self.original_dir)
 
 
-def _default_custom_logging(monitoring_start_time: float, n_jobs: int, state_jobs: tp.Dict[str, tp.Set[int]]):
+def _default_custom_logging(monitoring_start_time: float, n_jobs: int, state_jobs: dict[str, set[int]]):
     run_time = time.time() - monitoring_start_time
     date_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     failed_job_indices = sorted(state_jobs["FAILED"])
@@ -251,17 +276,16 @@ def monitor_jobs(
 
     Parameters
     ----------
-    jobs: List[Jobs]
+    jobs: list[Job]
         A list of jobs to monitor
     poll_frequency: int
-        The time (in seconds) between two refreshes of the monitoring.
-        Can't be inferior to 30s.
+        The time (in seconds) between two refreshes of the monitoring, at least 30.
     test_mode: bool
         If in test mode, we do not check the length of poll_frequency
     """
 
     if not test_mode:
-        assert poll_frequency >= 30, "You can't refresh too often (>= 30s) to avoid overloading squeue"
+        assert poll_frequency >= 30, "You can't refresh too often (>= 30s) to avoid overloading the scheduler"
 
     n_jobs = len(jobs)
     if n_jobs == 0:
@@ -305,21 +329,24 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
 
     Note
     ----
-    A slurm job submitted from within a slurm job inherits some of its attributes, which may
-    be confusing a cause weird gres errors (or pytorch distributed).
+    A slurm job submitted from within a slurm job inherits some of its attributes, which can
+    cause gres or PyTorch distributed errors.
     Submitting within this context should prevent this.
+    ``SLURM_CONF`` (cluster configuration location) is kept unless listed in ``extra_names``.
 
-    Usage
-    -----
-    with submitit.helpers.clean_env():
-        executor.submit(...)
+    Example
+    -------
+    .. code-block:: python
+
+        with submitit.helpers.clean_env():
+            executor.submit(...)
     """
     distrib_names = ("MASTER_ADDR", "MASTER_PORT", "RANK", "WORLD_SIZE", "LOCAL_RANK", "LOCAL_WORLD_SIZE")
     cluster_env = {
         x: os.environ.pop(x)
         for x in os.environ
         if (
-            x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITIT_"))
+            (x != "SLURM_CONF" and x.startswith(("SLURM_", "SLURMD_", "SRUN_", "SBATCH_", "SUBMITIT_")))
             or x in distrib_names
             or x in extra_names
         )
@@ -331,16 +358,17 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
 
 
 class TorchDistributedEnvironment:  # pragma: no cover
-    def __init__(self) -> None:
-        """Construct a class holding the parameters required to properly setup
-        PyTorch distributed (with the default env:// initialization method).
+    """Holds the parameters required to properly setup
+    PyTorch distributed (with the default env:// initialization method).
 
-        Examples
-        --------
-        >>> dist_env = TorchDistributedEnvironment().export()
-        >>> torch.distributed.init_process_group(backend="nccl")
-        >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
-        """
+    Examples
+    --------
+    >>> dist_env = TorchDistributedEnvironment().export()
+    >>> torch.distributed.init_process_group(backend="nccl")
+    >>> print(f"master: {dist_env.master_addr}:{dist_env.master_port}")
+    """
+
+    def __init__(self) -> None:
         self._job_env = JobEnvironment()
         self.master_addr = self._job_env.hostnames[0]
         self.master_port = self._get_master_port()
@@ -366,15 +394,15 @@ class TorchDistributedEnvironment:  # pragma: no cover
         self,
         set_cuda_visible_devices: bool = True,
         overwrite: bool = False,
-    ) -> "TorchDistributedEnvironment":
+    ) -> tp.Self:
         """Export all the environment variables required to properly setup
         PyTorch distributed (with the default env:// initialization method) i.e.
         MASTER_ADDR, MASTER_PORT, RANK, WORLD_SIZE (to which LOCAL_RANK and
         LOCAL_WORLD_SIZE are added).
 
-        Parameter
+        Parameters
         ----------
-        set_cuda_visible_device: bool
+        set_cuda_visible_devices: bool
             if True, updates CUDA_VISIBLE_DEVICES to use only the device
             matching the local rank.
         overwrite: bool

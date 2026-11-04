@@ -4,9 +4,12 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+import inspect
 import re
 import typing as tp
 from pathlib import Path
+
+import pytest
 
 import submitit
 
@@ -28,6 +31,8 @@ class MarkdownLink:
         if self.link.startswith("http"):
             # We don't check external urls.
             return True
+        if self.link.startswith("#submitit."):  # API object, resolved by the strict Sphinx build
+            return True
         link = self.link.split("#")[0]
         if not link:
             return False
@@ -44,11 +49,11 @@ def _get_root() -> Path:
     return root
 
 
-def _get_markdown_files(root: Path) -> tp.List[Path]:
+def _get_markdown_files(root: Path) -> list[Path]:
     return [md for pattern in ("*.md", "submitit/**/*.md", "docs/**/*.md") for md in root.glob(pattern)]
 
 
-def _get_all_markdown_links(root: Path, files: tp.List[Path]) -> tp.List[MarkdownLink]:
+def _get_all_markdown_links(root: Path, files: list[Path]) -> list[MarkdownLink]:
     """Returns a list of all existing markdown links"""
     pattern = MarkdownLink.regex
     links = []
@@ -67,6 +72,28 @@ def test_assert_markdown_links_not_broken() -> None:
     assert len(links) > 5, "There should be several hyperlinks!"
     broken_links = [l for l in links if not l.exists()]
     assert not broken_links
+
+
+@pytest.mark.parametrize("page", ["index.md", "examples.md"])
+def test_doc_snippets(page: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    text = (_get_root() / "docs" / page).read_text()
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(submitit.AutoExecutor, "which", staticmethod(lambda: "local"))  # even on Slurm
+    blocks = re.findall(r"^```python\n(.*?)^```", text, flags=re.MULTILINE | re.DOTALL)
+    assert blocks, f"No python block found in {page}"
+    namespace: dict[str, tp.Any] = {"__name__": "__main__"}  # functions pickled by value
+    for block in blocks:
+        exec(block, namespace)  # pylint: disable=exec-used
+
+
+@pytest.mark.parametrize("executor", [submitit.AutoExecutor, submitit.SlurmExecutor, submitit.LocalExecutor])
+def test_update_parameters_documented(executor: type[submitit.Executor]) -> None:
+    section = inspect.cleandoc(executor.__doc__ or "").partition("Update parameters\n")[2]
+    documented = {
+        n for m in re.finditer(r"^([\w, ]+):", section, re.MULTILINE) for n in m.group(1).split(", ")
+    }
+    missing = executor._valid_parameters() - documented
+    assert not missing, f"Undocumented update parameters in {executor.__name__} docstring: {missing}"
 
 
 def _replace_relative_links(regex: tp.Match[str]) -> str:

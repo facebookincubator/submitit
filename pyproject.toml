@@ -6,18 +6,18 @@ build-backend = "flit_core.buildapi"
 name = "submitit"
 readme = "README.md"
 authors = [{name = "Facebook AI Research"}]
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dynamic = ["version", "description"]
 
 dependencies = [
-  "cloudpickle>=1.2.1",
-  "typing_extensions>=3.7.4.2"
+  "cloudpickle>=1.2.1"
 ]
 # zip_safe = false
 classifiers=[
     "License :: OSI Approved :: MIT License",
     "Topic :: System :: Distributed Computing",
     "Development Status :: 5 - Production/Stable",
+    "Programming Language :: Python :: 3 :: Only",
 ]
 
 [project.urls]
@@ -31,9 +31,7 @@ classifiers=[
         "pytest-asyncio>=0.15.0",
         "pytest-cov>=4.1.0",
         "coverage[toml]>=5.1",
-        # Format
-        "black==23.3.0",
-        "isort==5.11.5",
+        # Format (ruff runs through pre-commit)
         "pre-commit>=1.15.2",
         # Linters
         "mypy>=1.4.1",
@@ -41,21 +39,19 @@ classifiers=[
         # Release
         "flit>=3.5.1"
     ]
+    docs = [
+        "sphinx>=7.1",
+        "furo>=2024.1.29",
+        "myst-parser>=2.0",
+        "sphinx-copybutton>=0.5.2",
+    ]
 
-[tool.black]
+[tool.ruff]
 line-length = 110
-exclude = '''
-/(
-  | \.git
-  | \.mypy_cache
-  | venv
-)/
-'''
+target-version = "py311"
 
-[tool.isort]
-profile = "black"
-line_length = 110
-skip_gitignore = true
+[tool.ruff.lint]
+select = ["I", "UP"]  # import sorting and syntax upgrades, pylint and mypy do the linting
 
 
 [tool.pylint]
@@ -113,6 +109,5 @@ skip_gitignore = true
   ignore_missing_imports = true
 
 [tool.codespell]
-# Ref: https://github.com/codespell-project/codespell#using-a-config-file
 skip = '.git,.gitignore,.gitattributes,.git-meta'
 check-hidden = true

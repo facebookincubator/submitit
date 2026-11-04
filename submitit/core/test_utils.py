@@ -8,7 +8,6 @@ import os
 import shutil
 import sys
 from pathlib import Path
-from typing import Optional
 
 import pytest
 
@@ -16,7 +15,7 @@ from . import utils
 
 
 @pytest.mark.parametrize("existing_content", [None, "blublu"])  # type: ignore
-def test_temporary_save_path(tmp_path: Path, existing_content: Optional[str]) -> None:
+def test_temporary_save_path(tmp_path: Path, existing_content: str | None) -> None:
     filepath = tmp_path / "save_and_move_test.txt"
     if existing_content:
         filepath.write_text(existing_content)
@@ -56,6 +55,7 @@ def test_environment_variable_context() -> None:
         assert os.environ[name] == "blublu"
         with utils.environment_variables(ENV_VAR_TEST="blublu2"):
             assert os.environ[name] == "blublu2"
+            del os.environ[name]
         assert os.environ[name] == "blublu"
     assert name not in os.environ
 
@@ -67,8 +67,9 @@ def test_slurmpaths_id_independent() -> None:
 
 
 def test_archive_dev_folders(tmp_path: Path) -> None:
-    utils.archive_dev_folders([Path(__file__).parent], outfile=tmp_path.with_suffix(".tar.gz"))
-    shutil.unpack_archive(str(tmp_path.with_suffix(".tar.gz")), extract_dir=tmp_path)
+    archive = utils.archive_dev_folders([Path(__file__).parent], outfile=tmp_path.with_suffix(".tar.gz"))
+    assert archive.read_bytes()[:2] == b"\x1f\x8b", "archive is not gzip-compressed"
+    shutil.unpack_archive(str(archive), extract_dir=tmp_path)
     assert (tmp_path / "core").exists()
 
 
@@ -90,7 +91,7 @@ import sys;
 print(sys.__stderr__)
 # The goal here is to fill up the stderr pipe buffer.
 for i in range({n}):
-    print("-" * 1024, file=sys.stdout)
+    print("\u20ac" * 1024, file=sys.stdout)  # multi-byte chars split across pipe reads
 print("printed {n} lines to stderr")
 """
     fn1 = utils.CommandFunction([sys.executable, "-c", code.format(n=10)])
@@ -98,7 +99,7 @@ print("printed {n} lines to stderr")
     j1 = executor.submit(fn1)
     assert "10 lines" in j1.result()
 
-    fn2 = utils.CommandFunction(["python", "-c", code.format(n=1000)])
+    fn2 = utils.CommandFunction([sys.executable, "-c", code.format(n=1000)])
     j2 = executor.submit(fn2)
     assert "1000 lines" in j2.result()
 

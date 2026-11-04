@@ -7,7 +7,7 @@
 import functools
 import os
 from pathlib import Path
-from typing import Any, Tuple
+from typing import Any
 
 import pytest
 
@@ -79,7 +79,7 @@ def f_42() -> int:
 
 
 def test_debug_triggered(tmp_path: Path) -> None:
-    def get_result(job: Job) -> Tuple[bool, Any]:
+    def get_result(job: Job) -> tuple[bool, Any]:
         assert isinstance(job, debug.DebugJob)
         return (job._submission._done, job._submission._result)
 

@@ -3,7 +3,7 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
-""""Python 3.8+ toolbox for submitting jobs to Slurm"""
+"""Python 3.11+ toolbox for submitting jobs to Slurm"""
 
 # allow explicit reimports (mypy) by renaming all imports
 from . import helpers as helpers
@@ -11,6 +11,8 @@ from .auto.auto import AutoExecutor as AutoExecutor
 from .core.core import Executor as Executor
 from .core.core import Job as Job
 from .core.job_environment import JobEnvironment as JobEnvironment
+from .core.utils import FailedJobError as FailedJobError
+from .core.utils import UncompletedJobError as UncompletedJobError
 from .local.debug import DebugExecutor as DebugExecutor
 from .local.debug import DebugJob as DebugJob
 from .local.local import LocalExecutor as LocalExecutor

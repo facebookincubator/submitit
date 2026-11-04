@@ -7,14 +7,14 @@
 import typing as tp
 import warnings
 from pathlib import Path
-from typing import Any, List, Optional, Type, Union
+from typing import Any
 
 from ..core import plugins
 from ..core.core import Executor, Job
 from ..core.utils import DelayedSubmission
 
 
-def _convert_deprecated_args(kwargs: tp.Dict[str, Any], deprecated_args: tp.Mapping[str, str]) -> None:
+def _convert_deprecated_args(kwargs: dict[str, Any], deprecated_args: tp.Mapping[str, str]) -> None:
     for arg in list(kwargs):
         new_arg = deprecated_args.get(arg)
         if not new_arg:
@@ -24,44 +24,49 @@ def _convert_deprecated_args(kwargs: tp.Dict[str, Any], deprecated_args: tp.Mapp
 
 
 class AutoExecutor(Executor):
-    """Automatic job executor
-    This class is used to hold the parameters to run a job on the cluster
-    corresponding to the environment.
-    It can also be used to run job locally or in debug mode.
-    In practice, it will create a bash file in the specified directory for each job,
-    and pickle the task function and parameters. At completion, the job will also pickle
-    the output. Logs are also dumped in the same directory.
-
-    Executor specific parameters must be specified by prefixing them with the name
-    of the executor they refer to. eg:
-        - 'chronos_conda_file' (internal)
-        - 'slurm_max_num_timeout'
-    See each executor documentation for the list of available parameters.
+    """Executor submitting to the best available cluster: Slurm when ``srun`` is available,
+    the local executor otherwise.
+    Prefer it to the other executors, so that the same code runs on several clusters.
 
     Parameters
     ----------
-    folder: Path/str
-        folder for storing job submission/output and logs.
-    warn_ignored: bool
-        prints a warning each time a parameter is provided but ignored because it is only
-        useful for the other cluster.
+    folder: Path | str
+        folder for storing job submission/output and logs, ``%j`` is replaced by the job id.
     cluster: str
-        Forces AutoExecutor to use the given environment. Use "local" to run jobs locally,
-        "debug" to run jobs in process.
-    kwargs: other arguments must be prefixed by the name of the executor they refer to.
-        {exname}_{argname}: see {argname} documentation in {Exname}Executor documentation.
+        executor name: "slurm", "local" (even on a Slurm cluster), "debug" or a plugin's
+        (default: detected, see ``executor.cluster``)
+    kwargs:
+        executor constructor arguments, prefixed by the executor name, e.g. ``slurm_python``
+        for the ``python`` argument of :class:`~submitit.SlurmExecutor`.
 
-    Note
-    ----
-    - be aware that the log/output folder will be full of logs and pickled objects very fast,
-      it may need cleaning.
-    - use update_parameters to specify custom parameters (gpus_per_node etc...). If you
-      input erroneous parameters, an error will print all parameters available for you.
+    Update parameters
+    -----------------
+    name: str
+        job name
+    timeout_min: int
+        time limit in minutes (defaults: see each executor)
+    mem_gb: float
+        memory per node in GB
+    nodes: int
+        number of nodes
+    tasks_per_node: int
+        number of tasks per node, each running the submitted function
+    cpus_per_task: int
+        number of CPUs per task
+    gpus_per_node: int
+        number of GPUs per node
+    stderr_to_stdout: bool
+        writes stderr to the stdout log
+    <executor>_<parameter>:
+        parameter of one executor, e.g. ``slurm_partition`` (see :class:`~submitit.SlurmExecutor`
+        and :class:`~submitit.LocalExecutor`), ignored by the other executors.
+        A prefixed generic parameter, e.g. ``slurm_timeout_min``, overrides the generic one on
+        that executor only.
     """
 
     _ctor_deprecated_args = {"max_num_timeout": "slurm_max_num_timeout", "conda_file": "chronos_conda_file"}
 
-    def __init__(self, folder: Union[str, Path], cluster: Optional[str] = None, **kwargs: Any) -> None:
+    def __init__(self, folder: str | Path, cluster: str | None = None, **kwargs: Any) -> None:
         self.cluster = cluster or self.which()
 
         executors = plugins.get_executors()
@@ -74,15 +79,17 @@ class AutoExecutor(Executor):
         for name in kwargs:
             assert "_" in name, f"{err} '{name}'. {err_ex_list}"
             prefix = name.split("_")[0]
-            assert (
-                prefix in executors
-            ), f"{err} '{name}', and '{prefix}' executor is also unknown. {err_ex_list}"
+            assert prefix in executors, (
+                f"{err} '{name}', and '{prefix}' executor is also unknown. {err_ex_list}"
+            )
         self._executor = flexible_init(executors[self.cluster], folder, **kwargs)
 
         valid = self._valid_parameters()
         self._deprecated_args = {
             arg: f"{ex_name}_{arg}"
-            for ex_name, ex in executors.items()
+            for ex_name, ex in sorted(
+                executors.items(), key=lambda item: item[0] == self.cluster
+            )  # current wins
             for arg in ex._valid_parameters()
             if arg not in valid
         }
@@ -99,7 +106,7 @@ class AutoExecutor(Executor):
 
         return best_ex
 
-    def register_dev_folders(self, folders: List[Union[str, Path]]) -> None:
+    def register_dev_folders(self, folders: list[str | Path]) -> None:
         """Archive a list of folders to be untarred in the job working directory.
         This is only implemented for internal cluster, for running job on non-installed packages.
         This is not useful on slurm since the working directory of jobs is identical to
@@ -118,7 +125,7 @@ class AutoExecutor(Executor):
             )
 
     @classmethod
-    def _typed_parameters(cls) -> tp.Dict[str, Type]:
+    def _typed_parameters(cls) -> dict[str, type]:
         return {
             "name": str,
             "timeout_min": int,
@@ -131,7 +138,7 @@ class AutoExecutor(Executor):
         }
 
     @classmethod
-    def _valid_parameters(cls) -> tp.Set[str]:
+    def _valid_parameters(cls) -> set[str]:
         return set(cls._typed_parameters().keys())
 
     def _internal_update_parameters(self, **kwargs: Any) -> None:
@@ -160,7 +167,7 @@ class AutoExecutor(Executor):
                 expected_type = (int, float)  # type: ignore
             if name in kwargs:
                 assert isinstance(kwargs[name], expected_type), (
-                    f'Parameter "{name}" expected type {expected_type} ' f'(but value: "{kwargs[name]}")'
+                    f'Parameter "{name}" expected type {expected_type} (but value: "{kwargs[name]}")'
                 )
 
         _convert_deprecated_args(kwargs, self._deprecated_args)
@@ -213,11 +220,11 @@ class AutoExecutor(Executor):
         self._executor._internal_update_parameters(**parameters)
 
     def _internal_process_submissions(
-        self, delayed_submissions: tp.List[DelayedSubmission]
-    ) -> tp.List[Job[tp.Any]]:
+        self, delayed_submissions: list[DelayedSubmission]
+    ) -> list[Job[tp.Any]]:
         return self._executor._internal_process_submissions(delayed_submissions)
 
 
-def flexible_init(cls: Type[Executor], folder: Union[str, Path], **kwargs: Any) -> Executor:
+def flexible_init(cls: type[Executor], folder: str | Path, **kwargs: Any) -> Executor:
     prefix = cls.name() + "_"
-    return cls(folder, **{k[len(prefix) :]: val for k, val in kwargs.items() if k.startswith(prefix)})
+    return cls(folder, **{k.removeprefix(prefix): val for k, val in kwargs.items() if k.startswith(prefix)})

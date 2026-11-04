@@ -25,7 +25,7 @@ def test_env(env: JobEnvironment) -> None:
 
 
 @pytest.mark.parametrize("ex", plugins.get_executors().values())
-def test_executors(ex: tp.Type[core.Executor]) -> None:
+def test_executors(ex: type[core.Executor]) -> None:
     assert isinstance(ex, type)
     assert issubclass(ex, core.Executor)
     assert ex.affinity() >= -1

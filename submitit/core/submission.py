@@ -9,7 +9,6 @@ import os
 import time
 import traceback
 from pathlib import Path
-from typing import Union
 
 try:  # loading numpy before loading the pickle, to avoid unexpected interactions
     # pylint: disable=unused-import
@@ -21,7 +20,7 @@ from . import job_environment, utils
 from .logger import get_logger
 
 
-def process_job(folder: Union[Path, str]) -> None:
+def process_job(folder: Path | str) -> None:
     """Loads a pickled job, runs it and pickles the output
 
     Parameter

@@ -179,7 +179,7 @@ def test_requeuing(tmp_path: Path) -> None:
 
 
 def test_custom_checkpoint(tmp_path: Path) -> None:
-    class Slacker(helpers.Checkpointable):
+    class Slacker:
         def __call__(self, slack: bool = True):
             if slack:
                 print("Slacking", flush=True)
@@ -195,7 +195,7 @@ def test_custom_checkpoint(tmp_path: Path) -> None:
 
     executor = local.LocalExecutor(tmp_path, max_num_timeout=1)
     executor.update_parameters(timeout_min=2 / 60, signal_delay_s=1)
-    job = executor.submit(Slacker(True))
+    job = executor.submit(Slacker())
     job.wait()
     stdout = job.stdout()
     assert stdout
@@ -216,12 +216,20 @@ def test_make_subprocess(tmp_path: Path) -> None:
 
 def test_cancel(tmp_path: Path) -> None:
     executor = local.LocalExecutor(tmp_path)
-    job = executor.submit(time.sleep, 10)
-    assert job.state == "RUNNING"
-    job.cancel()
-    time.sleep(0.1)
+    pid_file = tmp_path / "child.pid"
+    code = f"import os, pathlib, time; pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid())); time.sleep(10)"
+    cmd_job = executor.submit(helpers.CommandFunction([sys.executable, "-c", code]))
+    assert cmd_job.state == "RUNNING"
+    for _ in range(100):  # wait for the command child to start
+        if pid_file.exists():
+            break
+        time.sleep(0.1)
+    cmd_job.cancel()
+    cmd_job._process.wait(timeout=5)  # type: ignore
     # Note: with local job we don't have a precise status.
-    assert job.state == "INTERRUPTED"
+    assert cmd_job.state == "INTERRUPTED"
+    with pytest.raises(ProcessLookupError):  # command child stopped too
+        os.kill(int(pid_file.read_text()), 0)
 
     job = executor.submit(time.sleep, 10)
     process = job._process  # type: ignore

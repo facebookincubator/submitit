@@ -23,21 +23,21 @@ LOCAL_REQUEUE_RETURN_CODE = 144
 
 # global variable storing unfinished processes of pickled jobs
 # in case we need to reload them later
-_PROCESSES: tp.Dict[str, "subprocess.Popen['bytes']"] = {}
+_PROCESSES: dict[str, subprocess.Popen[bytes]] = {}
 
 
 class LocalJob(core.Job[R]):
     def __init__(
         self,
-        folder: tp.Union[Path, str],
+        folder: Path | str,
         job_id: str,
         tasks: tp.Sequence[int] = (0,),
-        process: tp.Optional["subprocess.Popen['bytes']"] = None,
+        process: subprocess.Popen[bytes] | None = None,
     ) -> None:
         super().__init__(folder, job_id, tasks)
         self._cancel_at_deletion = False
         # downcast sub-jobs to get proper typing
-        self._sub_jobs: tp.Sequence["LocalJob[R]"] = self._sub_jobs
+        self._sub_jobs: tp.Sequence[LocalJob[R]] = self._sub_jobs
         # set process (to self and subjobs)
         self._process = process
         for sjob in self._sub_jobs:
@@ -57,7 +57,7 @@ class LocalJob(core.Job[R]):
         except Exception:  # pylint: disable=broad-except
             return "UNKNOWN"
 
-    def get_info(self, mode: str = "force") -> tp.Dict[str, str]:  # pylint: disable=unused-argument
+    def get_info(self, mode: str = "force") -> dict[str, str]:  # pylint: disable=unused-argument
         """Returns information about the job as a dict."""
         if self._process is None:
             state = "NO PROCESS AND NO RESULT"
@@ -123,35 +123,50 @@ class LocalJobEnvironment(job_environment.JobEnvironment):
 
 
 class LocalExecutor(core.PicklingExecutor):
-    """Local job executor
-    This class is used to hold the parameters to run a job locally.
-    In practice, it will create a bash file in the specified directory for each job,
-    and pickle the task function and parameters. At completion, the job will also pickle
-    the output. Logs are also dumped in the same directory.
-
-    The submission file spawn several processes (one per task), with a timeout.
-
+    """Executor running jobs as subprocesses of the current machine, one per task, with a timeout.
 
     Parameters
     ----------
-    folder: Path/str
+    folder: Path | str
         folder for storing job submission/output and logs.
+    max_num_timeout, max_pickle_size_gb, python:
+        see :class:`~submitit.SlurmExecutor`
+
+    Update parameters
+    -----------------
+    timeout_min: int
+        time limit in minutes (default: 2)
+    tasks_per_node: int
+        number of tasks, each running the submitted function (default: 1)
+    gpus_per_node: int
+        sets ``CUDA_VISIBLE_DEVICES`` to the first ``gpus_per_node`` GPUs (of ``visible_gpus``
+        if provided): GPUs are not shared out between concurrent jobs
+    visible_gpus: Sequence[int]
+        ids of the GPUs that jobs can use
+    nodes: int
+        must be 1
+    signal_delay_s: int
+        seconds before the time limit at which the job is signaled, for checkpointing
+        (default: 30)
+    stderr_to_stdout: bool
+        writes stderr to the stdout log
+    setup: list of str
+        shell commands run before the job
 
     Note
     ----
-    - be aware that the log/output folder will be full of logs and pickled objects very fast,
-      it may need cleaning.
-    - use update_parameters to specify custom parameters (n_gpus etc...).
+    Through :class:`~submitit.AutoExecutor`, only the generic parameters and ``local_setup``
+    are accepted.
     """
 
     job_class = LocalJob
 
     def __init__(
         self,
-        folder: tp.Union[str, Path],
+        folder: str | Path,
         max_num_timeout: int = 3,
         max_pickle_size_gb: float = 1.0,
-        python: tp.Optional[str] = None,
+        python: str | None = None,
     ) -> None:
         super().__init__(
             folder,
@@ -164,23 +179,12 @@ class LocalExecutor(core.PicklingExecutor):
         indep_folder.mkdir(parents=True, exist_ok=True)
 
     @classmethod
-    def _valid_parameters(cls) -> tp.Set[str]:
+    def _valid_parameters(cls) -> set[str]:
         """Parameters that can be set through update_parameters"""
         return {"setup"}
 
     def _internal_update_parameters(self, **kwargs: tp.Any) -> None:
-        """Update the parameters of the Executor.
-
-        Valid parameters are:
-        - timeout_min (float)
-        - gpus_per_node (int)
-        - visible_gpus (Sequence[int])
-        - tasks_per_node (int)
-        - nodes (int). Must be 1 if specified
-        - signal_delay_s (int): signal (lately: USR2) delay before timeout
-
-        Other parameters are ignored
-        """
+        """Update the parameters of the Executor, see the class docstring for the valid ones"""
         if kwargs.get("nodes", 0) > 1:
             raise ValueError("LocalExecutor can use only one node. Use nodes=1")
         gpus_requested = kwargs.get("gpus_per_node", 0)
@@ -230,11 +234,11 @@ class LocalExecutor(core.PicklingExecutor):
         return ""
 
     @staticmethod
-    def _get_job_id_from_submission_command(string: tp.Union[bytes, str]) -> str:
+    def _get_job_id_from_submission_command(string: bytes | str) -> str:
         # Not used, but need an implementation
         return "0"
 
-    def _make_submission_command(self, submission_file_path: Path) -> tp.List[str]:
+    def _make_submission_command(self, submission_file_path: Path) -> list[str]:
         # Not used, but need an implementation
         return []
 
@@ -248,7 +252,7 @@ def start_controller(
     signal_delay_s: int = 30,
     stderr_to_stdout: bool = False,
     setup: tp.Sequence[str] = (),
-) -> "subprocess.Popen['bytes']":
+) -> subprocess.Popen[bytes]:
     """Starts a job controller, which is expected to survive the end of the python session."""
     env = dict(os.environ)
     env.update(
@@ -289,9 +293,9 @@ class Controller:  # pragma: no cover
         self.timeout_s = int(os.environ["SUBMITIT_LOCAL_TIMEOUT_S"])
         self.signal_delay_s = int(os.environ["SUBMITIT_LOCAL_SIGNAL_DELAY_S"])
         self.stderr_to_stdout = bool(os.environ["SUBMITIT_STDERR_TO_STDOUT"])
-        self.tasks: tp.List[subprocess.Popen] = []  # type: ignore
-        self.stdouts: tp.List[tp.IO[tp.Any]] = []
-        self.stderrs: tp.List[tp.IO[tp.Any]] = []
+        self.tasks: list[subprocess.Popen] = []  # type: ignore
+        self.stdouts: list[tp.IO[tp.Any]] = []
+        self.stderrs: list[tp.IO[tp.Any]] = []
         with_shell = bool(os.environ["SUBMITIT_LOCAL_WITH_SHELL"])
         self.pid = str(os.getppid() if with_shell else os.getpid())
         self.folder = Path(folder)
@@ -301,7 +305,10 @@ class Controller:  # pragma: no cover
     def _forward_signal(self, signum: signal.Signals, *args: tp.Any) -> None:
         for task in self.tasks:
             try:
-                task.send_signal(signum)  # sending kill signal to make sure everything finishes
+                if os.name == "posix" and signum in (signal.SIGINT, signal.SIGKILL):
+                    os.killpg(task.pid, signum)
+                else:
+                    task.send_signal(signum)
             except Exception:
                 pass
 
@@ -323,6 +330,7 @@ class Controller:  # pragma: no cover
                     stderr=self.stderrs[k],
                     stdout=self.stdouts[k],
                     encoding="utf-8",
+                    start_new_session=(os.name == "posix"),
                 )
             )
 
@@ -341,12 +349,12 @@ class Controller:  # pragma: no cover
         for f in files:
             f.close()
 
-    def wait(self, freq: int = 24) -> tp.Sequence[tp.Optional[int]]:
+    def wait(self, freq: int = 24) -> tp.Sequence[int | None]:
         """Waits for all tasks to finish or to time-out.
 
         Returns
         -------
-        Sequence[Optional[int]]:
+        Sequence[int | None]:
             Exit codes of each task.
             Some tasks might still have not exited, but they will have received the "timed-out" signal.
         """

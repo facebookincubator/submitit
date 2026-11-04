@@ -4,6 +4,8 @@
 # LICENSE file in the root directory of this source tree.
 #
 
+from __future__ import annotations
+
 import os
 import signal
 import socket
@@ -21,21 +23,18 @@ _PREEMPT_SIG_ENV = "SUBMITIT_PREEMPT_SIGNAL"
 
 class JobEnvironment:
     """Describe the environment inside which the job is running.
-    This includes job id, number of GPUs available, ...
+    This includes the job id and the rank of the task.
 
     This class can only be instantiated from a running submitit job.
-
-    @plugin-dev: default implementation look for information into environment variables.
-    Override _env to map environment variable to each property.
     """
 
     # preemption signal uses USR2 as default, but this behavior
     # can be overridden (eg: export SUBMITIT_PREEMPT_SIGNAL=USR2)
     # CAUTION: NCCL may catch USR1 so it should be avoided
     USR_SIG = os.environ.get(_PREEMPT_SIG_ENV, "USR2")
-    _env: tp.ClassVar[tp.Dict[str, str]] = {}
+    _env: tp.ClassVar[dict[str, str]] = {}
 
-    def __new__(cls, *args: tp.Any) -> "JobEnvironment":
+    def __new__(cls, *args: tp.Any) -> JobEnvironment:
         if cls is not JobEnvironment:
             return super().__new__(cls, *args)  # type: ignore
 
@@ -48,10 +47,7 @@ class JobEnvironment:
 
     @classmethod
     def name(cls) -> str:
-        n = cls.__name__
-        if n.endswith("JobEnvironment"):
-            n = n[: -len("JobEnvironment")]
-        return n.lower()
+        return cls.__name__.removesuffix("JobEnvironment").lower()
 
     @property
     def paths(self) -> JobPaths:
@@ -89,12 +85,12 @@ class JobEnvironment:
         return os.environ[self._env["job_id"]]
 
     @property
-    def array_job_id(self) -> tp.Optional[str]:
+    def array_job_id(self) -> str | None:
         n = "array_job_id"
         return None if n not in self._env else os.environ.get(self._env[n], None)
 
     @property
-    def array_task_id(self) -> tp.Optional[str]:
+    def array_task_id(self) -> str | None:
         n = "array_task_id"
         return None if n not in self._env else os.environ.get(self._env[n], None)
 
@@ -178,7 +174,17 @@ class SignalHandler:
         # SignalHandler is created by submitit as soon as the process start,
         # so _start_time is an accurate measure of the global runtime of the job.
         walltime = time.time() - self._start_time
-        max_walltime = self._delayed._timeout_min * 60
+        timeout_min = self._delayed._timeout_min
+        start, end = os.environ.get("SLURM_JOB_START_TIME"), os.environ.get("SLURM_JOB_END_TIME")
+        if not isinstance(timeout_min, str):
+            max_walltime = timeout_min * 60
+        elif start is not None and end is not None:
+            max_walltime = int(end) - int(start)
+        else:
+            self._logger.warning(
+                f"Cannot read Slurm time limit {timeout_min!r} (needs Slurm >= 23.02), treating signal as timeout."
+            )
+            return True
         guaranteed_walltime = min(max_walltime * 0.8, max_walltime - 10 * 60)
 
         timed_out = walltime >= guaranteed_walltime
@@ -193,11 +199,11 @@ class SignalHandler:
         return timed_out
 
     # pylint:disable=unused-argument
-    def bypass(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
+    def bypass(self, signum: int, frame: types.FrameType | None = None) -> None:
         self._logger.warning(f"Bypassing signal {signal.Signals(signum).name}")
 
     # pylint:disable=unused-argument
-    def checkpoint_and_try_requeue(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
+    def checkpoint_and_try_requeue(self, signum: int, frame: types.FrameType | None = None) -> None:
         timed_out = self.has_timed_out()
         case = "timed-out" if timed_out else "preempted"
         self._logger.warning(
@@ -213,7 +219,7 @@ class SignalHandler:
         delayed = self._delayed
         countdown = delayed._timeout_countdown - timed_out
         no_requeue_reason = ""
-        if hasattr(delayed.function, "checkpoint"):
+        if hasattr(delayed.function, "__submitit_checkpoint__") or hasattr(delayed.function, "checkpoint"):
             no_requeue_reason = _checkpoint(delayed, self._job_paths.submitted_pickle, countdown)
         elif timed_out:
             no_requeue_reason = "timed-out and not checkpointable"
@@ -230,7 +236,7 @@ class SignalHandler:
         self._exit()
 
     # pylint:disable=unused-argument
-    def checkpoint_and_exit(self, signum: int, frame: tp.Optional[types.FrameType] = None) -> None:
+    def checkpoint_and_exit(self, signum: int, frame: types.FrameType | None = None) -> None:
         # Note: no signal is actually bound to `checkpoint_and_exit` but this is used by plugins.
         self._logger.info(f"Caught signal {signal.Signals(signum).name} on {socket.gethostname()}")
 
@@ -241,7 +247,7 @@ class SignalHandler:
             return
 
         delayed = self._delayed
-        if hasattr(delayed.function, "checkpoint"):
+        if hasattr(delayed.function, "__submitit_checkpoint__") or hasattr(delayed.function, "checkpoint"):
             _checkpoint(self._delayed, self._job_paths.submitted_pickle, self._delayed._timeout_countdown)
         self._exit()
 

@@ -7,6 +7,7 @@
 import os
 import time
 import typing as tp
+import warnings
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,25 @@ from .core import core, utils
 
 def _three_time(x: int) -> int:
     return 3 * x
+
+
+def test_checkpoint_deprecation() -> None:
+    class Legacy:
+        def __call__(self) -> None:
+            pass
+
+        def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:  # pylint: disable=unused-argument
+            return "legacy"
+
+    class LegacyOverride(Legacy, helpers.Checkpointable):
+        pass
+
+    for cls in (Legacy, LegacyOverride):
+        with pytest.warns(FutureWarning, match="__submitit_checkpoint__"):
+            assert utils.DelayedSubmission(cls())._checkpoint_function() == "legacy"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert utils.DelayedSubmission(helpers.FunctionSequence())._checkpoint_function() is not None
 
 
 requires_rsync = pytest.mark.skipif(
@@ -132,17 +152,19 @@ def test_monitor_jobs(tmp_path: Path) -> None:
     assert set(j for j in jobs if j.state.upper() == "FAILED") == {job}
 
 
-def _get_env() -> tp.Dict[str, str]:
+def _get_env() -> dict[str, str]:
     return {x: y for x, y in os.environ.items() if x.startswith(("SLURM_", "SUBMITIT_"))}
 
 
 def test_clean_env() -> None:
     base = _get_env()
-    with utils.environment_variables(SLURM_BLUBLU=12, SUBMITIT_BLUBLU=12):
-        assert len(_get_env()) == len(base) + 2
+    with utils.environment_variables(SLURM_BLUBLU=12, SUBMITIT_BLUBLU=12, SLURM_CONF="blublu.conf"):
+        env = _get_env()
         with helpers.clean_env():
-            assert not _get_env()
-        assert len(_get_env()) == len(base) + 2
+            assert _get_env() == {"SLURM_CONF": "blublu.conf"}
+            with helpers.clean_env(extra_names=("SLURM_CONF",)):
+                assert not _get_env()
+        assert _get_env() == env
     assert _get_env() == base
 
     with utils.environment_variables(MASTER_PORT=42, BLABLA=314):
