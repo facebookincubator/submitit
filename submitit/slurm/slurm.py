@@ -100,6 +100,8 @@ class SlurmInfoWatcher(core.InfoWatcher):
 
 
 class SlurmJob(core.Job[core.R]):
+    """Job submitted to Slurm, see :class:`~submitit.Job`"""
+
     _cancel_command = "scancel"
     watcher = SlurmInfoWatcher(delay_s=600)
 
@@ -214,18 +216,16 @@ class SlurmExecutor(core.PicklingExecutor):
     Parameters
     ----------
     folder: Path/str
-        folder for storing job submission/output and logs. It must be shared with the compute
-        nodes (not ``/tmp``), otherwise jobs fail without logs.
+        folder for storing job submission/output and logs.
     max_num_timeout: int
-        Maximum number of time the job can be requeued after timeout (if
-        the instance is derived from helpers.Checkpointable)
+        number of times a callable with a ``__submitit_checkpoint__`` method is requeued after a
+        timeout
     max_pickle_size_gb: float
         maximum size of the pickled function and arguments of a submission, as large pickles
         overload the shared filesystem
     python: Optional[str]
-        Command to launch python. This allow to use singularity for example.
-        Caller is responsible to provide a valid shell command here.
-        By default reuse the current python executable
+        shell command starting Python in the job, e.g. "apptainer exec image.sif python"
+        (default: the interpreter of the submitting process)
 
     Update parameters
     -----------------
@@ -252,7 +252,7 @@ class SlurmExecutor(core.PicklingExecutor):
         ``--wckey`` (default: "submitit"), set it to "" if the cluster rejects it
         (``Invalid wckey specification``)
     array_parallelism: int
-        maximum number of tasks of a job array running at the same time (default: 256)
+        maximum number of jobs of a job array running at the same time (default: 256)
     signal_delay_s: int
         seconds before the time limit at which the job is signaled, for checkpointing
         (default: 90)

@@ -1,15 +1,18 @@
-# Submit it!
+# submitit
 
-## What is submitit?
+submitit submits Python functions to [Slurm](https://slurm.schedmd.com/quickstart.html) from Python, and returns their results, errors and logs.
+The same code runs locally.
 
-Submitit is a lightweight tool for submitting Python functions for computation within a Slurm cluster.
-It basically wraps submission and provide access to results, logs and more.
-[Slurm](https://slurm.schedmd.com/quickstart.html) is an open source, fault-tolerant, and highly scalable cluster management and job scheduling system for large and small Linux clusters.
-Submitit allows to switch seamlessly between executing on Slurm or locally.
+## Install
 
-### An example is worth a thousand words: performing an addition
+```bash
+pip install submitit  # or: conda install -c conda-forge submitit
+```
 
-From inside an environment with `submitit` installed:
+Install it in the environment your jobs should use: jobs run with the Python interpreter of the process that submits them.
+Requires Python 3.11+.
+
+## Submit a job
 
 ```python
 import submitit
@@ -19,92 +22,68 @@ def add(a, b):
     return a + b
 
 
-# executor is the submission interface (logs are dumped in the folder)
-executor = submitit.AutoExecutor(folder="log_test")
-# set timeout in min, and partition for running the job
-executor.update_parameters(timeout_min=1, slurm_partition="dev")
-job = executor.submit(add, 5, 7)  # will compute add(5, 7)
-print(job.job_id)  # ID of your job
-
-output = job.result()  # waits for completion and returns output
-assert output == 12  # 5 + 7 = 12...  your addition was computed in the cluster
+executor = submitit.AutoExecutor(folder="logs/%j")
+executor.update_parameters(timeout_min=10, slurm_partition="<your_partition>")
+job = executor.submit(add, 5, 7)
+print(job.job_id)
+assert job.result() == 12
 ```
 
-The `Job` class also provides tools for reading the log files (`job.stdout()` and `job.stderr()`).
+- `AutoExecutor` submits to Slurm when `srun` is available, and otherwise runs the job as a subprocess of the current machine (`executor.cluster` tells which).
+- `folder` receives the pickled function, its result and the logs, with `%j` replaced by the job id. On Slurm, it must be on a filesystem shared with the compute nodes (not `/tmp`), otherwise jobs fail without logs.
+- `job.result()` waits for the job and returns its output. It raises a `FailedJobError` with the traceback if the function raised, or its parent `UncompletedJobError` with the end of the logs if the job died without result (out of memory, cancelled, node failure).
+- `executor.submit` raises a `FailedJobError` with the sbatch error if Slurm rejects the job.
 
-If what you want to run is a command, turn it into a Python function using `submitit.helpers.CommandFunction`, then submit it.
-By default stdout is silenced in `CommandFunction`, but it can be unsilenced with `verbose=True`.
-
-**Find more examples [here](examples.md)!!!**
-
-
-## Install
-
-Quick install, in a virtualenv/conda environment where `pip` is installed (check `which pip`):
-
-- stable release:
-    ```
-    pip install submitit
-    ```
-- stable release using __conda__:
-    ```
-    conda install -c conda-forge submitit
-    ```
-- main branch:
-    ```
-    pip install git+https://github.com/facebookincubator/submitit@main#egg=submitit
-    ```
-
-You can try running the [MNIST example](https://github.com/facebookincubator/submitit/blob/main/docs/mnist.py) to check that everything is working as expected (requires sklearn).
-
-
-## Goals
-
-The aim of this Python3 package is to be able to launch jobs on Slurm painlessly from *inside Python*, using the same submission and job patterns than the standard library package `concurrent.futures`.
-
-Here are a few benefits of using this lightweight package:
-
- - submit any function, even lambda and script-defined functions.
- - raises an error with stack trace if the job failed.
- - requeue preempted jobs (Slurm only)
- - swap between `submitit` executor and one of `concurrent.futures` executors in a line, so that it is easy to run your code either on slurm, or locally with multithreading for instance.
- - checkpoints stateful callables when preempted or timed-out and requeue from current state (advanced feature).
- - easy access to task local/global rank for multi-nodes/tasks jobs.
- - same code can work for different clusters thanks to a plugin system.
-
-Submitit is used by FAIR researchers on the FAIR cluster.
-The defaults are chosen to make their life easier, and might not be ideal for every cluster.
-
-## Non-goals
-
-- a commandline tool for running slurm jobs. Here, everything happens inside Python. To this end, you can however use [Hydra](https://hydra.cc/)'s [submitit plugin](https://hydra.cc/docs/next/plugins/submitit_launcher) (version >= 1.0.0).
-- a task queue, this only implements the ability to launch tasks, but does not schedule them in any way.
-- being used in Python2! This is a Python3.8+ only package :)
-
-
-## Comparison with dask.distributed
-
-[`dask`](https://distributed.dask.org/en/latest/) is a nice framework for distributed computing. `dask.distributed` provides the same `concurrent.futures` executor API as `submitit`:
+## Set resources
 
 ```python
-from distributed import Client
-from dask_jobqueue import SLURMCluster
-
-cluster = SLURMCluster(processes=1, cores=2, memory="2GB")
-cluster.scale(2)  # this may take a few seconds to launch
-executor = Client(cluster)
-executor.submit(...)
+executor.update_parameters(
+    timeout_min=60,
+    nodes=1,
+    tasks_per_node=1,
+    cpus_per_task=8,
+    gpus_per_node=1,
+    mem_gb=32,
+    slurm_partition="<your_partition>",  # sinfo -s lists them
+    slurm_account="<your_account>",
+)
 ```
 
-The key difference with `submitit` is that `dask.distributed` distributes the jobs to a pool of workers (see the `cluster` variable above) while `submitit` jobs are directly jobs on the cluster. In that sense `submitit` is a lower level interface than `dask.distributed` and you get more direct control over your jobs, including individual `stdout` and `stderr`, and possibly checkpointing in case of preemption and timeout. On the other hand, you should avoid submitting multiple small tasks with `submitit`, which would create many independent jobs and possibly overload the cluster, while you can do it without any problem through `dask.distributed`.
+- Always set `timeout_min`: the default is 5 minutes on Slurm and 2 locally.
+- Unprefixed parameters work with every executor, see [`AutoExecutor`](#submitit.AutoExecutor).
+- `slurm_` parameters are the [`SlurmExecutor`](#submitit.SlurmExecutor) parameters with a prefix (`partition` becomes `slurm_partition`), ignored when running locally. `slurm_additional_parameters` passes options submitit does not support.
+- Executor arguments (`slurm_python`, `slurm_max_num_timeout`, `slurm_max_pickle_size_gb`) go to `submitit.AutoExecutor(folder, ...)`, not to `update_parameters`.
+
+## Submit many jobs
+
+To submit many jobs as one Slurm job array, use `executor.map_array` or `with executor.batch():`, see [Job arrays](examples.md#job-arrays).
+
+## Follow a job
+
+- `job.state` (e.g. `PENDING`, `RUNNING`), `job.done()` and `job.cancel()` follow and stop the job.
+- `job.stdout()` and `job.stderr()` return its logs (`None` until it starts), written to `job.paths.stdout` and `job.paths.stderr`, e.g. `logs/1234/1234_0_log.out`.
+- On Slurm, jobs keep running after your script exits, see the [FAQ](faq.md#how-do-i-retrieve-or-cancel-a-job-from-another-process) to recover them.
+
+## Debug
+
+- `submitit.AutoExecutor(folder="logs/%j", cluster="debug")` runs each job in the current process when its result is requested: breakpoints work, and a failure opens a post-mortem debugger.
+- `cluster="local"` runs jobs as subprocesses of the current machine, even on a Slurm cluster.
+- `job.exception()` returns the error of a failed job instead of raising it.
+- On Slurm, job states are polled up to every 10 minutes, so a killed job can take that long to be detected: `job.done(force_check=True)` checks now.
+- The [FAQ](faq.md) lists common errors and their fixes.
+
+## Scope
+
+- Each submission is a cluster job, with its own logs, requeued after preemption and [checkpointed](checkpointing.md) if it supports it.
+- submitit is not a command-line tool (use [Hydra's submitit launcher](https://hydra.cc/docs/plugins/submitit_launcher/) for that), nor a workflow engine: it does not manage dependencies between jobs (pass `slurm_dependency` yourself).
+- Schedulers other than Slurm can be supported through [plugins](plugins.md).
 
 ```{toctree}
 :hidden:
 
 examples
-structure
 checkpointing
-tips
+structure
 faq
 nevergrad
 plugins

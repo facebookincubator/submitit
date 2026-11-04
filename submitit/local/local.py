@@ -132,7 +132,7 @@ class LocalExecutor(core.PicklingExecutor):
 
     Update parameters
     -----------------
-    timeout_min: float
+    timeout_min: int
         time limit in minutes (default: 2)
     tasks_per_node: int
         number of tasks, each running the submitted function (default: 1)
@@ -151,6 +151,8 @@ class LocalExecutor(core.PicklingExecutor):
     setup: list of str
         shell commands run before the job
 
+    Note
+    ----
     Through :class:`~submitit.AutoExecutor`, only the generic parameters and ``local_setup``
     are accepted.
     """

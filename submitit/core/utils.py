@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tarfile
 import typing as tp
+import warnings
 from pathlib import Path
 
 import cloudpickle
@@ -33,12 +34,15 @@ def environment_variables(**kwargs: tp.Any) -> tp.Iterator[None]:
         os.environ.update(backup)
 
 
+CHECKPOINT_DEPRECATION = "The checkpoint method is deprecated, rename it __submitit_checkpoint__"
+
+
 class UncompletedJobError(RuntimeError):
-    """Job is uncomplete: either unfinished or failed"""
+    """Job ended without result (e.g. out of memory, cancelled, node failure), or failed"""
 
 
 class FailedJobError(UncompletedJobError):
-    """Job failed during processing"""
+    """The submitted function raised, or the submission was rejected by the cluster"""
 
 
 class FailedSubmissionError(RuntimeError):
@@ -115,14 +119,13 @@ class JobPaths:
 
 
 class DelayedSubmission:
-    """Object for specifying the function/callable call to submit and process later.
-    This is only syntactic sugar to make sure everything is well formatted:
-    If what you want to compute later is ``func(*args, **kwargs)``, just instanciate:
-    ``DelayedSubmission(func, *args, **kwargs)``.
-    It also provides convenient tools for dumping and loading.
+    """The call ``function(*args, **kwargs)``, to run later, e.g. returned by
+    ``__submitit_checkpoint__``.
     """
 
     def __init__(self, function: tp.Callable[..., tp.Any], *args: tp.Any, **kwargs: tp.Any) -> None:
+        if hasattr(function, "checkpoint") and not hasattr(function, "__submitit_checkpoint__"):
+            warnings.warn(CHECKPOINT_DEPRECATION, FutureWarning)
         self.function = function
         self.args = args
         self.kwargs = kwargs
@@ -284,11 +287,9 @@ def copy_process_streams(
 
 # used in "_core", so cannot be in "helpers"
 class CommandFunction:
-    """Wraps a command as a function in order to make sure it goes through the
-    pipeline and notify when it is finished.
-    The output is a string containing everything that has been sent to stdout.
-    WARNING: use CommandFunction only if you know the output won't be too big !
-    Otherwise use subprocess.run() that also streams the outputto stdout/stderr.
+    """Wraps a command as a function returning everything sent to stdout, and raising a
+    FailedJobError with the stderr if the command fails.
+    The output is buffered in memory: for large outputs, use ``subprocess.run`` instead.
 
     Parameters
     ----------
@@ -298,6 +299,8 @@ class CommandFunction:
         prints the command and stdout at runtime
     cwd: Path/str
         path to the location where the command must run from
+    env: dict
+        environment of the command, replacing the inherited one
 
     Returns
     -------

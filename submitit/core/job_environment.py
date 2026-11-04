@@ -21,12 +21,9 @@ _PREEMPT_SIG_ENV = "SUBMITIT_PREEMPT_SIGNAL"
 
 class JobEnvironment:
     """Describe the environment inside which the job is running.
-    This includes job id, number of GPUs available, ...
+    This includes the job id and the rank of the task.
 
     This class can only be instantiated from a running submitit job.
-
-    @plugin-dev: default implementation look for information into environment variables.
-    Override _env to map environment variable to each property.
     """
 
     # preemption signal uses USR2 as default, but this behavior
@@ -213,7 +210,7 @@ class SignalHandler:
         delayed = self._delayed
         countdown = delayed._timeout_countdown - timed_out
         no_requeue_reason = ""
-        if hasattr(delayed.function, "checkpoint"):
+        if hasattr(delayed.function, "__submitit_checkpoint__") or hasattr(delayed.function, "checkpoint"):
             no_requeue_reason = _checkpoint(delayed, self._job_paths.submitted_pickle, countdown)
         elif timed_out:
             no_requeue_reason = "timed-out and not checkpointable"
@@ -241,7 +238,7 @@ class SignalHandler:
             return
 
         delayed = self._delayed
-        if hasattr(delayed.function, "checkpoint"):
+        if hasattr(delayed.function, "__submitit_checkpoint__") or hasattr(delayed.function, "checkpoint"):
             _checkpoint(self._delayed, self._job_paths.submitted_pickle, self._delayed._timeout_countdown)
         self._exit()
 

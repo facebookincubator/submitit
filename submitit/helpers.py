@@ -15,29 +15,31 @@ import subprocess
 import tempfile
 import time
 import typing as tp
+import warnings
 from pathlib import Path
 
 # pylint: disable=unused-import
 # import DelayedSubmission and CommandFunction to populate helpers namespace
 from .core import core
 from .core.job_environment import JobEnvironment
+from .core.utils import CHECKPOINT_DEPRECATION
 from .core.utils import CommandFunction as CommandFunction  # noqa
 from .core.utils import DelayedSubmission as DelayedSubmission  # noqa
 from .core.utils import environment_variables as environment_variables  # noqa
 
 
 class Checkpointable:
-    """Derived callable classes are requeued after timeout with their current
+    """Derived callable classes are requeued after preemption or timeout with their current
     state dumped at checkpoint.
 
     __call__ method must be implemented to make your class a callable.
 
     Note
     ----
-    The following implementation of the checkpoint method resubmits the full current
+    The following implementation of the ``__submitit_checkpoint__`` method resubmits the full current
     state of the callable (self) with the initial argument. You may want to replace the method to
     curate the state (dump a neural network to a standard format and remove it from
-    the state so that not to pickle it) and change/remove the initial parameters.
+    the state so that it is not pickled) and change/remove the initial parameters.
     """
 
     # pylint: disable=unused-argument
@@ -48,18 +50,28 @@ class Checkpointable:
         )
         return instance
 
-    def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
+    def __submitit_checkpoint__(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
         """Resubmits the same callable with the same arguments"""
+        if type(self).checkpoint is not Checkpointable.checkpoint:  # deprecated override
+            warnings.warn(CHECKPOINT_DEPRECATION, FutureWarning)
+            return self.checkpoint(*args, **kwargs)
         # The DelayedSubmission class goal is only to register and format
         # the arguments of the call "self(*args, **kwargs)" for submission to slurm
         return DelayedSubmission(self, *args, **kwargs)  # type: ignore
 
+    # deprecated
+    def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> DelayedSubmission:
+        return DelayedSubmission(self, *args, **kwargs)  # type: ignore
+
 
 class FunctionSequence(Checkpointable):
-    """This is for gathering several estimations into one function, which
-    will return the sequence of outputs.
-    Also this "function" is stateful, hence it can be stopped, and recovered,
-    which is useful when job can be preempted.
+    """Runs several calls in sequence in one job, and returns their outputs.
+    Finished calls are not run again after requeuing.
+
+    Parameters
+    ----------
+    verbose: bool
+        prints how many functions were already computed when starting
 
     Example
     -------
@@ -123,7 +135,7 @@ def as_completed(
         Maximum time (in sec) to wait for jobs completion
 
     poll_frequency: float
-        Frequency in second at which we check job status.
+        seconds between two checks of the job states
 
     Yields
     ------
@@ -151,10 +163,9 @@ def run_cmd(str_args, **kwargs):
 
 
 class RsyncSnapshot:
-    """Takes a snapshot of the git repository that the script lives in.
-
-    This ensures that remote jobs always use the code from when they are scheduled
-    and not the code from when they are launched / re-started.
+    """Context manager taking a snapshot of the git repository of the current directory
+    (or ``root_dir``), and moving to it: jobs submitted inside run from the snapshot, with the
+    code from when they are submitted, not from when they start or restart.
 
 
     Parameters
@@ -166,14 +177,21 @@ class RsyncSnapshot:
     exclude: Sequence[str]
         An optional list of patterns to exclude from the snapshot
     include: Sequence[str]
-        A list of relative file names to include from the snapshot.
-        Useful for .so or other build artifacts that are genarally not tracked by git.
+        A list of relative file names to include in the snapshot.
+        Useful for .so or other build artifacts that are generally not tracked by git.
 
     Note
     ----
-    - Only files that are checked in to the repository are included in the snapshot.
-        If you have experimental code that you would like to include in the snapshot,
-        you'll need to `git add` the file first for it to be included, or use `include` arg.
+    Only files that are checked in to the repository are included in the snapshot.
+    If you have experimental code that you would like to include in the snapshot,
+    you'll need to ``git add`` the file first for it to be included, or use ``include``.
+
+    Example
+    -------
+    .. code-block:: python
+
+        with submitit.helpers.RsyncSnapshot(snapshot_dir=Path("snapshot")):
+            job = executor.submit(train)
     """
 
     def __init__(
@@ -257,8 +275,7 @@ def monitor_jobs(
     jobs: List[Jobs]
         A list of jobs to monitor
     poll_frequency: int
-        The time (in seconds) between two refreshes of the monitoring.
-        Can't be inferior to 30s.
+        The time (in seconds) between two refreshes of the monitoring, at least 30.
     test_mode: bool
         If in test mode, we do not check the length of poll_frequency
     """
@@ -308,8 +325,8 @@ def clean_env(extra_names: tp.Sequence[str] = ()) -> tp.Iterator[None]:
 
     Note
     ----
-    A slurm job submitted from within a slurm job inherits some of its attributes, which may
-    be confusing a cause weird gres errors (or pytorch distributed).
+    A slurm job submitted from within a slurm job inherits some of its attributes, which can
+    cause gres or PyTorch distributed errors.
     Submitting within this context should prevent this.
     ``SLURM_CONF`` (cluster configuration location) is kept unless listed in ``extra_names``.
 

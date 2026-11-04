@@ -94,9 +94,9 @@ class MnistTrainer(submitit.helpers.Checkpointable):
             self.save(model_path)
         return score
 
-    def checkpoint(self, *args, **kwargs):
+    def __submitit_checkpoint__(self, *args, **kwargs):
         print(f"Checkpointing at stage '{self.stage}'")
-        return super().checkpoint(*args, **kwargs)
+        return super().__submitit_checkpoint__(*args, **kwargs)
 
     def save(self, model_path: Path):
         with open(model_path, "wb") as o:
