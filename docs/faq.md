@@ -2,8 +2,7 @@
 
 ## My job fails with `ModuleNotFoundError` or `ImportError`
 
-Functions defined in a module are pickled by reference: the job imports that module again before running the function.
-The job runs from the directory you submitted from, but not your script, so imports that only work because of your script's location or a `sys.path.append` fail in the job.
+The job does not run your script: it runs `python -m submitit.core._submit` from your submission directory, so imports relying on the directory of your script, or on a `sys.path.append` in it, fail.
 Solutions, from the most robust:
 
 - install your code as a package in the environment (`pip install -e .`);
@@ -11,16 +10,25 @@ Solutions, from the most robust:
 - submit from the directory containing your modules;
 - as a last resort, call `sys.path.append` inside the submitted function, before importing the module.
 
-See [Tips and caveats](tips.md) for other pickling pitfalls.
+## My job runs code I edited after submitting it
 
-## Pickling fails, or hits a recursion error
+Functions imported from a module are pickled by reference: the job imports the module as it is when the job starts, or is requeued.
+Submit inside `with submitit.helpers.RsyncSnapshot(snapshot_dir):` to run jobs from a snapshot of your git repository (this does not cover installed packages).
+
+## A module fails at import in the job, but not in my script
+
+The job imports the modules of the submitted function when unpickling it, not in the order of your script: imports with side effects (e.g. a module that must be imported before another) may break.
+Import them inside the submitted function, or in a module imported by it.
+
+## Pickling fails
 
 Some objects cannot be pickled (locks, open files, database connections, objects wrapping C resources), including as default arguments of the submitted function.
-Create them inside the submitted function rather than passing them as arguments, and prefer functions imported from a module to functions defined in the submitting script, which also give more explicit tracebacks.
+Create them inside the submitted function rather than passing them as arguments.
+Prefer functions imported from a module: only their name is pickled, and tracebacks are clearer.
 
 ## My job is killed after a few minutes
 
-Jobs that do not set `timeout_min` get a short default time limit, see `time` in [`SlurmExecutor`](#submitit.SlurmExecutor) and `timeout_min` in [`LocalExecutor`](#submitit.LocalExecutor).
+Set `timeout_min`, see [Set resources](index.md#set-resources).
 
 ## My `logging` output does not appear in the logs
 
@@ -29,16 +37,21 @@ Configure logging at the beginning of the submitted function.
 
 ## sbatch rejects an option that I did not set
 
+`executor.submit` raises a `FailedJobError` with the sbatch error.
 submitit always writes `--job-name`, `--nodes`, `--time`, `--signal`, `--wckey` and the log options (`--output`, `--error`, `--open-mode`), and the other options only when set.
-See the options in [`SlurmExecutor`](#submitit.SlurmExecutor), including workarounds for `wckey` and `gpus_per_node`, and `additional_parameters` for options submitit does not support.
+See `wckey` and `gpus_per_node` in [`SlurmExecutor`](#submitit.SlurmExecutor) for workarounds.
 
 ## How do I load modules or set environment variables before the job starts?
 
-Use `slurm_setup`, see `setup` in [`SlurmExecutor`](#submitit.SlurmExecutor).
+```python
+executor.update_parameters(slurm_setup=["module load cuda/12.1", "export HF_HOME=/scratch/hf"])
+```
 
 ## How do I run the job with another Python or in a container?
 
-Use `slurm_python`, see the `python` argument of [`SlurmExecutor`](#submitit.SlurmExecutor).
+```python
+executor = submitit.AutoExecutor(folder="logs/%j", slurm_python="apptainer exec image.sif python")
+```
 
 ## Jobs submitted from within a job fail, e.g. with `Unable to satisfy cpu bind request`
 
@@ -51,10 +64,14 @@ Stop them with `kill()`, let them exit by themselves (`close()` and `join()` a p
 
 ## How do I retrieve or cancel a job from another process?
 
-Recreate it from its folder and id, e.g. `submitit.SlurmJob(folder="logs/%j", job_id="1234")`, to check its `state`, wait for its `result()` or `cancel()` it.
-For the local executor, the job id is the process id.
+Recreate it from its folder and id, e.g. [`submitit.SlurmJob(folder="logs/%j", job_id="1234")`](#submitit.SlurmJob) (`job_id="1234_3"` for a job array, `tasks=range(n)` for a multi-task job), to check its `state`, wait for its `result()` or `cancel()` it.
+Local jobs cannot be followed from another process: their job id is the id of their controlling process, and `kill -INT <job_id>` stops them (`kill` alone does not).
 
 ## Can I use torchrun?
 
-No: submitit already starts one process per task through Slurm.
-Request one task per GPU (`tasks_per_node=gpus_per_node`) and initialize PyTorch distributed with `submitit.helpers.TorchDistributedEnvironment`, see [PyTorch distributed initialization](examples.md#pytorch-distributed-initialization).
+No: submitit already starts one process per task through Slurm, see [PyTorch distributed](examples.md#pytorch-distributed).
+
+## How does submitit compare to dask.distributed?
+
+[`dask.distributed`](https://distributed.dask.org) runs tasks on a pool of workers, while submitit runs each submission as a cluster job.
+For many small tasks, use dask (with [dask-jobqueue](https://jobqueue.dask.org) on Slurm), or group them in [job arrays](examples.md#job-arrays): many independent jobs overload the scheduler.

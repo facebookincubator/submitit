@@ -155,17 +155,16 @@ class InfoWatcher:
 # pylint: disable=too-many-public-methods
 class Job(tp.Generic[R]):
     """Access to a cluster job information and result.
-    It mirrors the main methods of ``concurrent.futures.Future``.
 
     Parameters
     ----------
     folder: Path/str
-        A path to the submitted job file
+        the folder of the job
     job_id: str or int
         the id of the cluster job
     tasks: List[int]
         The ids of the tasks associated to this job.
-        If None, the job has only one task (with id = 0)
+        By default, the job has only one task (with id = 0)
     """
 
     _cancel_command = "dummy"
@@ -240,10 +239,10 @@ class Job(tp.Generic[R]):
         Parameters
         ----------
         task_id
-            The id of the task. Must be between 0 and self.num_tasks
+            The id of the task, between 0 and num_tasks - 1
         Returns
         -------
-        job
+        Job
             The sub_job. You can call all Job methods on it (done, stdout, ...)
             If the job doesn't have sub jobs, return the job itself.
         """
@@ -260,7 +259,7 @@ class Job(tp.Generic[R]):
         Parameters
         ----------
         check: bool
-            whether to wait for completion and check that the command worked
+            raises if the cancel command fails
         """
         (subprocess.check_call if check else subprocess.call)(
             [self._cancel_command, f"{self.job_id}"], shell=False
@@ -283,8 +282,8 @@ class Job(tp.Generic[R]):
 
         Raises
         ------
-        Exception
-            Any exception raised by the job
+        FailedJobError, UncompletedJobError
+            see :meth:`exception`
         """
         self.wait()
 
@@ -308,12 +307,8 @@ class Job(tp.Generic[R]):
         Exception/None
             the exception if any was raised during the job.
             If the job has several tasks, it returns the exception of the task with
-            smallest id that failed.
-
-        Raises
-        ------
-        UncompletedJobError
-            In case the job never completed
+            smallest id that failed: FailedJobError if the function raised, UncompletedJobError
+            if the job ended without result.
         """
         self.wait()
 
@@ -394,18 +389,14 @@ class Job(tp.Generic[R]):
         return output
 
     def wait(self) -> None:
-        """Wait while no result find is found and the state is
-        either PENDING or RUNNING.
-        The state is checked from slurm at least every min and the result path
-        every second.
-        """
+        """Waits until the job is finished, see :meth:`done`"""
         while not self.done():
             _time.sleep(1)
 
     def done(self, force_check: bool = False) -> bool:
         """Checks whether the job is finished.
         This is done by checking if the result file is present,
-        or checking the job state regularly (at least every minute)
+        or checking the job state regularly (up to every 10 minutes on Slurm)
         If the job has several tasks, the job is done once all tasks are done.
 
         Parameters
@@ -420,9 +411,9 @@ class Job(tp.Generic[R]):
 
         Note
         ----
-        This function is not foolproof, and may say that the job is not terminated even
-        if it is when the job failed (no result file, but job not running) because
-        we avoid calling sacct/cinfo everytime done is called
+        A job which failed without writing its result file may be reported as unfinished
+        until the next state check (up to 10 minutes on Slurm), use ``force_check=True`` to
+        check the state now.
         """
         # TODO: keep state info once job is finished?
         if self._sub_jobs:
@@ -682,18 +673,18 @@ class Executor(abc.ABC):
         allow_implicit_submissions: bool
             submits the current batch whenever a job attribute is accessed instead of raising an exception
 
+        Raises
+        ------
+        AttributeError
+            if trying to access a job instance attribute while the batch is not exited, and
+            intermediate submissions are not allowed.
+
         Example
         -------
         >>> jobs = []
         >>> with executor.batch():
         ...     for k in range(12):
         ...         jobs.append(executor.submit(add, k, 1))
-
-        Raises
-        ------
-        AttributeError
-            if trying to access a job instance attribute while the batch is not exited, and
-            intermediate submissions are not allowed.
         """
         self._allow_implicit_submissions = allow_implicit_submissions
         if self._delayed_batch is not None:
@@ -726,6 +717,7 @@ class Executor(abc.ABC):
         self._delayed_batch = []
 
     def submit(self, fn: tp.Callable[..., R], *args: tp.Any, **kwargs: tp.Any) -> Job[R]:
+        """Submits ``fn(*args, **kwargs)`` as a job"""
         ds = utils.DelayedSubmission(fn, *args, **kwargs)
         if self._delayed_batch is not None:
             job: Job[R] = DelayedJob(self)
@@ -748,7 +740,7 @@ class Executor(abc.ABC):
         ----------
         fn: callable
             function to compute
-        *iterable: Iterable
+        \\*iterable: Iterable
             lists of arguments that are passed as arguments to fn.
 
         Returns
@@ -758,10 +750,9 @@ class Executor(abc.ABC):
 
         Example
         -------
-        a = [1, 2, 3]
-        b = [10, 20, 30]
-        executor.map_array(add, a, b)
-        # jobs will compute 1 + 10, 2 + 20, 3 + 30
+        >>> a = [1, 2, 3]
+        >>> b = [10, 20, 30]
+        >>> executor.map_array(add, a, b)  # computes 1 + 10, 2 + 20, 3 + 30
         """
         submissions = [utils.DelayedSubmission(fn, *args) for args in zip(*iterable)]
         if len(submissions) == 0:

@@ -6,6 +6,8 @@
 
 import os
 import time
+import typing as tp
+import warnings
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,25 @@ from .core import core, utils
 
 def _three_time(x: int) -> int:
     return 3 * x
+
+
+def test_checkpoint_deprecation() -> None:
+    class Legacy:
+        def __call__(self) -> None:
+            pass
+
+        def checkpoint(self, *args: tp.Any, **kwargs: tp.Any) -> tp.Any:  # pylint: disable=unused-argument
+            return "legacy"
+
+    class LegacyOverride(Legacy, helpers.Checkpointable):
+        pass
+
+    for cls in (Legacy, LegacyOverride):
+        with pytest.warns(FutureWarning, match="__submitit_checkpoint__"):
+            assert utils.DelayedSubmission(cls())._checkpoint_function() == "legacy"
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert utils.DelayedSubmission(helpers.FunctionSequence())._checkpoint_function() is not None
 
 
 requires_rsync = pytest.mark.skipif(

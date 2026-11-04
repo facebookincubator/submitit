@@ -1,14 +1,17 @@
-# Structure
+# How it works
 
-## Under the hood
+1. `executor.submit(function, *args, **kwargs)` pickles the function and its arguments in the job folder, and submits a script running them with `sbatch` (or starts a subprocess, locally).
+2. The job runs `python -u -m submitit.core._submit <folder>` from the submission directory: it unpickles the function, calls it, and pickles its output or its error.
+3. `job.result()` loads this output, or raises the error.
 
-When you submit a function and its arguments, it will return a Job instance to you. Under the hood, the function and arguments are
-pickled, and the submission functions run a batch file which will load the pickled object, compute the function
-with the provided arguments, and pickle the output of the function into a new file. Whenever this file becomes available, your Job instance
-will be able to recover it. The computation in the cluster will use the current conda environment, so make sure everything you need is installed (including `submitit`).
+Files of a job, in its folder (`%j`: job id, `%t`: task id):
 
-If the computation failed and we are able to catch the error, then the trace will be dumped and available to you through the Job instance as well.
-However, if it could not be catched, you will be notified as well, but will probably need to look into the logs to understand what happened.
+| File | `job.paths` attribute | Content |
+|---|---|---|
+| `%j_submitted.pkl` | `submitted_pickle` | function and arguments |
+| `%j_submission.sh` | `submission_file` | sbatch script (Slurm) |
+| `%j_%t_log.out` | `stdout` | stdout of each task |
+| `%j_%t_log.err` | `stderr` | stderr of each task |
+| `%j_%t_result.pkl` | `result_pickle` | output or error of each task |
 
-For each job, you will therefore usually end up with a task file `<job_id>_submitted.pkl`, an output file `<job_id>_result.pkl`,
-a submission file `<job_id>_submission.sh`, a stdout log file `<job_id>_<task_id>_log.out` and a stderr log file `<job_id>_<task_id>_log.err`, where the id is the job id from slurm. The Job instance helps you link all of this together (see `job.job_id`).
+submitit never deletes these files: clean the folder when you no longer need them.

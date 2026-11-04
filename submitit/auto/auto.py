@@ -62,10 +62,6 @@ class AutoExecutor(Executor):
         and :class:`~submitit.LocalExecutor`), ignored by the other executors.
         A prefixed generic parameter, e.g. ``slurm_timeout_min``, overrides the generic one on
         that executor only.
-
-    Note
-    ----
-    The folder fills up quickly with logs and pickled objects, it may need cleaning.
     """
 
     _ctor_deprecated_args = {"max_num_timeout": "slurm_max_num_timeout", "conda_file": "chronos_conda_file"}

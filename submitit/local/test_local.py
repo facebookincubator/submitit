@@ -179,7 +179,7 @@ def test_requeuing(tmp_path: Path) -> None:
 
 
 def test_custom_checkpoint(tmp_path: Path) -> None:
-    class Slacker(helpers.Checkpointable):
+    class Slacker:
         def __call__(self, slack: bool = True):
             if slack:
                 print("Slacking", flush=True)
@@ -195,7 +195,7 @@ def test_custom_checkpoint(tmp_path: Path) -> None:
 
     executor = local.LocalExecutor(tmp_path, max_num_timeout=1)
     executor.update_parameters(timeout_min=2 / 60, signal_delay_s=1)
-    job = executor.submit(Slacker(True))
+    job = executor.submit(Slacker())
     job.wait()
     stdout = job.stdout()
     assert stdout

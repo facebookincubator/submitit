@@ -1,25 +1,19 @@
 # Plugins
 
-In order to switch between executing on Slurm and another cluster,
-`submitit` provides a plugin API.
-Each plugin must implement an `Executor`, a `Job`, an `InfoWatcher` and a `JobEnvironment` class.
-Look at the [API reference](api.rst) for more details on those classes.
+To support a scheduler other than Slurm, a plugin package implements subclasses of `Executor`, `Job`, `InfoWatcher` and `JobEnvironment` (search the code for `@plugin-dev` comments):
 
-Main functions to implement:
+- `Executor`: a `FooExecutor` is selected with `cluster="foo"`, and its parameters are prefixed by `foo_`.
+- `Executor.affinity()`: score used by `AutoExecutor` to pick the executor, the highest wins and negative means unavailable.
+- `Executor.submit`: creates a `Job` from a function, using the correct log files and Python executable.
+- `Executor._convert_parameters`: converts generic parameters (e.g. `timeout_min`) to the cluster's own, renaming them through `_equivalence_dict` by default.
+- `Job`: accesses the state, logs and result of a job, using its `InfoWatcher`.
+- `InfoWatcher.get_info`: returns the state of a job from its id (pending, running...).
+- `JobEnvironment`: maps the cluster's environment variables to the job id and ranks through `_env`, tells with `activated()` whether the job runs on this cluster, and sets up signal handlers and requeuing.
 
-  - `Executor.submit`: from a function create a `Job` using the correct log files and python executable
-  - `Executor._convert_parameters`: convert standardized parameters to cluster specific ones
-  - `InfoWatcher.get_info`: given a job id, get the state of the job (pending, running, ...)
-  - `JobEnviroment`: setup signal handlers and requeuing to behave nicely in the cluster
+The plugin registers them as entry points in its `pyproject.toml`, see the [packaging guide](https://packaging.python.org/guides/creating-and-discovering-plugins/#using-package-metadata):
 
-Look for `@plugin-dev` mention in comments for more details.
-
-Plugins must have an `entry_points.txt` file with the following keys:
-
+```toml
+[project.entry-points.submitit]
+executor = "my_plugin:MyExecutor"
+job_environment = "my_plugin:MyJobEnvironment"
 ```
-[submitit]
-executor=my_plugin:MyExecutor
-job_environment=my_plugin:MyJobEnvironment
-```
-
-See [packaging](https://packaging.python.org/guides/creating-and-discovering-plugins/#using-package-metadata) documentation for more details.
