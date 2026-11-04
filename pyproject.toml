@@ -32,7 +32,7 @@ classifiers=[
         "pytest-cov>=4.1.0",
         "coverage[toml]>=5.1",
         # Format
-        "black==23.3.0",
+        "black==26.10.1",
         "isort==5.11.5",
         "pre-commit>=1.15.2",
         # Linters
