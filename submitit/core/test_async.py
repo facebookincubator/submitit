@@ -38,14 +38,13 @@ async def test_results_single(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_results_ascompleted_single(tmp_path: Path) -> None:
+@pytest.mark.parametrize("num_tasks", [1, 2])
+async def test_results_ascompleted(tmp_path: Path, num_tasks: int, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(FakeExecutor, "_num_tasks", lambda self: num_tasks)
     executor = FakeExecutor(folder=tmp_path)
     job = executor.submit(_three_time, 8)
-    with utils.environment_variables(_TEST_CLUSTER_="slurm", SLURM_JOB_ID=str(job.job_id)):
-        submission.process_job(folder=job.paths.folder)
-    count = 0
-    for aws in job.awaitable().results_as_completed():
-        result = await aws
-        count += 1
-        assert result == 24
-    assert count == 1
+    for task in range(num_tasks):
+        env = {"SLURM_JOB_ID": str(job.job_id), "SLURM_PROCID": str(task), "SLURM_NTASKS": str(num_tasks)}
+        with utils.environment_variables(_TEST_CLUSTER_="slurm", **env):
+            submission.process_job(folder=job.paths.folder)
+    assert [await aws for aws in job.awaitable().results_as_completed()] == [24] * num_tasks

@@ -30,11 +30,11 @@ class AutoExecutor(Executor):
 
     Parameters
     ----------
-    folder: Path/str
+    folder: Path | str
         folder for storing job submission/output and logs, ``%j`` is replaced by the job id.
     cluster: str
-        Forces AutoExecutor to use the given environment. Use "local" to run jobs locally
-        (even on a Slurm cluster), "debug" to run jobs in process.
+        executor name: "slurm", "local" (even on a Slurm cluster), "debug" or a plugin's
+        (default: detected, see ``executor.cluster``)
     kwargs:
         executor constructor arguments, prefixed by the executor name, e.g. ``slurm_python``
         for the ``python`` argument of :class:`~submitit.SlurmExecutor`.
@@ -87,7 +87,9 @@ class AutoExecutor(Executor):
         valid = self._valid_parameters()
         self._deprecated_args = {
             arg: f"{ex_name}_{arg}"
-            for ex_name, ex in executors.items()
+            for ex_name, ex in sorted(
+                executors.items(), key=lambda item: item[0] == self.cluster
+            )  # current wins
             for arg in ex._valid_parameters()
             if arg not in valid
         }

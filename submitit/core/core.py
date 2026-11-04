@@ -158,11 +158,11 @@ class Job(tp.Generic[R]):
 
     Parameters
     ----------
-    folder: Path/str
+    folder: Path | str
         the folder of the job
-    job_id: str or int
+    job_id: str | int
         the id of the cluster job
-    tasks: List[int]
+    tasks: list[int]
         The ids of the tasks associated to this job.
         By default, the job has only one task (with id = 0)
     """
@@ -304,7 +304,7 @@ class Job(tp.Generic[R]):
 
         Returns
         -------
-        Exception/None
+        Exception | None
             the exception if any was raised during the job.
             If the job has several tasks, it returns the exception of the task with
             smallest id that failed: FailedJobError if the function raised, UncompletedJobError
@@ -613,6 +613,7 @@ class AsyncJobProxy(tp.Generic[R]):
             yield from asyncio.as_completed(
                 [self.job.task(i).awaitable().result(poll_interval) for i in range(self.job.num_tasks)]
             )
+            return
 
         # there is only one result anyway, let's just use async result
         yield asyncio.ensure_future(self.result())
@@ -646,7 +647,7 @@ class Executor(abc.ABC):
 
     Parameters
     ----------
-    folder: Path/str
+    folder: Path | str
         folder for storing job submission/output and logs.
     """
 
@@ -665,8 +666,8 @@ class Executor(abc.ABC):
 
     @contextlib.contextmanager
     def batch(self, allow_implicit_submissions: bool = False) -> tp.Iterator[None]:
-        """Creates a context within which all submissions are packed into a job array.
-        By default the array submissions happens when leaving the context
+        """Creates a context within which all submissions are packed into a job array,
+        submitted when the context exits
 
         Parameters
         ----------
@@ -684,7 +685,7 @@ class Executor(abc.ABC):
         >>> jobs = []
         >>> with executor.batch():
         ...     for k in range(12):
-        ...         jobs.append(executor.submit(add, k, 1))
+        ...         jobs.append(executor.submit(pow, 2, k))
         """
         self._allow_implicit_submissions = allow_implicit_submissions
         if self._delayed_batch is not None:
@@ -745,7 +746,7 @@ class Executor(abc.ABC):
 
         Returns
         -------
-        List[Job]
+        list[Job]
             A list of Job instances.
 
         Example
@@ -767,14 +768,14 @@ class Executor(abc.ABC):
 
         Parameters
         ----------
-        fns: list of callable
+        fns: list[callable]
             functions to compute. Those functions must not need any argument.
             Tyically those are "Checkpointable" instance whose arguments
             have been specified in the constructor, or partial functions.
 
         Returns
         -------
-        List[Job]
+        list[Job]
             A list of Job instances.
 
         Example
@@ -842,7 +843,7 @@ class PicklingExecutor(Executor):
 
     Parameters
     ----------
-    folder: Path/str
+    folder: Path | str
         folder for storing job submission/output and logs.
     max_num_timeout: int
         maximum number of timeouts after which submitit will not reschedule the job.

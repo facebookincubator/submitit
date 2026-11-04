@@ -127,8 +127,10 @@ class LocalExecutor(core.PicklingExecutor):
 
     Parameters
     ----------
-    folder: Path/str
+    folder: Path | str
         folder for storing job submission/output and logs.
+    max_num_timeout, max_pickle_size_gb, python:
+        see :class:`~submitit.SlurmExecutor`
 
     Update parameters
     -----------------
@@ -352,7 +354,7 @@ class Controller:  # pragma: no cover
 
         Returns
         -------
-        Sequence[Optional[int]]:
+        Sequence[int | None]:
             Exit codes of each task.
             Some tasks might still have not exited, but they will have received the "timed-out" signal.
         """

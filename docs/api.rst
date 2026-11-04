@@ -61,8 +61,8 @@ Helpers
 Errors
 ------
 
-.. autoexception:: submitit.core.utils.FailedJobError
+.. autoexception:: submitit.FailedJobError
 
-.. autoexception:: submitit.core.utils.UncompletedJobError
+.. autoexception:: submitit.UncompletedJobError
 
 .. autoexception:: submitit.core.utils.FailedSubmissionError

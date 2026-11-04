@@ -1,13 +1,14 @@
 # Checkpointing
 
-When a job is preempted, or `signal_delay_s` before its time limit (see [`SlurmExecutor`](#submitit.SlurmExecutor)), it receives a signal and submitit requeues it:
+Slurm signals a job when it is preempted, and `slurm_signal_delay_s` seconds (default 90) before its time limit. submitit then requeues it:
 
-- a callable without `__submitit_checkpoint__` method restarts from scratch, after preemption only;
-- a callable with it is requeued with the submission this method returns, after preemption or timeout (at most `slurm_max_num_timeout` timeouts, default 3).
+- a callable without `__submitit_checkpoint__` method restarts from scratch after a preemption, and ends with a `FailedJobError` at its time limit;
+- a callable with it is requeued with the submission this method returns, after a preemption or each of its first `slurm_max_num_timeout` timeouts (default 3, set with `submitit.AutoExecutor(folder, slurm_max_num_timeout=...)`).
 
-A signal received after min(80%, time limit - 10 minutes) of the time limit counts as a timeout.
+A signal received after min(0.8 x limit, limit - 10 minutes) of runtime counts as a timeout.
 Only the first task of a [multi-task job](examples.md#multi-task-jobs) calls `__submitit_checkpoint__`.
 Preemptions are signaled only if the cluster sets `SlurmctldParameters=preempt_send_user_signal` (check with `scontrol show config | grep SlurmctldParameters`).
+Processes forked by the job ignore `SIGTERM`, see the [FAQ](faq.md#processes-started-by-my-function-ignore-terminate-with-bypassing-signal-sigterm-in-the-logs).
 
 ## Resume from the current state
 
@@ -30,7 +31,7 @@ class Counter(submitit.helpers.Checkpointable):
         return self.count
 
 
-executor = submitit.AutoExecutor(folder="logs/%j", slurm_max_num_timeout=5)
+executor = submitit.AutoExecutor(folder="logs/%j")
 executor.update_parameters(timeout_min=60, slurm_partition="<your_partition>")
 job = executor.submit(Counter(), 7200)
 ```
@@ -39,7 +40,7 @@ See also `submitit.helpers.FunctionSequence`, which runs several calls in one jo
 
 ## Customize the resubmission
 
-`__submitit_checkpoint__` receives the arguments of `__call__` and returns a `submitit.helpers.DelayedSubmission`, built like `executor.submit` arguments, or `None` to end the job (`job.result()` then raises an `UncompletedJobError`).
+`__submitit_checkpoint__` receives the arguments of `__call__` and returns a `submitit.helpers.DelayedSubmission`, built like `executor.submit` arguments, or `None` to end the job (`job.result()` then raises a `FailedJobError`).
 For instance, to save a model to a file rather than pickling it with the callable:
 
 ```python
@@ -62,6 +63,9 @@ class Training:
     def __submitit_checkpoint__(self, checkpoint_path: str) -> submitit.helpers.DelayedSubmission:
         ...  # save self.model to checkpoint_path
         return submitit.helpers.DelayedSubmission(Training(), checkpoint_path)
+
+
+job = executor.submit(Training(), "checkpoint.pt")
 ```
 
 ## Test checkpointing

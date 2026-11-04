@@ -215,7 +215,7 @@ class SlurmExecutor(core.PicklingExecutor):
 
     Parameters
     ----------
-    folder: Path/str
+    folder: Path | str
         folder for storing job submission/output and logs.
     max_num_timeout: int
         number of times a callable with a ``__submitit_checkpoint__`` method is requeued after a
@@ -224,7 +224,7 @@ class SlurmExecutor(core.PicklingExecutor):
         maximum size of the pickled function and arguments of a submission, as large pickles
         overload the shared filesystem
     python: str | None
-        shell command starting Python in the job, e.g. "apptainer exec image.sif python"
+        shell command starting Python in the job, e.g. to run it in a container
         (default: the interpreter of the submitting process)
 
     Update parameters

@@ -87,6 +87,10 @@ def test_deprecated_argument(tmp_path: Path, monkeypatch) -> None:
     # debug 'blabla' parameter is ignored
     with pytest.warns(UserWarning, match=r"blabla.*debug_blabla"):
         executor.update_parameters(mem_gb=2, blabla="blublu")
+    # parameters valid for several executors go to the current one
+    with pytest.warns(UserWarning, match=r"setup.*slurm_setup"):
+        executor.update_parameters(setup=["echo hello"])
+    assert executor._executor.parameters["setup"] == ["echo hello"]
 
 
 def test_overriden_arguments(tmp_path: Path) -> None:
