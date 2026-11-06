@@ -313,8 +313,9 @@ class Controller:  # pragma: no cover
                 pass
 
     def start_tasks(self) -> None:
-        self.folder.mkdir(exist_ok=True)
         paths = [utils.JobPaths(self.folder, self.pid, k) for k in range(self.ntasks)]
+        for path in paths:
+            path.folder.mkdir(parents=True, exist_ok=True)
         self.stdouts = [p.stdout.open("a") for p in paths]
         self.stderrs = self.stdouts if self.stderr_to_stdout else [p.stderr.open("a") for p in paths]
         for k in range(self.ntasks):
