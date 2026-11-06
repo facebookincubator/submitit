@@ -19,12 +19,17 @@ def test_temporary_save_path(tmp_path: Path, existing_content: str | None) -> No
     filepath = tmp_path / "save_and_move_test.txt"
     if existing_content:
         filepath.write_text(existing_content)
+    with pytest.raises(RuntimeError), utils.temporary_save_path(filepath) as tmp:
+        tmp.write_text("failed")
+        raise RuntimeError
+    assert list(tmp_path.iterdir()) == ([filepath] if existing_content else []), "leftover temporary file"
     with utils.temporary_save_path(filepath) as tmp:
-        assert str(tmp).endswith(".txt.save_tmp")
+        assert tmp.name.startswith("save_and_move_test.txt.") and tmp.suffix == ".save_tmp"
         tmp.write_text("12")
         if existing_content:
             assert filepath.read_text() == existing_content
     assert filepath.read_text() == "12"
+    assert list(tmp_path.iterdir()) == [filepath]
 
 
 def test_temporary_save_path_error() -> None:

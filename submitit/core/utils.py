@@ -18,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import typing as tp
+import uuid
 import warnings
 from pathlib import Path
 
@@ -179,17 +180,18 @@ def temporary_save_path(filepath: Path | str) -> tp.Iterator[Path]:
 
     Note
     ----
-    The temporary path is the provided path appended with .save_tmp
+    The temporary path is the provided path appended with a unique ``.<id>.save_tmp`` suffix
     """
     filepath = Path(filepath)
-    tmppath = filepath.with_suffix(filepath.suffix + ".save_tmp")
-    assert not tmppath.exists(), "A temporary saved file already exists."
-    yield tmppath
-    if not tmppath.exists():
-        raise FileNotFoundError("No file was saved at the temporary path.")
-    if filepath.exists():
-        os.remove(filepath)
-    os.rename(tmppath, filepath)
+    tmppath = filepath.with_name(f"{filepath.name}.{uuid.uuid4().hex[:8]}.save_tmp")
+    try:
+        yield tmppath
+        if not tmppath.exists():
+            raise FileNotFoundError(f"No file was saved at the temporary path {tmppath}.")
+        os.replace(tmppath, filepath)
+    finally:
+        if tmppath.exists():
+            os.remove(tmppath)
 
 
 def archive_dev_folders(folders: list[str | Path], outfile: str | Path | None = None) -> Path:
