@@ -24,6 +24,7 @@ def test_temporary_save_path(tmp_path: Path, existing_content: str | None) -> No
         raise RuntimeError
     assert list(tmp_path.iterdir()) == ([filepath] if existing_content else []), "leftover temporary file"
     with utils.temporary_save_path(filepath) as tmp:
+        assert tmp.name.startswith("save_and_move_test.txt.") and tmp.suffix == ".save_tmp"
         tmp.write_text("12")
         if existing_content:
             assert filepath.read_text() == existing_content

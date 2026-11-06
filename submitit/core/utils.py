@@ -180,10 +180,10 @@ def temporary_save_path(filepath: Path | str) -> tp.Iterator[Path]:
 
     Note
     ----
-    The temporary path is in the same folder, with a unique ``save-tmp-<id>-`` prefix
+    The temporary path is the provided path appended with a unique ``.<id>.save_tmp`` suffix
     """
     filepath = Path(filepath)
-    tmppath = filepath.with_name(f"save-tmp-{uuid.uuid4().hex[:8]}-{filepath.name}")
+    tmppath = filepath.with_name(f"{filepath.name}.{uuid.uuid4().hex[:8]}.save_tmp")
     try:
         yield tmppath
         if not tmppath.exists():
