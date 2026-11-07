@@ -594,7 +594,7 @@ class AsyncJobProxy(tp.Generic[R]):
         # results are ready now
         return self.job.results()
 
-    def results_as_completed(self, poll_interval: int | float = 1) -> tp.Iterator[asyncio.Future]:
+    def results_as_completed(self, poll_interval: int | float = 1) -> tp.Iterator[tp.Awaitable[R]]:
         """awaits for all tasks results concurrently. Note that the order of results is not guaranteed to match the order
         of the tasks anymore as the earliest task coming back might not be the first one you sent.
 
