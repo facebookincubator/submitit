@@ -5,6 +5,7 @@
 #
 
 import asyncio
+import typing as tp
 from pathlib import Path
 
 import pytest
@@ -47,4 +48,6 @@ async def test_results_ascompleted(tmp_path: Path, num_tasks: int, monkeypatch: 
         env = {"SLURM_JOB_ID": str(job.job_id), "SLURM_PROCID": str(task), "SLURM_NTASKS": str(num_tasks)}
         with utils.environment_variables(_TEST_CLUSTER_="slurm", **env):
             submission.process_job(folder=job.paths.folder)
-    assert [await aws for aws in job.awaitable().results_as_completed()] == [24] * num_tasks
+    completions = job.awaitable().results_as_completed()
+    tp.assert_type(completions, tp.Iterator[tp.Awaitable[int]])
+    assert [await aws for aws in completions] == [24] * num_tasks
