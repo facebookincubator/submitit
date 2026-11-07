@@ -85,6 +85,8 @@ def test_local_error(tmp_path: Path) -> None:
     job = executor.submit(failing_job)
     exception = job.exception()
     assert isinstance(exception, utils.FailedJobError)
+    assert isinstance(exception.__cause__, RuntimeError)
+    assert str(exception.__cause__) == "Failed on purpose"
     traceback = exception.args[0]
     assert "Traceback" in traceback
     assert "Failed on purpose" in traceback
