@@ -338,8 +338,9 @@ class SlurmExecutor(core.PicklingExecutor):
         folder.mkdir(parents=True, exist_ok=True)
         timeout_min = self.parameters.get("time", 5)
         pickle_paths = []
-        for d in delayed_submissions:
-            pickle_path = folder / f"{uuid.uuid4().hex}.pkl"
+        uid = uuid.uuid4().hex
+        for index, d in enumerate(delayed_submissions):
+            pickle_path = folder / f"{uid}_{index}.pkl"
             d.set_timeout(timeout_min, self.max_num_timeout)
             d.dump(pickle_path)
             pickle_paths.append(pickle_path)
@@ -351,14 +352,27 @@ class SlurmExecutor(core.PicklingExecutor):
         array_ex.parameters["map_count"] = n
         self._throttle()
 
-        first_job: core.Job[tp.Any] = array_ex._submit_command(self._submitit_command_str)
+        first_job: core.Job[tp.Any] = array_ex._submit_command(
+            self._submitit_command_str
+            + " --submitted-pickle "
+            + shlex.quote(str(folder / f"{uid}_%a.submitted.pkl"))
+        )
         tasks_ids = list(range(first_job.num_tasks))
         jobs: list[core.Job[tp.Any]] = [
             SlurmJob(folder=self.folder, job_id=f"{first_job.job_id}_{a}", tasks=tasks_ids) for a in range(n)
         ]
         for job, pickle_path in zip(jobs, pickle_paths):
             job.paths.move_temporary_file(pickle_path, "submitted_pickle")
+            pickle_path.with_suffix(".submitted.pkl").symlink_to(job.paths.submitted_pickle)
         return jobs
+
+    def _submit_delayed_submission(self, pickle_path: Path) -> core.Job[tp.Any]:
+        source_pickle = pickle_path.with_suffix(".submitted.pkl")
+        command = self._submitit_command_str + " --submitted-pickle " + shlex.quote(str(source_pickle))
+        job = self._submit_command(command)
+        job.paths.move_temporary_file(pickle_path, "submitted_pickle")
+        source_pickle.symlink_to(job.paths.submitted_pickle)
+        return job
 
     @property
     def _submitit_command_str(self) -> str:
