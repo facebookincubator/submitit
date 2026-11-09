@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from . import submission, utils
+from .core import AsyncJobProxy
 from .test_core import FakeExecutor, _three_time
 
 
@@ -48,3 +49,27 @@ async def test_results_ascompleted(tmp_path: Path, num_tasks: int, monkeypatch: 
         with utils.environment_variables(_TEST_CLUSTER_="slurm", **env):
             submission.process_job(folder=job.paths.folder)
     assert [await aws for aws in job.awaitable().results_as_completed()] == [24] * num_tasks
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("num_tasks", [1, 2])
+async def test_results_ascompleted_poll_interval(
+    tmp_path: Path, num_tasks: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(FakeExecutor, "_num_tasks", lambda self: num_tasks)
+    intervals: list[int | float] = []
+    original_wait = AsyncJobProxy.wait
+
+    async def record_wait(self: AsyncJobProxy[int], poll_interval: int | float = 1) -> None:
+        intervals.append(poll_interval)
+        await original_wait(self, poll_interval)
+
+    monkeypatch.setattr(AsyncJobProxy, "wait", record_wait)
+    executor = FakeExecutor(folder=tmp_path)
+    job = executor.submit(_three_time, 8)
+    for task in range(num_tasks):
+        env = {"SLURM_JOB_ID": str(job.job_id), "SLURM_PROCID": str(task), "SLURM_NTASKS": str(num_tasks)}
+        with utils.environment_variables(_TEST_CLUSTER_="slurm", **env):
+            submission.process_job(folder=job.paths.folder)
+    assert [await result for result in job.awaitable().results_as_completed(0.125)] == [24] * num_tasks
+    assert intervals == [0.125] * num_tasks
