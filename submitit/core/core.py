@@ -9,6 +9,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import contextlib
+import pickle
 import subprocess
 import time as _time
 import typing as tp
@@ -325,13 +326,23 @@ class Job(tp.Generic[R]):
         except utils.UncompletedJobError as e:
             return e
         if outcome == "error":
-            return utils.FailedJobError(
+            cause = None
+            if isinstance(trace, tuple):
+                trace, error_pickle = trace
+                try:
+                    cause = pickle.loads(error_pickle)
+                except Exception:
+                    pass  # The formatted traceback is still usable.
+            error = utils.FailedJobError(
                 f"Job (task={self.task_id}) failed during processing with trace:\n"
                 f"----------------------\n{trace}\n"
                 "----------------------\n"
                 "You can check full logs with 'job.stderr()' and 'job.stdout()' "
                 f"or at paths:\n  - {self.paths.stderr}\n  - {self.paths.stdout}"
             )
+            if isinstance(cause, Exception):
+                error.__cause__ = cause
+            return error
         return None
 
     def _get_outcome_and_result(self) -> tuple[str, tp.Any]:

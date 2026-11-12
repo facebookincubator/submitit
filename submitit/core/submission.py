@@ -6,9 +6,12 @@
 
 import argparse
 import os
+import pickle
 import time
 import traceback
 from pathlib import Path
+
+import cloudpickle
 
 try:  # loading numpy before loading the pickle, to avoid unexpected interactions
     # pylint: disable=unused-import
@@ -58,10 +61,18 @@ def process_job(folder: Path | str) -> None:
             utils.cloudpickle_dump(("success", result), tmppath)
             del result
             logger.info("Exiting after successful completion")
-    except Exception as error:  # TODO: check pickle methods for capturing traceback; pickling and raising
+    except Exception as error:
+        trace = traceback.format_exc()
+        error_result: str | tuple[str, bytes] = trace
+        try:
+            error_pickle = cloudpickle.dumps(error)
+            if isinstance(pickle.loads(error_pickle), Exception):
+                error_result = (trace, error_pickle)
+        except Exception:
+            pass  # Keep the traceback even if the exception cannot round-trip.
         try:
             with utils.temporary_save_path(paths.result_pickle) as tmppath:
-                utils.cloudpickle_dump(("error", traceback.format_exc()), tmppath)
+                utils.cloudpickle_dump(("error", error_result), tmppath)
         except Exception as dumperror:
             logger.error(f"Could not dump error:\n{error}\n\nbecause of {dumperror}")
         logger.error("Submitted job triggered an exception")
