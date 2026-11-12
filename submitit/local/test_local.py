@@ -256,17 +256,14 @@ def test_setup(tmp_path: Path) -> None:
 
 
 def test_load_submission(tmp_path: Path) -> None:
-    """Check we can load submission just from a path and job id."""
     executor = local.LocalExecutor(tmp_path)
     job = executor.submit(f66, 67, y=68)
 
-    submission = local.LocalJob(tmp_path, job.job_id).submission()
-    # It's important that f66 isn't a local function for the equality to work
-    assert submission.function is f66
+    submission = local.LocalJob(tmp_path, job.job_id).submission()  # from a path and job id
+    assert submission.function is f66, "f66 must not be a local function for this to hold"
     assert submission.args == (67,)
     assert submission.kwargs == {"y": 68}
-    # Loading submission doesn't evaluate them.
-    assert submission._result is None
+    assert submission._result is None, "loading does not evaluate"
 
 
 def test_weird_dir(weird_tmp_path: Path) -> None:

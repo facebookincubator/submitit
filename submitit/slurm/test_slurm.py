@@ -59,8 +59,7 @@ def test_slurm_job_mocked(tmp_path: Path) -> None:
     with mocked_slurm() as mock:
         executor = slurm.SlurmExecutor(folder=tmp_path)
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
-        # First mock job always have id 12
-        assert job.job_id == "12"
+        assert job.job_id == "12", "the first mocked job always has id 12"
         assert job.state == "RUNNING"
         assert job.stdout() is None
         _mock_log_files(job, errors="This is the error log\n", prints="hop")
@@ -72,7 +71,6 @@ def test_slurm_job_mocked(tmp_path: Path) -> None:
         with mock.job_context(job.job_id):
             submission.process_job(job.paths.folder)
         assert job.result() == 12
-        # logs
         assert job.stdout() == "hop"
         assert job.stderr() == "This is the error log\n"
         assert "_USELESS_TEST_ENV_VAR_" not in os.environ, "Test context manager seems to be failing"
@@ -105,10 +103,8 @@ def test_slurm_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
             assert job.state == "RUNNING"
             with mock.job_context(job.job_id):
                 submission.process_job(job.paths.folder)
-        # trying a slurm specific method
-        jobs[0]._interrupt(timeout=True)  # type: ignore
+        jobs[0]._interrupt(timeout=True)  # type: ignore  # a slurm specific method
         assert list(map(add, data1, data2)) == [j.result() for j in jobs]
-        # check submission file
         sbatch = jobs[0].paths.submission_file.read_text()
         array_line = [l.strip() for l in sbatch.splitlines() if "--array" in l]
         assert array_line == ["#SBATCH --array=0-4%3"]
@@ -156,35 +152,23 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
     fs0.add(test_core._three_time, 10)
     assert isinstance(fs0, helpers.Checkpointable)
 
-    # Start job with a 60 minutes timeout
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
         executor.update_parameters(time=60)
         job = executor.submit(fs0)
-
     sig = get_signal_handler(job)
-
     fast_forward_clock(minutes=30)
-    # Preempt the job after 30 minutes, the job hasn't timeout.
+    # preempted before its 60 min timeout
     with pytest.raises(SystemExit), mock_requeue(called_with=1):
         sig.checkpoint_and_try_requeue(usr_sig)
-
-    # Restart the job.
-    sig = get_signal_handler(job)
+    sig = get_signal_handler(job)  # restarted
     fast_forward_clock(minutes=50)
-
-    # This time the job as timed out,
-    # but we have max_num_timeout=1, so we should requeue.
-    # We are a little bit under the requested timedout, but close enough
-    # to not consider this a preemption
+    # timed out (close enough to 60 min not to be a preemption): max_num_timeout=1 requeues
     with pytest.raises(SystemExit), mock_requeue(called_with=0):
         sig.checkpoint_and_try_requeue(usr_sig)
-
-    # Restart the job.
-    sig = get_signal_handler(job)
+    sig = get_signal_handler(job)  # restarted
     fast_forward_clock(minutes=55)
-
-    # The job has already timed out twice, we should stop here.
+    # timed out twice: stops here
     usr_sig = slurm.SlurmJobEnvironment._usr_sig()
     with (
         mock_requeue(not_called=True),
@@ -200,28 +184,20 @@ def test_requeuing_not_checkpointable(
     monkeypatch.setenv("SLURM_JOB_START_TIME", "0")
     monkeypatch.setenv("SLURM_JOB_END_TIME", "3600" if isinstance(time, str) else "60")  # numeric time wins
     usr_sig = submitit.JobEnvironment._usr_sig()
-    # Start job with a 60 minutes timeout
     with mocked_slurm():
         executor = slurm.SlurmExecutor(folder=tmp_path, max_num_timeout=1)
         executor.update_parameters(time=time)
         job = executor.submit(test_core._three_time, 10)
-
-    # simulate job start
-    sig = get_signal_handler(job)
+    sig = get_signal_handler(job)  # started
     fast_forward_clock(minutes=30)
-
     with mock_requeue(not_called=True):
         sig.bypass(signal.Signals.SIGTERM)
-
-    # Preempt the job after 30 minutes, the job hasn't timeout.
+    # preempted before its 60 min timeout
     with pytest.raises(SystemExit), mock_requeue(called_with=1):
         sig.checkpoint_and_try_requeue(usr_sig)
-
-    # Restart the job from scratch
-    sig = get_signal_handler(job)
+    sig = get_signal_handler(job)  # restarted from scratch
     fast_forward_clock(minutes=50)
-
-    # Wait 50 minutes, now the job as timed out.
+    # timed out
     with (
         mock_requeue(not_called=True),
         pytest.raises(utils.UncompletedJobError, match="timed-out and not checkpointable"),
@@ -239,10 +215,8 @@ def test_checkpoint_and_exit(tmp_path: Path) -> None:
     sig = get_signal_handler(job)
     with pytest.raises(SystemExit), mock_requeue(not_called=True):
         sig.checkpoint_and_exit(usr_sig)
-
-    # checkpoint_and_exit doesn't modify timeout counters.
     delayed = utils.DelayedSubmission.load(job.paths.submitted_pickle)
-    assert delayed._timeout_countdown == 1
+    assert delayed._timeout_countdown == 1, "checkpoint_and_exit keeps the timeout counters"
 
 
 def test_make_sbatch_string() -> None:
@@ -290,13 +264,8 @@ def test_update_parameters(tmp_path: Path) -> None:
         executor = submitit.AutoExecutor(folder=tmp_path)
     executor.update_parameters(mem_gb=3.5)
     assert executor._executor.parameters["mem"] == "3584MB"
-
-
-def test_update_parameters_error(tmp_path: Path) -> None:
-    with mocked_slurm():
-        executor = slurm.SlurmExecutor(folder=tmp_path)
     with pytest.raises(ValueError):
-        executor.update_parameters(blublu=12)
+        executor._executor.update_parameters(blublu=12)
 
 
 def test_read_info() -> None:
@@ -340,16 +309,9 @@ def test_read_job_id(job_id: str, expected: list[tuple[int | str, ...]]) -> None
     assert output == [tuple(str(x) for x in group) for group in expected]
 
 
-@pytest.mark.parametrize(  # type: ignore
-    "string,expected",
-    [(b"Submitted batch job 5610208\n", "5610208"), ("Submitted batch job 5610208\n", "5610208")],
-)
-def test_get_id_from_submission_command(string: str, expected: str) -> None:
-    output = slurm.SlurmExecutor._get_job_id_from_submission_command(string)
-    assert output == expected
-
-
-def test_get_id_from_submission_command_raise() -> None:
+def test_get_id_from_submission_command() -> None:
+    for string in (b"Submitted batch job 5610208\n", "Submitted batch job 5610208\n"):
+        assert slurm.SlurmExecutor._get_job_id_from_submission_command(string) == "5610208"
     with pytest.raises(utils.FailedSubmissionError):
         slurm.SlurmExecutor._get_job_id_from_submission_command(string=b"blublu")
 
@@ -367,7 +329,7 @@ def test_watcher() -> None:
         mock.set_job_state("12", "FAILED")
         state = watcher.get_state(job_id="12", mode="force")
         assert state == "FAILED"
-        # TODO: this test is implementation specific. Not sure if we can rewrite it another way.
+        # TODO: implementation specific
         assert watcher._registered == {"11", "12"}
         assert watcher._finished == {"12"}
 
@@ -381,89 +343,46 @@ def test_name() -> None:
     assert slurm.SlurmExecutor.name() == "slurm"
 
 
-@contextlib.contextmanager
-def with_slurm_job_nodelist(node_list: str) -> tp.Iterator[slurm.SlurmJobEnvironment]:
-    os.environ["SLURM_JOB_ID"] = "1"
-    os.environ["SLURM_JOB_NODELIST"] = node_list
-    yield slurm.SlurmJobEnvironment()
-    del os.environ["SLURM_JOB_NODELIST"]
-    del os.environ["SLURM_JOB_ID"]
+_B2 = "compute-b21,compute-b22,compute-b23,compute-b25,compute-b26,compute-b28"
 
 
-def test_slurm_node_list() -> None:
-    with with_slurm_job_nodelist("compute-b24") as env:
-        assert ["compute-b24"] == env.hostnames
-    with with_slurm_job_nodelist("compute-a1,compute-b2") as env:
-        assert ["compute-a1", "compute-b2"] == env.hostnames
-    with with_slurm_job_nodelist("compute-b2[1,2]") as env:
-        assert ["compute-b21", "compute-b22"] == env.hostnames
-    with with_slurm_job_nodelist("compute-b2[011,022]") as env:
-        assert ["compute-b2011", "compute-b2022"] == env.hostnames
-    with with_slurm_job_nodelist("compute-b2[1-3]") as env:
-        assert ["compute-b21", "compute-b22", "compute-b23"] == env.hostnames
-    with with_slurm_job_nodelist("compute-b2[1-3,5,6,8]") as env:
-        assert [
-            "compute-b21",
-            "compute-b22",
-            "compute-b23",
-            "compute-b25",
-            "compute-b26",
-            "compute-b28",
-        ] == env.hostnames
-    with with_slurm_job_nodelist("compute-b2[1-3,5-6,8]") as env:
-        assert [
-            "compute-b21",
-            "compute-b22",
-            "compute-b23",
-            "compute-b25",
-            "compute-b26",
-            "compute-b28",
-        ] == env.hostnames
-    with with_slurm_job_nodelist("compute-b2[1-3,5-6,8],compute-a1") as env:
-        assert [
-            "compute-b21",
-            "compute-b22",
-            "compute-b23",
-            "compute-b25",
-            "compute-b26",
-            "compute-b28",
-            "compute-a1",
-        ] == env.hostnames
-    with with_slurm_job_nodelist("compute[042,044]") as env:
-        assert ["compute042", "compute044"] == env.hostnames
-    with with_slurm_job_nodelist("compute[042-043,045,048-049]") as env:
-        assert ["compute042", "compute043", "compute045", "compute048", "compute049"] == env.hostnames
+def _hostnames(monkeypatch: pytest.MonkeyPatch, node_list: str) -> list[str]:
+    monkeypatch.setenv("SLURM_JOB_ID", "1")
+    monkeypatch.setenv("SLURM_JOB_NODELIST", node_list)
+    return slurm.SlurmJobEnvironment().hostnames
 
 
-def test_slurm_node_list_online_documentation() -> None:
-    with with_slurm_job_nodelist("compute-b24-[1-3,5-9],compute-b25-[1,4,8]") as env:
-        assert [
-            "compute-b24-1",
-            "compute-b24-2",
-            "compute-b24-3",
-            "compute-b24-5",
-            "compute-b24-6",
-            "compute-b24-7",
-            "compute-b24-8",
-            "compute-b24-9",
-            "compute-b25-1",
-            "compute-b25-4",
-            "compute-b25-8",
-        ] == env.hostnames
+@pytest.mark.parametrize(
+    "node_list,expected",
+    [
+        ("compute-b24", "compute-b24"),
+        ("compute-a1,compute-b2", "compute-a1,compute-b2"),
+        ("compute-b2[1,2]", "compute-b21,compute-b22"),
+        ("compute-b2[011,022]", "compute-b2011,compute-b2022"),
+        ("compute-b2[1-3]", "compute-b21,compute-b22,compute-b23"),
+        ("compute-b2[1-3,5,6,8]", _B2),
+        ("compute-b2[1-3,5-6,8]", _B2),
+        ("compute-b2[1-3,5-6,8],compute-a1", f"{_B2},compute-a1"),
+        ("compute[042,044]", "compute042,compute044"),
+        ("compute[042-043,045,048-049]", "compute042,compute043,compute045,compute048,compute049"),
+        (  # the online documentation's
+            "compute-b24-[1-3,5-9],compute-b25-[1,4,8]",
+            ",".join(
+                [f"compute-b24-{i}" for i in (1, 2, 3, 5, 6, 7, 8, 9)]
+                + ["compute-b25-1", "compute-b25-4", "compute-b25-8"]
+            ),
+        ),
+    ],
+)
+def test_slurm_node_list(monkeypatch: pytest.MonkeyPatch, node_list: str, expected: str) -> None:
+    assert _hostnames(monkeypatch, node_list) == expected.split(",")
 
 
-def test_slurm_invalid_parse() -> None:
-    with pytest.raises(slurm.SlurmParseException):
-        with with_slurm_job_nodelist("compute-b2[1-,4]") as env:
-            print(env.hostnames)
-    with pytest.raises(slurm.SlurmParseException):
-        with with_slurm_job_nodelist("compute-b2[1,2,compute-b3]") as env:
-            print(env.hostnames)
-
-
-def test_slurm_missing_node_list() -> None:
-    with with_slurm_job_nodelist("") as env:
-        assert [env.hostname] == env.hostnames
+def test_slurm_invalid_or_missing_node_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    for node_list in ("compute-b2[1-,4]", "compute-b2[1,2,compute-b3]"):
+        with pytest.raises(slurm.SlurmParseException):
+            _hostnames(monkeypatch, node_list)
+    assert _hostnames(monkeypatch, "") == [slurm.SlurmJobEnvironment().hostname]
 
 
 def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
@@ -473,12 +392,9 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
         executor = slurm.SlurmExecutor(folder=weird_tmp_path)
         job = executor.submit(test_core.do_nothing, 1, 2, blublu=3)
 
-    # Touch the ouputfiles
     job.paths.stdout.write_text("")
     job.paths.stderr.write_text("")
-
-    # Try to read sbatch flags from the file like sbatch would do it.
-    sbatch_args = {}
+    sbatch_args = {}  # the sbatch flags, read from the file as sbatch does
     for l in job.paths.submission_file.read_text().splitlines():
         if not l.startswith("#SBATCH"):
             continue
@@ -486,9 +402,7 @@ def test_slurm_weird_dir(weird_tmp_path: Path) -> None:
             continue
         key, val = l[len("#SBATCH") :].strip().split("=", 1)
         sbatch_args[key] = val.replace("%j", job.job_id).replace("%t", "0")
-
-    # We do not quote --output and --error values here,
-    # because we want to check if they have been properly quoted before.
+    # unquoted here: --output and --error must already be quoted in the file
     subprocess.check_call("ls " + sbatch_args["--output"], shell=True)
     subprocess.check_call("ls " + sbatch_args["--error"], shell=True)
 
@@ -510,19 +424,15 @@ def test_slurm_job_no_stderr(tmp_path: Path) -> None:
 
     with mocked_slurm() as mock:
         executor = slurm.SlurmExecutor(folder=tmp_path)
-        # Failed but no stderr
-        job = executor.submit(fail_silently)
+        job = executor.submit(fail_silently)  # fails without stderr
         _mock_log_files(job, prints="job is running ...\n")
         job._results_timeout_s = 0
         with pytest.raises(utils.UncompletedJobError, match="job is running ..."):
             job._get_outcome_and_result()
 
-        # Failed but no stderr nor stdout
         mock.set_job_state("13", "RUNNING")
-        job = executor.submit(fail_silently)
+        job = executor.submit(fail_silently)  # fails without stderr nor stdout
         job._results_timeout_s = 0
-        # Explicitly unlink stdout because submitit is writing there on startup
-        # job.paths.stdout.unlink()
         with pytest.raises(utils.UncompletedJobError, match="No output/error stream produced !"):
             job._get_outcome_and_result()
 
