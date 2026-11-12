@@ -163,7 +163,7 @@ def test_requeuing_checkpointable(tmp_path: Path, fast_forward_clock) -> None:
         sig.checkpoint_and_try_requeue(usr_sig)
     sig = get_signal_handler(job)  # restarted
     fast_forward_clock(minutes=50)
-    # timed out (close enough to 60 min not to be a preemption): max_num_timeout=1 requeues
+    # 50 min ~ the 60 min timeout, not a preemption: requeued (max_num_timeout=1)
     with pytest.raises(SystemExit), mock_requeue(called_with=0):
         sig.checkpoint_and_try_requeue(usr_sig)
     sig = get_signal_handler(job)  # restarted
@@ -264,7 +264,7 @@ def test_update_parameters(tmp_path: Path) -> None:
         executor = submitit.AutoExecutor(folder=tmp_path)
     executor.update_parameters(mem_gb=3.5)
     assert executor._executor.parameters["mem"] == "3584MB"
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match=r"Unavailable parameter\(s\): \['blublu'\]"):
         executor._executor.update_parameters(blublu=12)
 
 
@@ -310,8 +310,8 @@ def test_read_job_id(job_id: str, expected: list[tuple[int | str, ...]]) -> None
 
 
 def test_get_id_from_submission_command() -> None:
-    for string in (b"Submitted batch job 5610208\n", "Submitted batch job 5610208\n"):
-        assert slurm.SlurmExecutor._get_job_id_from_submission_command(string) == "5610208"
+    for output in (b"Submitted batch job 5610208\n", "Submitted batch job 5610208\n"):
+        assert slurm.SlurmExecutor._get_job_id_from_submission_command(output) == "5610208"
     with pytest.raises(utils.FailedSubmissionError):
         slurm.SlurmExecutor._get_job_id_from_submission_command(string=b"blublu")
 
@@ -329,7 +329,7 @@ def test_watcher() -> None:
         mock.set_job_state("12", "FAILED")
         state = watcher.get_state(job_id="12", mode="force")
         assert state == "FAILED"
-        # TODO: implementation specific
+        # TODO: avoid asserting on private watcher state
         assert watcher._registered == {"11", "12"}
         assert watcher._finished == {"12"}
 
@@ -343,7 +343,7 @@ def test_name() -> None:
     assert slurm.SlurmExecutor.name() == "slurm"
 
 
-_B2 = "compute-b21,compute-b22,compute-b23,compute-b25,compute-b26,compute-b28"
+_B2_HOSTS = "compute-b21,compute-b22,compute-b23,compute-b25,compute-b26,compute-b28"
 
 
 def _hostnames(monkeypatch: pytest.MonkeyPatch, node_list: str) -> list[str]:
@@ -360,17 +360,18 @@ def _hostnames(monkeypatch: pytest.MonkeyPatch, node_list: str) -> list[str]:
         ("compute-b2[1,2]", "compute-b21,compute-b22"),
         ("compute-b2[011,022]", "compute-b2011,compute-b2022"),
         ("compute-b2[1-3]", "compute-b21,compute-b22,compute-b23"),
-        ("compute-b2[1-3,5,6,8]", _B2),
-        ("compute-b2[1-3,5-6,8]", _B2),
-        ("compute-b2[1-3,5-6,8],compute-a1", f"{_B2},compute-a1"),
+        ("compute-b2[1-3,5,6,8]", _B2_HOSTS),
+        ("compute-b2[1-3,5-6,8]", _B2_HOSTS),
+        ("compute-b2[1-3,5-6,8],compute-a1", f"{_B2_HOSTS},compute-a1"),
         ("compute[042,044]", "compute042,compute044"),
         ("compute[042-043,045,048-049]", "compute042,compute043,compute045,compute048,compute049"),
-        (  # the online documentation's
+        pytest.param(
             "compute-b24-[1-3,5-9],compute-b25-[1,4,8]",
             ",".join(
                 [f"compute-b24-{i}" for i in (1, 2, 3, 5, 6, 7, 8, 9)]
                 + ["compute-b25-1", "compute-b25-4", "compute-b25-8"]
             ),
+            id="slurm-docs",
         ),
     ],
 )
@@ -378,10 +379,13 @@ def test_slurm_node_list(monkeypatch: pytest.MonkeyPatch, node_list: str, expect
     assert _hostnames(monkeypatch, node_list) == expected.split(",")
 
 
-def test_slurm_invalid_or_missing_node_list(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_slurm_invalid_node_list(monkeypatch: pytest.MonkeyPatch) -> None:
     for node_list in ("compute-b2[1-,4]", "compute-b2[1,2,compute-b3]"):
         with pytest.raises(slurm.SlurmParseException):
             _hostnames(monkeypatch, node_list)
+
+
+def test_slurm_missing_node_list(monkeypatch: pytest.MonkeyPatch) -> None:
     assert _hostnames(monkeypatch, "") == [slurm.SlurmJobEnvironment().hostname]
 
 

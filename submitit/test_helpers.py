@@ -111,8 +111,8 @@ def test_job_use_snapshot_modules(executor, tmp_path: Path) -> None:
             return Path(submitit.__file__)
 
         job = executor.submit(submitit_file)
-    assert submitit_file() == Path(__file__).parent / "__init__.py", "the normal submitit here"
-    assert job.result() == tmp_path / "submitit/__init__.py", "the snapshot's in the job"
+    assert submitit_file() == Path(__file__).parent / "__init__.py", "outside the job: the installed submitit"
+    assert job.result() == tmp_path / "submitit/__init__.py", "in the job: submitit from the snapshot"
 
 
 class FakeInfoWatcherWithTimer(core.InfoWatcher):

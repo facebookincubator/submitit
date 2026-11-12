@@ -59,7 +59,7 @@ def test_nested_pickling(tmp_path):
 
 @pytest.mark.xfail(reason="Submitit changes __main__")
 def test_submitit_respects_main(tmp_path):
-    # TODO: root cause of https://github.com/facebookincubator/submitit/issues/11
+    # TODO: may cause #11, fix: https://github.com/facebookincubator/submitit/issues/11#issuecomment-713148952
     def get_main() -> str:
         # pylint: disable=import-outside-toplevel
         import __main__  # type: ignore
