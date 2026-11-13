@@ -901,10 +901,14 @@ class PicklingExecutor(Executor):
                     raise RuntimeError(msg)
             self._throttle()
             self._last_job_submitted = _time.time()
-            job = self._submit_command(self._submitit_command_str)
-            job.paths.move_temporary_file(pickle_path, "submitted_pickle")
+            job = self._submit_delayed_submission(pickle_path)
             jobs.append(job)
         return jobs
+
+    def _submit_delayed_submission(self, pickle_path: Path) -> Job[tp.Any]:
+        job = self._submit_command(self._submitit_command_str)
+        job.paths.move_temporary_file(pickle_path, "submitted_pickle")
+        return job
 
     def _throttle(self) -> None:
         while _time.time() - self._last_job_submitted < self._throttling:

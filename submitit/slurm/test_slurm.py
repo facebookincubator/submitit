@@ -5,6 +5,7 @@
 #
 import contextlib
 import os
+import shlex
 import signal
 import subprocess
 import typing as tp
@@ -74,6 +75,228 @@ def test_slurm_job_mocked(tmp_path: Path) -> None:
         assert job.stdout() == "hop"
         assert job.stderr() == "This is the error log\n"
         assert "_USELESS_TEST_ENV_VAR_" not in os.environ, "Test context manager seems to be failing"
+
+
+def _run_submission_script(script: Path) -> None:
+    command = next(line for line in script.read_text().splitlines() if "-m submitit.core._submit" in line)
+    args = shlex.split(command)
+    with patch("sys.argv", args[args.index("-m") + 1 :]):
+        submission.submitit_main()
+
+
+@pytest.mark.parametrize("count", [1, 3])
+@pytest.mark.parametrize("folder_pattern", ["", "%j", "%A"])
+def test_slurm_submission_script_reuse(tmp_path: Path, count: int, folder_pattern: str) -> None:
+    folder = tmp_path / "job's logs" / folder_pattern
+    with mocked_slurm() as mock, patch("submitit.core.submission.time.sleep"):
+        executor = slurm.SlurmExecutor(folder=folder)
+        jobs = executor.map_array(test_core._three_time, range(1, count + 1))
+        script = jobs[0].paths.submission_file
+        for job in jobs:
+            with mock.job_context(job.job_id):
+                _run_submission_script(script)
+        originals = {
+            path: path.read_bytes()
+            for job in jobs
+            for path in (job.paths.submitted_pickle, job.paths.result_pickle)
+        }
+
+        mock.sbatch([str(script)])
+        for index, original in enumerate(jobs):
+            job_id = mock.last_job if count == 1 else f"{mock.last_job}_{index}"
+            rerun: slurm.SlurmJob[int] = slurm.SlurmJob(folder=folder, job_id=job_id)
+            array_env = (
+                {} if count == 1 else {"SLURM_ARRAY_JOB_ID": mock.last_job, "SLURM_ARRAY_TASK_ID": str(index)}
+            )
+            with mock.job_context(job_id), utils.environment_variables(**array_env):
+                _run_submission_script(script)
+            assert rerun.result() == original.result() == 3 * (index + 1)
+            assert rerun.paths.submitted_pickle.exists()
+        assert all(path.read_bytes() == data for path, data in originals.items())
+
+
+@pytest.mark.parametrize("error", [False, True])
+def test_slurm_submission_script_reuse_shell(weird_tmp_path: Path, error: bool) -> None:
+    if "\n" in str(weird_tmp_path):
+        pytest.skip("Slurm directives do not support multiline paths")
+    folder = weird_tmp_path / "%j"
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=folder)
+        executor.update_parameters(use_srun=False)
+        original = executor.submit(test_core.do_nothing, 1, value=2, error=error)
+        script = original.paths.submission_file
+        original_pickle = original.paths.submitted_pickle.read_bytes()
+        mock.sbatch([str(script)])
+        rerun: slurm.SlurmJob[int] = slurm.SlurmJob(folder=folder, job_id=mock.last_job)
+        rerun.paths.folder.mkdir(parents=True)
+        with (
+            mock.job_context(rerun.job_id),
+            rerun.paths.stdout.open("w") as stdout,
+            rerun.paths.stderr.open("w") as stderr,
+        ):
+            completed = subprocess.run(
+                ["bash", str(script)], stdout=stdout, stderr=stderr, timeout=60, check=False
+            )
+        assert completed.returncode == int(error)
+        assert "my args (1,)" in (rerun.stdout() or "")
+        assert "'value': 2" in (rerun.stdout() or "")
+        if error:
+            with pytest.raises(utils.FailedJobError, match="Too bad"):
+                rerun.result()
+            assert "ValueError: Too bad" in (rerun.stderr() or "")
+        else:
+            assert rerun.result() == 12
+        assert rerun.submission().args == (1,)
+        assert original.paths.submitted_pickle.read_bytes() == original_pickle
+        assert not original.paths.result_pickle.exists()
+        assert not original.paths.stdout.exists()
+        assert not original.paths.stderr.exists()
+
+
+def test_slurm_submission_script_reuse_multitask(tmp_path: Path) -> None:
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path / "%j")
+        executor.update_parameters(ntasks_per_node=2)
+        original = executor.submit(test_core._three_time, 2)
+        script = original.paths.submission_file
+        mock.sbatch([str(script)])
+        rerun: slurm.SlurmJob[int] = slurm.SlurmJob(executor.folder, mock.last_job, tasks=(0, 1))
+        for rank in (0, 1):
+            with (
+                mock.job_context(rerun.job_id),
+                utils.environment_variables(SLURM_PROCID=rank, SLURM_NTASKS=2),
+            ):
+                _run_submission_script(script)
+            assert rerun.paths.submitted_pickle.exists()
+        assert rerun.results() == [6, 6]
+
+
+def test_slurm_submission_script_reuse_shared_snapshot(tmp_path: Path) -> None:
+    class Value(helpers.Checkpointable):
+        value = 0
+
+        def __call__(self) -> int:
+            return self.value
+
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path / "%j")
+        executor.update_parameters(ntasks_per_node=2)
+        original = executor.submit(Value())
+        script = original.paths.submission_file
+        mock.sbatch([str(script)])
+        rerun: slurm.SlurmJob[int] = slurm.SlurmJob(executor.folder, mock.last_job, tasks=(0, 1))
+
+        def start_rank_zero(_: float) -> None:
+            delayed = original.submission()
+            assert isinstance(delayed.function, Value)
+            delayed.function.value = 1
+            assert job_environment._checkpoint(delayed, original.paths.submitted_pickle, 3) == ""
+            with mock.job_context(rerun.job_id), utils.environment_variables(SLURM_PROCID=0, SLURM_NTASKS=2):
+                _run_submission_script(script)
+
+        with (
+            mock.job_context(rerun.job_id),
+            utils.environment_variables(SLURM_PROCID=1, SLURM_NTASKS=2),
+            patch("submitit.core.submission.time.sleep", side_effect=start_rank_zero) as sleep,
+        ):
+            _run_submission_script(script)
+        if not sleep.called:
+            start_rank_zero(1)
+        assert rerun.results() == [1, 1]
+        sleep.assert_called_once_with(1)
+
+
+@pytest.mark.parametrize("remove_original", [False, True])
+@pytest.mark.parametrize("timed_out", [False, True])
+def test_slurm_submission_script_reuse_checkpoint(
+    tmp_path: Path, remove_original: bool, timed_out: bool
+) -> None:
+    class Counter(helpers.Checkpointable):
+        value = 0
+
+        def __call__(self) -> int:
+            self.value += 1
+            if self.value == 1:
+                signal.raise_signal(submitit.JobEnvironment._usr_sig())
+            return self.value
+
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path / "%j", max_num_timeout=1)
+        executor.update_parameters(time=60)
+        original = executor.submit(Counter())
+        script = original.paths.submission_file
+        original_pickle = original.paths.submitted_pickle.read_bytes()
+        mock.sbatch([str(script)])
+        rerun: slurm.SlurmJob[int] = slurm.SlurmJob(executor.folder, mock.last_job)
+        with mock.job_context(rerun.job_id):
+            with (
+                pytest.raises(SystemExit),
+                mock_requeue(called_with=1 - timed_out),
+                patch.object(job_environment.SignalHandler, "has_timed_out", return_value=timed_out),
+            ):
+                _run_submission_script(script)
+            checkpoint = rerun.submission()
+            assert isinstance(checkpoint.function, Counter)
+            assert checkpoint.function.value == 1
+            assert checkpoint._timeout_countdown == 1 - timed_out
+            assert original.paths.submitted_pickle.read_bytes() == original_pickle
+            if remove_original:
+                original.paths.submitted_pickle.unlink()
+            _run_submission_script(script)
+        assert rerun.result() == 2
+
+
+@pytest.mark.parametrize("publish_current", [False, True])
+def test_slurm_submission_script_reuse_wait(tmp_path: Path, publish_current: bool) -> None:
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path / "%j")
+        original = executor.submit(test_core._three_time, 3)
+        script = original.paths.submission_file
+        source = next(tmp_path.glob("*.submitted.pkl"))
+        source.unlink()
+        mock.sbatch([str(script)])
+        rerun: slurm.SlurmJob[int] = slurm.SlurmJob(executor.folder, mock.last_job)
+
+        def publish(_: float) -> None:
+            if publish_current:
+                rerun.paths.folder.mkdir(parents=True)
+                utils.DelayedSubmission(test_core._three_time, 4).dump(rerun.paths.submitted_pickle)
+            else:
+                source.symlink_to(original.paths.submitted_pickle)
+
+        with (
+            mock.job_context(rerun.job_id),
+            patch("submitit.core.submission.time.sleep", side_effect=publish) as sleep,
+        ):
+            _run_submission_script(script)
+        sleep.assert_called_once_with(1)
+        assert rerun.result() == (12 if publish_current else 9)
+
+
+def test_slurm_submission_script_reuse_copy_error(tmp_path: Path) -> None:
+    with mocked_slurm() as mock:
+        executor = slurm.SlurmExecutor(folder=tmp_path / "%j")
+        original = executor.submit(test_core._three_time, 3)
+        script = original.paths.submission_file
+        original_pickle = original.paths.submitted_pickle.read_bytes()
+        mock.sbatch([str(script)])
+        rerun: slurm.SlurmJob[int] = slurm.SlurmJob(executor.folder, mock.last_job)
+
+        def fail_copy(_: Path, destination: Path) -> None:
+            destination.write_bytes(b"partial")
+            raise OSError("copy failed")
+
+        with (
+            mock.job_context(rerun.job_id),
+            patch("submitit.core.submission.shutil.copyfile", side_effect=fail_copy),
+        ):
+            with pytest.raises(OSError, match="copy failed"):
+                _run_submission_script(script)
+        with pytest.raises(utils.FailedJobError, match="copy failed"):
+            rerun.result()
+        assert not rerun.paths.submitted_pickle.exists()
+        assert not list(rerun.paths.folder.glob("*.save_tmp"))
+        assert original.paths.submitted_pickle.read_bytes() == original_pickle
 
 
 @pytest.mark.parametrize("use_batch_api", (False, True))  # type: ignore
