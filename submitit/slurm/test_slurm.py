@@ -334,6 +334,16 @@ def test_watcher() -> None:
         assert watcher._finished == {"12"}
 
 
+@pytest.mark.parametrize(
+    "state,done", [("RUNNING", False), ("PREEMPTED", False), ("SUSPENDED", False), ("COMPLETED", True)]
+)
+def test_watcher_is_done(state: str, done: bool) -> None:
+    with mocked_slurm() as mock:
+        watcher = slurm.SlurmInfoWatcher()
+        mock.set_job_state("12", state)
+        assert watcher.is_done("12", mode="force") is done, f"wrong completion for state {state}"
+
+
 def test_get_default_parameters() -> None:
     defaults = slurm._get_default_parameters()
     assert defaults["nodes"] == 1
