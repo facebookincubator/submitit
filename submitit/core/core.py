@@ -417,7 +417,7 @@ class Job(tp.Generic[R]):
         """
         # TODO: keep state info once job is finished?
         if self._sub_jobs:
-            return all(sub_job.done() for sub_job in self._sub_jobs)
+            return all(sub_job.done(force_check=force_check) for sub_job in self._sub_jobs)
         p = self.paths.folder
         try:
             # trigger cache update: https://stackoverflow.com/questions/3112546/os-path-exists-lies/3112717

@@ -110,6 +110,26 @@ def test_slurm_job_array_mocked(use_batch_api: bool, tmp_path: Path) -> None:
         assert array_line == ["#SBATCH --array=0-4%3"]
 
 
+@pytest.mark.parametrize("num_tasks", (1, 2))
+def test_force_check_refreshes_multitask_job(
+    tmp_path: Path, fast_forward_clock: tp.Callable[[float], None], num_tasks: int
+) -> None:
+    with mocked_slurm() as mock:
+        mock.set_job_state("12", "RUNNING")
+        job: slurm.SlurmJob[None] = slurm.SlurmJob(tmp_path, "12", tasks=range(num_tasks))
+        assert not job.done()
+        num_calls = job.watcher.num_calls
+
+        mock.set_job_state("12", "FAILED")
+        fast_forward_clock(1 / 60)
+        assert not job.done(), "ordinary checks retain the recently cached running state"
+        assert job.watcher.num_calls == num_calls
+        assert job.done(force_check=True), (
+            "a forced check must observe scheduler failure without result files"
+        )
+        assert job.watcher.num_calls == num_calls + 1
+
+
 def test_slurm_error_mocked(tmp_path: Path) -> None:
     with mocked_slurm() as mock:
         executor = slurm.SlurmExecutor(folder=tmp_path)
