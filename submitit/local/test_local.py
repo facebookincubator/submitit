@@ -269,3 +269,15 @@ def test_load_submission(tmp_path: Path) -> None:
 def test_weird_dir(weird_tmp_path: Path) -> None:
     executor = local.LocalExecutor(weird_tmp_path / "%j")
     executor.submit(f66, 67, 68).result()
+
+
+@pytest.mark.parametrize("folder", ["nested/logs", "%j", "%j/nested/logs"])
+@pytest.mark.parametrize("tasks_per_node", [1, 2])
+def test_local_nested_log_folder(tmp_path: Path, folder: str, tasks_per_node: int) -> None:
+    executor = local.LocalExecutor(tmp_path / folder)
+    executor.update_parameters(tasks_per_node=tasks_per_node)
+    job = executor.submit(abs, -42)
+    job.wait()
+    for task_id in range(tasks_per_node):
+        assert job.task(task_id).paths.stdout.exists()
+    assert job.results() == [42] * tasks_per_node
