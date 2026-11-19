@@ -13,6 +13,12 @@ pip install submitit  # or: conda install -c conda-forge submitit
 
 Requires Python 3.11+.
 
+For [OAR](https://oar.imag.fr/) support, install the [submitit_oar](https://github.com/grid5000/submitit_oar) plugin:
+
+```bash
+pip install submitit_oar
+```
+
 ```python
 import submitit
 
