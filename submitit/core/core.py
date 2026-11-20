@@ -616,7 +616,7 @@ class AsyncJobProxy(tp.Generic[R]):
             return
 
         # there is only one result anyway, let's just use async result
-        yield asyncio.ensure_future(self.result())
+        yield asyncio.ensure_future(self.result(poll_interval))
 
 
 _MSG = (
