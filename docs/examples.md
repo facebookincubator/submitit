@@ -89,8 +89,14 @@ job = executor.submit(truediv, 1, 0)
 error = job.exception()  # waits for the job
 assert isinstance(error, submitit.FailedJobError)
 print(error)  # ZeroDivisionError traceback
+print(error.__cause__)  # original ZeroDivisionError, when it can be pickled
 print(job.stderr())  # full error log
 ```
+
+`job.result()` still raises `FailedJobError`; its `__cause__` exposes the original
+exception, so callers can inspect its type. If the exception cannot be pickled or
+reconstructed, or the job used an older Submitit version, `__cause__` is `None` and
+the formatted remote traceback remains available. Traceback objects are not serialized.
 
 ## Run a command
 
